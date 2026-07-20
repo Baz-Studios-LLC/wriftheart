@@ -131,6 +131,7 @@ fn storage_tick(
     mut saves: MessageWriter<super::save::SaveRequest>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
     old: Query<Entity, With<StorageUi>>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     // The window owns the face buttons while open (the heldLatch rule).
     for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
@@ -158,7 +159,43 @@ fn storage_tick(
         st.cursor[side] += 1;
         dirty = true;
     }
-    if state.pressed(Action::Slot1) && n > 0 {
+    // Mouse: hover a cell in either pane highlights it; a click transfers that stack. Both
+    // panes are clickable, so a click can also switch sides. Cell rects + scroll mirror redraw.
+    let mut cell_click = false;
+    {
+        use super::room_render::{PLAY_X, PLAY_Y};
+        use crate::room::{PX_H, PX_W};
+        let x = PLAY_X + ((PX_W as f32 - W) / 2.0).round();
+        let y = PLAY_Y + ((PX_H as f32 - H) / 2.0).round();
+        let col_w = ((W - 18.0) / 2.0).floor();
+        let top = y + 28.0;
+        let vis = (((y + H - 12.0 - top) / ROW) as usize).max(1);
+        let lens = [bag_list(&inv).len(), stash.0.len()];
+        for (s, &pane_len) in lens.iter().enumerate() {
+            let cx = x + 6.0 + s as f32 * (col_w + 6.0);
+            let cur = st.cursor[s].min(pane_len.saturating_sub(1));
+            let scroll = st.scroll[s].min(cur).max((cur + 1).saturating_sub(vis)).min(pane_len.saturating_sub(vis));
+            for v in 0..vis {
+                if scroll + v >= pane_len {
+                    break;
+                }
+                if ptr.over(cx - 1.0, top + v as f32 * ROW - 1.0, col_w, ROW - 1.0) {
+                    if ptr.moved && (st.side != s || st.cursor[s] != scroll + v) {
+                        st.side = s;
+                        st.cursor[s] = scroll + v;
+                        dirty = true;
+                    }
+                    if ptr.click {
+                        st.side = s;
+                        st.cursor[s] = scroll + v;
+                        cell_click = true;
+                    }
+                }
+            }
+        }
+    }
+    let cur_n = if st.side == 0 { bag_list(&inv).len() } else { stash.0.len() };
+    if (state.pressed(Action::Slot1) || cell_click) && cur_n > 0 {
         dirty |= transfer(&mut st, &mut stash, &mut inv, &mut log, &mut sfx);
         saves.write(super::save::SaveRequest);
     }

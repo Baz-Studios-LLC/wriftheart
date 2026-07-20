@@ -111,6 +111,7 @@ fn slideout_tick(
     mut players: Query<(&Player, &mut Health)>,
     old: Query<Entity, With<SlideOutUi>>,
     mut images: ResMut<Assets<Image>>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     let SlideCtx { ref mut inv, ref mut craft, ref mut stats, ref mut rng, ref hero, ref skill_art, ref skills, ref alloc, ref learned, ref mut stash, ref inside } = sc;
     // At home (inside your built house), crafting also draws from the storage chest.
@@ -195,11 +196,33 @@ fn slideout_tick(
                 so.hold_act = None; // a hold can't survive its page going away
                 dirty = true;
             }
+            // Mouse: click a tab chip to switch pages (same page-change resets as the keys).
+            if ptr.click
+                && let Some((i, ..)) = tab_chips().into_iter().find(|&(_, x, y, w, h)| ptr.over(x, y, w, h))
+                && i != so.tab
+            {
+                so.tab = i;
+                so.held = None;
+                so.hold_act = None;
+                dirty = true;
+            }
             // The CHAR page's unified cursor walks gear + trinkets + ability slots + bag
             // (the js gearCursor). Entering the tab parks it on the first bag slot.
             if TABS[so.tab] == "CHAR" {
                 if dirty {
                     so.gear_cursor = char_tab::home_cell(); // js charEntry()
+                }
+                // Mouse: hover a cell highlights it; a click acts on it (= A / Slot1: the
+                // pick/place carry model — inject the press so actions() handles it uniformly).
+                if let Some(i) = ptr.pos.and_then(|p| char_tab::cell_at(inv, p)) {
+                    if ptr.moved && so.gear_cursor != i {
+                        so.gear_cursor = i;
+                        dirty = true;
+                    }
+                    if ptr.click {
+                        so.gear_cursor = i;
+                        state.press(Action::Slot1);
+                    }
                 }
                 if char_tab::nav(&mut so, &state, inv) {
                     dirty = true;
@@ -212,7 +235,7 @@ fn slideout_tick(
             }
             if TABS[so.tab] == "CRAFT" {
                 let mut roll = || rng.0.next_f64();
-                if craft_tab::actions(&state, inv, stash, home, stats, alloc, &mut roll, craft, &learned.0) {
+                if craft_tab::actions(&state, inv, stash, home, stats, alloc, &mut roll, craft, &learned.0, &ptr) {
                     dirty = true;
                 }
             }
@@ -283,6 +306,21 @@ fn close_slideout(
     }
 }
 
+/// The tab chips as (index, x, y, w, h) — ONE geometry source for `redraw` (drawing) and
+/// `slideout_tick` (mouse hit-testing), so a click lands on exactly the chip that's drawn.
+fn tab_chips() -> Vec<(usize, f32, f32, f32, f32)> {
+    let mut tx = SIDEBAR_W + 6.0;
+    TABS.iter()
+        .enumerate()
+        .map(|(i, title)| {
+            let tw = font::measure(title) as f32 + 8.0;
+            let chip = (i, tx, 4.0, tw, 11.0);
+            tx += tw + 2.0;
+            chip
+        })
+        .collect()
+}
+
 /// (Re)build the panel at its FINAL position; the anim system shifts it into place.
 #[allow(clippy::too_many_arguments)] // it IS the redraw's arity
 fn redraw(
@@ -324,22 +362,19 @@ fn redraw(
         SlideOutUi,
     ));
     // Tab strip (same look as the codex: lit bg + gold rule on the active tab).
-    let mut tx = x0 + 6.0;
-    for (i, title) in TABS.iter().enumerate() {
+    for (i, tx, ty, tw, th) in tab_chips() {
         let on = i == so.tab;
-        let tw = font::measure(title) as f32 + 8.0;
         let bg = if on { Color::srgb_u8(0x2a, 0x2a, 0x18) } else { Color::srgb_u8(0x14, 0x14, 0x18) };
-        commands.spawn((Sprite::from_color(bg, Vec2::new(tw, 11.0)), at(tx, 4.0, tw, 11.0, Z + 1.0), PIXEL_LAYER, SlideOutUi));
+        commands.spawn((Sprite::from_color(bg, Vec2::new(tw, th)), at(tx, ty, tw, th, Z + 1.0), PIXEL_LAYER, SlideOutUi));
         if on {
             commands.spawn((
                 Sprite::from_color(Color::srgb_u8(0xff, 0xd3, 0x4d), Vec2::new(tw, 1.0)),
-                at(tx, 4.0, tw, 1.0, Z + 1.1),
+                at(tx, ty, tw, 1.0, Z + 1.1),
                 PIXEL_LAYER,
                 SlideOutUi,
             ));
         }
-        label(commands, images, title, tx + 4.0, 6.0, if on { 0xfcfcfc } else { 0x6c6c74 }, Z + 1.1, SlideOutUi);
-        tx += tw + 2.0;
+        label(commands, images, TABS[i], tx + 4.0, ty + 2.0, if on { 0xfcfcfc } else { 0x6c6c74 }, Z + 1.1, SlideOutUi);
     }
     // Content area below the tab bar.
     let cy = 22.0;

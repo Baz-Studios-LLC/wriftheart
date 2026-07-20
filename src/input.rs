@@ -173,15 +173,20 @@ impl Default for Bindings {
                 (A::Wriftheart, vec![]),
                 (A::Craft, vec![]),
                 (A::StatusTab, vec![]),
-                (A::Slot1, vec![KeyE]), // SPACE removed — it silently attacked (a hidden 2nd bind); rebind it here if wanted
-                (A::Slot2, vec![KeyX]),
-                (A::Slot3, vec![KeyC]),
-                (A::Slot4, vec![KeyV]),
+                // The four ability slots default to LMB / RMB / Q / E (Baz): 1 & 2 on the
+                // mouse buttons (below), 3 & 4 on the keys nearest WASD. Key and mouse are
+                // mutually exclusive per action, so 1 & 2 carry NO key.
+                (A::Slot1, vec![]),
+                (A::Slot2, vec![]),
+                (A::Slot3, vec![KeyQ]),
+                (A::Slot4, vec![KeyE]),
                 (A::Inventory, vec![KeyI]),
                 (A::SkillTree, vec![KeyK]),
                 (A::Map, vec![KeyM, Tab]),
-                (A::TabPrev, vec![KeyQ]),
-                (A::TabNext, vec![KeyR]), // js: moved off E (E is select/slot1)
+                // Tab-cycle moved off Q (now Ability 3) onto the freed X/C pair — adjacent
+                // keys, and both render (the font is A-Z/0-9 only, so brackets show as '?').
+                (A::TabPrev, vec![KeyX]),
+                (A::TabNext, vec![KeyC]),
                 (A::Pause, vec![Escape]),
                 (A::Trash, vec![KeyT]),
                 (A::Sort, vec![KeyH]),
@@ -226,9 +231,19 @@ impl Default for Bindings {
                 (A::Sort, vec![G::LeftThumb]),   // L3
                 (A::Interact, vec![G::DPadUp]), // js pad 12: pushing UP at a door enters it
             ],
-            // Mouse buttons are UNBOUND by default — a row per action so rebind can fill
-            // one in (e.g. LMB -> Ability 1). Bind them in CONTROLS.
-            mouse: ACTIONS.iter().map(|&a| (a, Vec::new())).collect(),
+            // Ability 1 & 2 default to the mouse buttons (LMB / RMB); every other action
+            // starts unbound (a row each so rebind can fill one in). Bind more in CONTROLS.
+            mouse: ACTIONS
+                .iter()
+                .map(|&a| {
+                    let b = match a {
+                        A::Slot1 => vec![MouseButton::Left],
+                        A::Slot2 => vec![MouseButton::Right],
+                        _ => vec![],
+                    };
+                    (a, b)
+                })
+                .collect(),
         }
     }
 }
@@ -245,12 +260,17 @@ impl Bindings {
     }
 
     /// The label for a "press X" prompt — DERIVED from the live binding at draw time, never
-    /// typed at a call site. Shows the pad glyph whenever a controller is connected.
+    /// typed at a call site. Shows the pad glyph whenever a controller is connected, then a
+    /// bound mouse button (the HUD ability widget must read the button you set — Baz), then
+    /// the key. Key and mouse are mutually exclusive per action, so only one is ever set.
     pub fn prompt(&self, action: Action, pad_present: bool) -> &'static str {
         if pad_present
             && let Some(b) = self.pad_binds(action).first()
         {
             return pad_label(*b);
+        }
+        if let Some(b) = self.mouse_binds(action).first() {
+            return mouse_label(*b);
         }
         self.key_binds(action).first().map(|k| key_label(*k)).unwrap_or("--")
     }
@@ -258,13 +278,18 @@ impl Bindings {
     // --- Rebinding API (js Input.rebind / resetBindings / keyName / padNames) ---
 
     /// Bind `key` as the action's ONLY key, stripping it from every other action first
-    /// (the js rule: a key binds exactly one action).
+    /// (the js rule: a key binds exactly one action). A key and a mouse button are mutually
+    /// exclusive per action (Baz: "a keyboard button OR a mouse button"), so this clears the
+    /// action's mouse bind too.
     pub fn rebind_key(&mut self, action: Action, key: KeyCode) {
         for (_, ks) in &mut self.keys {
             ks.retain(|k| *k != key);
         }
         if let Some((_, ks)) = self.keys.iter_mut().find(|(a, _)| *a == action) {
             *ks = vec![key];
+        }
+        if let Some((_, bs)) = self.mouse.iter_mut().find(|(a, _)| *a == action) {
+            bs.clear();
         }
     }
 
@@ -278,13 +303,18 @@ impl Bindings {
         }
     }
 
-    /// Same, on the mouse table (LMB/RMB/… bind exactly one action, like keys).
+    /// Same, on the mouse table (LMB/RMB/… bind exactly one action, like keys). Clears the
+    /// action's key bind — key and mouse are one OR the other, so the action then fires from
+    /// the mouse button alone (Baz).
     pub fn rebind_mouse(&mut self, action: Action, b: MouseButton) {
         for (_, bs) in &mut self.mouse {
             bs.retain(|x| *x != b);
         }
         if let Some((_, bs)) = self.mouse.iter_mut().find(|(a, _)| *a == action) {
             *bs = vec![b];
+        }
+        if let Some((_, ks)) = self.keys.iter_mut().find(|(a, _)| *a == action) {
+            ks.clear();
         }
     }
 
@@ -320,6 +350,17 @@ impl Bindings {
             return "--".into();
         }
         bs.iter().map(|b| mouse_label(*b)).collect::<Vec<_>>().join("/")
+    }
+
+    /// The CONTROLS row's single keyboard-OR-mouse column: the mouse button when one is bound,
+    /// else the key(s). Key and mouse are mutually exclusive per action, so this is the one
+    /// live binding — the two used to be separate columns you could set independently (Baz).
+    pub fn kbm_name(&self, action: Action) -> String {
+        if self.mouse_binds(action).is_empty() {
+            self.key_name(action)
+        } else {
+            self.mouse_names(action)
+        }
     }
 
     /// Snapshot as (slug, labels) rows for settings.json — (keys, pads, mouse).
@@ -398,6 +439,11 @@ impl ActionState {
     }
     /// Inject a press (WRIFT_SHOT debug scenes only — real input comes from poll_input).
     pub fn press_for_test(&mut self, a: Action) {
+        self.pressed[idx(a)] = true;
+    }
+    /// Inject a press for this tick — the mouse-click bridge into the action pipeline, so a
+    /// menu click acts exactly like the primary button. Cleared with the rest at EndTick.
+    pub fn press(&mut self, a: Action) {
         self.pressed[idx(a)] = true;
     }
     /// Inject a hold for ONE polled frame (WRIFT_SHOT debug scenes — walking the hero).

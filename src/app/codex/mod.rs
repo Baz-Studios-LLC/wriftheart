@@ -148,6 +148,7 @@ fn codex_tick(
     content: Query<Entity, With<TabContent>>,
     mut images: ResMut<Assets<Image>>,
     lore: Res<lore_tab::LoreDex>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     match screen.get() {
         Screen::Play => {
@@ -184,15 +185,21 @@ fn codex_tick(
                 return;
             }
             let n = TABS.len();
-            let mut step = 0;
+            let mut target = cx.tab;
             if state.pressed(Action::TabNext) {
-                step += 1;
+                target = (target + 1) % n;
             }
             if state.pressed(Action::TabPrev) {
-                step += n - 1; // -1, wrapped
+                target = (target + n - 1) % n; // -1, wrapped
             }
-            if step % n != 0 {
-                cx.tab = (cx.tab + step) % n;
+            // Mouse: click a tab chip to jump straight to it.
+            if ptr.click
+                && let Some((i, ..)) = tab_chips().into_iter().find(|&(_, x, y, w, h)| ptr.over(x, y, w, h))
+            {
+                target = i;
+            }
+            if target != cx.tab {
+                cx.tab = target;
                 cx.generation += 1;
                 for e in &content {
                     commands.entity(e).despawn(); // the incoming tab rebuilds via generation
@@ -253,6 +260,21 @@ const TEXT_Z: f32 = 19.8;
 
 /// The codex frame: near-black overlay, opaque top/footer bands, the tab strip (gold top
 /// rule on the active tab), and the active tab's derived-prompt hint.
+/// The tab chips as (index, x, y, w, h) — ONE geometry source for `draw_frame` (drawing) and
+/// `codex_tick` (mouse hit-testing), so a click lands on exactly the chip that's drawn.
+fn tab_chips() -> Vec<(usize, f32, f32, f32, f32)> {
+    let mut tx = 6.0;
+    TABS.iter()
+        .enumerate()
+        .map(|(i, tab)| {
+            let tw = font::measure(tab.title) as f32 + 8.0;
+            let chip = (i, tx, 2.0, tw, 11.0);
+            tx += tw + 2.0;
+            chip
+        })
+        .collect()
+}
+
 fn draw_frame(
     commands: &mut Commands,
     old: &Query<Entity, With<CodexChrome>>,
@@ -287,14 +309,12 @@ fn draw_frame(
         ));
     }
     // Tab strip (port of drawCodexTabs: variable-width tabs, active = lit bg + gold rule).
-    let mut tx = 6.0;
-    for (i, tab) in TABS.iter().enumerate() {
+    for (i, tx, ty, tw, th) in tab_chips() {
         let on = i == cx.tab;
-        let tw = font::measure(tab.title) as f32 + 8.0;
         let bg = if on { Color::srgb_u8(0x2a, 0x2a, 0x18) } else { Color::srgb_u8(0x14, 0x14, 0x18) };
         commands.spawn((
-            Sprite::from_color(bg, Vec2::new(tw, 11.0)),
-            at(tx, 2.0, tw, 11.0, TEXT_Z),
+            Sprite::from_color(bg, Vec2::new(tw, th)),
+            at(tx, ty, tw, th, TEXT_Z),
             PIXEL_LAYER,
             CodexUi,
             CodexChrome,
@@ -302,15 +322,14 @@ fn draw_frame(
         if on {
             commands.spawn((
                 Sprite::from_color(Color::srgb_u8(0xff, 0xd3, 0x4d), Vec2::new(tw, 1.0)),
-                at(tx, 2.0, tw, 1.0, TEXT_Z + 0.1),
+                at(tx, ty, tw, 1.0, TEXT_Z + 0.1),
                 PIXEL_LAYER,
                 CodexUi,
                 CodexChrome,
             ));
         }
         let color = if on { 0xfcfcfc } else { 0x6c6c74 };
-        label(commands, images, tab.title, tx + 4.0, 4.0, color, TEXT_Z + 0.1, (CodexUi, CodexChrome));
-        tx += tw + 2.0;
+        label(commands, images, TABS[i].title, tx + 4.0, ty + 2.0, color, TEXT_Z + 0.1, (CodexUi, CodexChrome));
     }
     // Footer hint, right-aligned (derived prompts — the tab builds its own).
     let hint = (TABS[cx.tab].hint)(bindings, state.pad_present);

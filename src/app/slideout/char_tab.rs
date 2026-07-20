@@ -91,6 +91,15 @@ pub fn home_cell() -> usize {
     10 // 6 gear + 4 ability cells precede bag0
 }
 
+/// The non-locked cell under a canvas point, or None — mirrors `cells()` + `draw`'s absolute
+/// placement (ax/ay + rx/ry, SL square) so a click lands on exactly the cell drawn.
+pub fn cell_at(inv: &PlayerInv, pos: Vec2) -> Option<usize> {
+    let (ax, ay) = (SIDEBAR_W + A_X, A_Y);
+    cells(inv).into_iter().position(|c| {
+        !c.locked && pos.x >= ax + c.rx && pos.x < ax + c.rx + SL && pos.y >= ay + c.ry && pos.y < ay + c.ry + SL
+    })
+}
+
 /// Spatial cursor move — port of `navGear`: nearest cell in the pressed direction,
 /// cost = distance-along + 2.5x perpendicular drift; locked cells can't be landed on.
 fn nav_gear(cells: &[Cell], cur: usize, dx: f32, dy: f32) -> Option<usize> {

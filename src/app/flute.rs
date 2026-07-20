@@ -258,6 +258,7 @@ fn flute_tick(
     fishing: Res<super::fishing::Fishing>,
     mut players: Query<(&mut Player, &mut Health)>,
     mut mobs: Query<&mut Mob>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     let Ok((mut p, mut health)) = players.single_mut() else { return };
 
@@ -531,7 +532,31 @@ fn flute_tick(
                 f.di = (f.di + 1) % n;
                 ctx.sfx.write(super::sfx::Sfx("menuMove"));
             }
-            if !closed && (input.pressed(Action::Slot1) || input.pressed(Action::Interact)) {
+            // Mouse: hover a destination highlights it, a click warps there. Row rects mirror
+            // the destination-picker draw (bx+4, by+19+i*10-2, pw-8, 9).
+            let mut dest_click = false;
+            if !closed {
+                use super::room_render::{PLAY_X, PLAY_Y};
+                use crate::room::{PX_H, PX_W};
+                let vis = n.min(6);
+                let start = f.di.saturating_sub(2).min(n.saturating_sub(vis));
+                let (pw, ph) = (160.0, 34.0 + vis as f32 * 10.0);
+                let bx = (PLAY_X + PX_W as f32 / 2.0 - pw / 2.0).round();
+                let by = (PLAY_Y + PX_H as f32 / 2.0 - ph / 2.0).round();
+                for i in 0..vis {
+                    if ptr.over(bx + 4.0, by + 19.0 + i as f32 * 10.0 - 2.0, pw - 8.0, 9.0) {
+                        if ptr.moved && f.di != start + i {
+                            f.di = start + i;
+                            ctx.sfx.write(super::sfx::Sfx("menuMove"));
+                        }
+                        if ptr.click {
+                            f.di = start + i;
+                            dest_click = true;
+                        }
+                    }
+                }
+            }
+            if !closed && (input.pressed(Action::Slot1) || input.pressed(Action::Interact) || dest_click) {
                 input.consume(Action::Slot1);
                 input.consume(Action::Interact);
                 let d = &f.dests[f.di];

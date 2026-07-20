@@ -127,6 +127,7 @@ pub fn actions(
     rng: &mut impl FnMut() -> f64,
     cs: &mut CraftState,
     learned: &std::collections::HashSet<String>,
+    ptr: &crate::input::Pointer,
 ) -> bool {
     let mut dirty = false;
     if cs.flash > 0 {
@@ -148,7 +149,27 @@ pub fn actions(
         cs.cursor = (cs.cursor + 1) % recipes.len();
         dirty = true;
     }
-    if state.pressed(Action::Slot1) {
+    // Mouse: hover/click a recipe row selects it; a click on the CRAFT button crafts it. The
+    // row/button rects mirror `draw`; the scroll is the value `draw` last clamped into cs.scroll.
+    let (ax, ay, aw) = (SIDEBAR_W + PAD, 20.0, PANEL_W - PAD * 2.0);
+    let ah = CANVAS_H as f32 - ay - 4.0;
+    let lw = (aw * 0.52).round().min(154.0);
+    let row = 14.0;
+    let vis = (((ah - 12.0) / row).floor() as usize).max(1);
+    let sc = cs.scroll;
+    for v in 0..vis {
+        if sc + v >= recipes.len() {
+            break;
+        }
+        if ptr.over(ax, ay + 1.0 + v as f32 * row, lw, row - 1.0) && (ptr.moved || ptr.click) {
+            cs.cursor = sc + v;
+            dirty = true;
+        }
+    }
+    let (dx, bh) = (ax + lw + 8.0, 13.0);
+    let dw = ax + aw - dx;
+    let craft_click = ptr.click && ptr.over(dx, ay + ah - bh - 2.0, dw, bh);
+    if state.pressed(Action::Slot1) || craft_click {
         do_craft(inv, stash, home, stats, alloc, rng, cs, recipes[cs.cursor]);
         dirty = true;
     }

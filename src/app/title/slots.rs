@@ -17,7 +17,20 @@ pub(super) enum SlotAct {
     New(u32),
 }
 
-pub(super) fn tick(st: &mut TitleState, input: &ActionState, metas: &mut SlotMetas) -> SlotAct {
+/// The card fill/hit rect (bx, y, bw, h) for slot index i — ONE geometry source for the draw
+/// and the mouse hit-test.
+pub(super) fn card_rect(i: usize) -> (f32, f32, f32, f32) {
+    let (y0, rh, bw) = (96.0, 21.0, 232.0);
+    let bx = ((CANVAS_W as f32 - bw) / 2.0).round();
+    (bx, y0 + i as f32 * rh - 3.0, bw, 17.0)
+}
+
+pub(super) fn tick(
+    st: &mut TitleState,
+    input: &ActionState,
+    metas: &mut SlotMetas,
+    ptr: &crate::input::Pointer,
+) -> SlotAct {
     if input.pressed(Action::Slot2) {
         st.view = View::Main;
         st.armed = None;
@@ -34,6 +47,24 @@ pub(super) fn tick(st: &mut TitleState, input: &ActionState, metas: &mut SlotMet
         st.slot_sel = (st.slot_sel + 1) % n_slots;
         st.armed = None;
         dirty = true;
+    }
+    // Mouse: hovering a different card selects it (and disarms, like the arrow keys); a click
+    // is folded into the confirm below. A move WITHIN the armed card must not disarm, so the
+    // hover only fires when the slot index actually changes.
+    let mut clicked = false;
+    for i in 0..n_slots {
+        let (rx, ry, rw, rh) = card_rect(i);
+        if ptr.over(rx, ry, rw, rh) {
+            if ptr.moved && st.slot_sel != i {
+                st.slot_sel = i;
+                st.armed = None;
+                dirty = true;
+            }
+            if ptr.click {
+                st.slot_sel = i;
+                clicked = true;
+            }
+        }
     }
     let n = st.slot_sel as u32 + 1;
     let occupied = metas.0.get(st.slot_sel).is_some_and(|m| m.is_some());
@@ -52,8 +83,8 @@ pub(super) fn tick(st: &mut TitleState, input: &ActionState, metas: &mut SlotMet
         }
         return SlotAct::Dirty;
     }
-    // Select = INTERACT or ENTER (js Input.confirm), with Slot1/Pause still accepted.
-    if input.pressed(Action::Interact) || input.pressed(Action::MenuConfirm) || input.pressed(Action::Slot1) || input.pressed(Action::Pause) {
+    // Select = INTERACT or ENTER (js Input.confirm), with Slot1/Pause and a card click accepted.
+    if clicked || input.pressed(Action::Interact) || input.pressed(Action::MenuConfirm) || input.pressed(Action::Slot1) || input.pressed(Action::Pause) {
         match st.slot_mode {
             SlotMode::Load => {
                 if occupied {
@@ -78,17 +109,16 @@ pub(super) fn draw(pen: &mut Pen, st: &TitleState, metas: &SlotMetas, bindings: 
     let cx = w / 2.0;
     let hdr = if st.slot_mode == SlotMode::Load { "LOAD GAME" } else { "NEW GAME - PICK A SLOT" };
     pen.text_center(hdr, cx, 80.0, 0xfce0a8, TEXT_Z);
-    let (y0, rh, bw) = (96.0, 21.0, 232.0);
-    let bx = ((w - bw) / 2.0).round();
     for i in 0..SAVE_SLOTS as usize {
         let m = metas.0.get(i).and_then(|m| m.as_ref());
         let on = i == st.slot_sel;
-        let y = y0 + i as f32 * rh;
+        let (bx, cy, bw, ch) = card_rect(i);
+        let y = cy + 3.0; // text sits 3px below the card top (was y0 + i*rh)
         // Card backing (js rgba fills; alpha bumped for the linear-blend gotcha).
         let back = if on { Color::srgba(0.988, 0.878, 0.659, 0.20) } else { Color::srgba(0.0, 0.0, 0.0, 0.52) };
-        pen.fill_rgba(bx, y - 3.0, bw, 17.0, back, TEXT_Z - 0.02);
+        pen.fill_rgba(bx, cy, bw, ch, back, TEXT_Z - 0.02);
         if on {
-            for (sx, sy, sw, sh) in crate::ui::border_strips(bx, y - 3.0, bw, 17.0, 1.0) {
+            for (sx, sy, sw, sh) in crate::ui::border_strips(bx, cy, bw, ch, 1.0) {
                 pen.fill(sx, sy, sw, sh, 0xfce0a8, TEXT_Z - 0.01);
             }
         }

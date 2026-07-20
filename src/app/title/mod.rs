@@ -108,6 +108,19 @@ fn opt_label(o: Opt) -> &'static str {
     }
 }
 
+const MENU_Y0: f32 = 116.0; // first row baseline
+const MENU_ROW_H: f32 = 14.0;
+
+/// The main-menu panel rect (px, py, pw, ph) for an option list — ONE geometry source for the
+/// draw and the mouse hit-test, so row rects match what's on screen.
+fn menu_geom(o: &[Opt]) -> (f32, f32, f32, f32) {
+    let w = CANVAS_W as f32;
+    let max_w = o.iter().map(|k| font::measure(opt_label(*k))).max().unwrap_or(0) as f32;
+    let (pw, ph) = (max_w + 40.0, o.len() as f32 * MENU_ROW_H + 8.0);
+    let px = ((w - pw) / 2.0).round();
+    (px, MENU_Y0 - 9.0, pw, ph)
+}
+
 pub struct TitlePlugin;
 
 impl Plugin for TitlePlugin {
@@ -201,8 +214,11 @@ fn title_tick(
     mut loads: MessageWriter<LoadSlot>,
     mut exit: MessageWriter<AppExit>,
     mut creator: ResMut<super::creator::CreatorState>,
+    ptr: Res<crate::input::Pointer>,
 ) {
-    let any = ACTIONS.iter().any(|a| state.pressed(*a));
+    // Mouse motion or a click counts as activity too, so the cursor exits attract mode and
+    // keeps it from starting while the player is actively mousing.
+    let any = ACTIONS.iter().any(|a| state.pressed(*a)) || ptr.click || ptr.moved;
 
     // Attract mode: any key returns to the menu, else keep (and loop) the story scroll.
     if st.crawling {
@@ -230,7 +246,7 @@ fn title_tick(
     }
 
     if st.view == View::Slots {
-        match slots::tick(&mut st, &state, &mut metas) {
+        match slots::tick(&mut st, &state, &mut metas, &ptr) {
             slots::SlotAct::Dirty => redraw(&mut commands, &ui, &mut images, &st, &metas, &bindings, &state),
             slots::SlotAct::Load(n) => {
                 loads.write(LoadSlot { slot: n, fresh: false, seed: None });
@@ -259,7 +275,22 @@ fn title_tick(
         dirty = true;
     }
     // Select = INTERACT or ENTER (js Input.confirm), with Slot1/Pause still accepted.
-    if state.pressed(Action::Interact) || state.pressed(Action::MenuConfirm) || state.pressed(Action::Slot1) || state.pressed(Action::Pause) {
+    let mut confirm = state.pressed(Action::Interact) || state.pressed(Action::MenuConfirm) || state.pressed(Action::Slot1) || state.pressed(Action::Pause);
+    // Mouse: hover a row highlights it, a click selects it (same confirm path as the keys).
+    let (px, _, pw, _) = menu_geom(&o);
+    for i in 0..o.len() {
+        if ptr.over(px, MENU_Y0 - 4.0 + i as f32 * MENU_ROW_H, pw, MENU_ROW_H) {
+            if ptr.moved {
+                st.sel = i;
+                dirty = true;
+            }
+            if ptr.click {
+                st.sel = i;
+                confirm = true;
+            }
+        }
+    }
+    if confirm {
         match o[st.sel] {
             Opt::Continue => {
                 loads.write(LoadSlot { slot: latest_slot(&metas), fresh: false, seed: None });
@@ -327,12 +358,7 @@ fn redraw(
 
     // Menu options on a soft rounded panel (js roundRect rgba(9,12,16,0.62)).
     let o = opts(metas);
-    let row_h = 14.0;
-    let y0 = 116.0;
-    let max_w = o.iter().map(|k| font::measure(opt_label(*k))).max().unwrap_or(0) as f32;
-    let (pw, ph) = (max_w + 40.0, o.len() as f32 * row_h + 8.0);
-    let px = ((w - pw) / 2.0).round();
-    let py = y0 - 9.0;
+    let (px, py, pw, ph) = menu_geom(&o);
     let panel = pen.images.add(rounded_panel(pw as u32, ph as u32));
     pen.commands.spawn((
         Sprite::from_image(panel),
@@ -344,7 +370,7 @@ fn redraw(
         let lab = opt_label(*k);
         let on = i == st.sel;
         let lx = ((w - font::measure(lab) as f32) / 2.0).round();
-        let y = y0 + i as f32 * row_h;
+        let y = MENU_Y0 + i as f32 * MENU_ROW_H;
         if on {
             pen.text(">", lx - 9.0, y, 0xfce0a8, TEXT_Z);
         }

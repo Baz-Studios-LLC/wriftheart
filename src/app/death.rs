@@ -201,6 +201,7 @@ fn death_tick(
     mut fx: Query<(&DeathFx, &mut Sprite, &mut Transform)>,
     choices: Query<Entity, With<DeathChoice>>,
     mut next: ResMut<NextState<Screen>>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     death.t += 1;
     let t = death.t;
@@ -279,7 +280,24 @@ fn death_tick(
         }
         spawn_choices(&mut commands, &mut images, death.choice, cx);
     }
-    if input.pressed(Action::Slot1) {
+    // Mouse: hover an option highlights it, a click confirms it (rows centred on cx, y=138+i*18).
+    let mut opt_click = false;
+    for i in 0..2 {
+        if ptr.over(cx - 55.0, 138.0 + i as f32 * 18.0 - 3.0, 110.0, 14.0) {
+            if ptr.moved && death.choice != i {
+                death.choice = i;
+                for e in &choices {
+                    commands.entity(e).despawn();
+                }
+                spawn_choices(&mut commands, &mut images, death.choice, cx);
+            }
+            if ptr.click {
+                death.choice = i;
+                opt_click = true;
+            }
+        }
+    }
+    if input.pressed(Action::Slot1) || opt_click {
         // Revive at the start room, full HP, save the (now-emptied) bag — then title if
         // that was the pick (js respawn() runs first either way).
         let to_title = death.choice == 1;

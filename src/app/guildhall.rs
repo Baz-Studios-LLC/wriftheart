@@ -222,8 +222,8 @@ fn donate_tick(
     mut altars: Query<(&GuildAltar, &mut Sprite)>,
     old_ui: Query<Entity, With<GuildUi>>,
     // Tuple-nested (the flat list sits at Bevy's 16-param cap): the live bindings
-    // for the GIVE/CLOSE prompts + the player query.
-    extras: (Res<crate::input::Bindings>, Query<&Player>),
+    // for the GIVE/CLOSE prompts, the player query, and the mouse pointer.
+    extras: (Res<crate::input::Bindings>, Query<&Player>, Res<crate::input::Pointer>),
 ) {
     let Some((widx, mut cur)) = donate.0 else {
         for e in &old_ui {
@@ -253,10 +253,34 @@ fn donate_tick(
         sfx.write(super::sfx::Sfx("menuMove"));
         dirty = true;
     }
+    // Mouse: hover a requirement highlights it, a click donates to it. Rows mirror the draw
+    // (bx+6, by+30+i*16-2, bw-12, 14).
+    let mut req_click = false;
+    {
+        use super::room_render::{PLAY_X, PLAY_Y};
+        use crate::room::{PX_H, PX_W};
+        let bw = 250.0;
+        let bh = 64.0 + w.reqs.len() as f32 * 16.0;
+        let bx = PLAY_X + (PX_W as f32 - bw) / 2.0;
+        let by = PLAY_Y + (PX_H as f32 - bh) / 2.0;
+        for i in 0..w.reqs.len() {
+            if extras.2.over(bx + 6.0, by + 30.0 + i as f32 * 16.0 - 2.0, bw - 12.0, 14.0) {
+                if extras.2.moved && cur != i {
+                    cur = i;
+                    sfx.write(super::sfx::Sfx("menuMove"));
+                    dirty = true;
+                }
+                if extras.2.click {
+                    cur = i;
+                    req_click = true;
+                }
+            }
+        }
+    }
     if donate.0 != Some((widx, cur)) {
         donate.0 = Some((widx, cur));
     }
-    if input.pressed(Action::Interact) && !done {
+    if (input.pressed(Action::Interact) || req_click) && !done {
         input.consume(Action::Interact);
         let req = &w.reqs[cur];
         if counts[cur] >= req.n {

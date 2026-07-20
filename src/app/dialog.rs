@@ -112,6 +112,7 @@ fn dialog_tick(
     mut qx: QuestCtx,
     old: Query<Entity, With<DialogUi>>,
     mut last: Local<Option<String>>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
         state.latch(a);
@@ -128,7 +129,7 @@ fn dialog_tick(
         return;
     }
     match ds {
-        DialogState::Choice { opts, cur, target, .. } => {
+        DialogState::Choice { title, opts, cur, target } => {
             let n = opts.len();
             if state.pressed(Action::Up) {
                 *cur = (*cur + n - 1) % n;
@@ -136,7 +137,21 @@ fn dialog_tick(
             if state.pressed(Action::Down) {
                 *cur = (*cur + 1) % n;
             }
-            if state.pressed(Action::Slot1) || state.pressed(Action::Interact) {
+            // Mouse: hover a row highlights it, a click picks it (Baz — NPC option windows).
+            let (bx, by, bw, _) = chooser_geom(&bindings, &state, title.as_str(), opts.as_slice());
+            let mut clicked = false;
+            for i in 0..n {
+                if ptr.over(bx + 6.0, by + 16.0 + i as f32 * 13.0 - 2.0, bw - 12.0, 12.0) {
+                    if ptr.moved {
+                        *cur = i;
+                    }
+                    if ptr.click {
+                        *cur = i;
+                        clicked = true;
+                    }
+                }
+            }
+            if clicked || state.pressed(Action::Slot1) || state.pressed(Action::Interact) {
                 let act = opts[*cur].1;
                 let target = *target;
                 match act {
@@ -256,7 +271,23 @@ fn dialog_tick(
             if state.pressed(Action::Down) {
                 *cur = (*cur + 1) % list.len();
             }
-            if state.pressed(Action::Slot1) || state.pressed(Action::Interact) {
+            // Mouse: hover a gift row highlights it, a click gives it. Rows scroll, so map the
+            // visible row back through the same scroll the draw uses.
+            let (bx, by, bw, _) = gift_geom(list.len());
+            let scroll = (*cur).saturating_sub(3).min(list.len().saturating_sub(GIFT_VIS));
+            let mut clicked = false;
+            for vi in 0..list.len().min(GIFT_VIS) {
+                if ptr.over(bx + 6.0, by + 28.0 + vi as f32 * 14.0 - 2.0, bw - 12.0, 13.0) {
+                    if ptr.moved {
+                        *cur = scroll + vi;
+                    }
+                    if ptr.click {
+                        *cur = scroll + vi;
+                        clicked = true;
+                    }
+                }
+            }
+            if clicked || state.pressed(Action::Slot1) || state.pressed(Action::Interact) {
                 let (uid, id, _) = list[*cur];
                 if let Ok(mut v) = villagers.get_mut(*target) {
                     give(&mut cx, &mut commands, &mut images, &mut inv, &mut v, uid, id, clock.0);
@@ -529,6 +560,35 @@ fn fill(commands: &mut Commands, x: f32, y: f32, w: f32, h: f32, color: Color, z
     commands.spawn((Sprite::from_color(color, Vec2::new(w, h)), at(x, y, w, h, z), PIXEL_LAYER, DialogUi));
 }
 
+/// The chooser box rect (bx, by, bw, bh) — ONE geometry source for `draw_chooser` and the
+/// mouse hit-test, so a click lands on exactly the row that's drawn. Row `i`'s hit rect is
+/// `(bx + 6, by + 16 + i*13 - 2, bw - 12, 12)`.
+fn chooser_geom(bindings: &Bindings, state: &ActionState, title: &str, opts: &[(String, ChoiceAct)]) -> (f32, f32, f32, f32) {
+    let pad = state.pad_present;
+    let hint = format!("{} SELECT - {} BACK", bindings.prompt(Action::Interact, pad), bindings.prompt(Action::Slot2, pad));
+    let mut bw = (font::measure(&hint) as f32 + 16.0).max(120.0).max(font::measure(title) as f32 + 16.0);
+    for (o, _) in opts {
+        bw = bw.max(font::measure(o) as f32 + 24.0);
+    }
+    let bh = 6.0 + 10.0 + opts.len() as f32 * 13.0 + 12.0;
+    let bx = ((CANVAS_W as f32 - bw) / 2.0).round();
+    let by = ((CANVAS_H as f32 - bh) / 2.0).round();
+    (bx, by, bw, bh)
+}
+
+/// How many gift rows show at once (js giftPick window).
+const GIFT_VIS: usize = 7;
+
+/// The gift-picker box rect (bx, by, bw, bh) — shared by `draw_gift` and the hit-test. The
+/// visible row `vi` (0..GIFT_VIS) sits at `(bx + 6, by + 28 + vi*14 - 2, bw - 12, 13)`.
+fn gift_geom(list_len: usize) -> (f32, f32, f32, f32) {
+    let bw = 200.0;
+    let bh = 54.0 + list_len.min(GIFT_VIS) as f32 * 14.0;
+    let bx = ((CANVAS_W as f32 - bw) / 2.0).round();
+    let by = ((CANVAS_H as f32 - bh) / 2.0).round();
+    (bx, by, bw, bh)
+}
+
 /// js UI.listBox: a centred boxed list, auto-sized to its widest line.
 fn draw_chooser(
     commands: &mut Commands,
@@ -541,13 +601,7 @@ fn draw_chooser(
 ) {
     let pad = state.pad_present;
     let hint = format!("{} SELECT - {} BACK", bindings.prompt(Action::Interact, pad), bindings.prompt(Action::Slot2, pad));
-    let mut bw = (font::measure(&hint) as f32 + 16.0).max(120.0).max(font::measure(title) as f32 + 16.0);
-    for (o, _) in opts {
-        bw = bw.max(font::measure(o) as f32 + 24.0);
-    }
-    let bh = 6.0 + 10.0 + opts.len() as f32 * 13.0 + 12.0;
-    let bx = ((CANVAS_W as f32 - bw) / 2.0).round();
-    let by = ((CANVAS_H as f32 - bh) / 2.0).round();
+    let (bx, by, bw, bh) = chooser_geom(bindings, state, title, opts);
     fill(commands, bx, by, bw, bh, Color::srgba(0.016, 0.024, 0.04, 0.95), Z);
     for (sx, sy, sw, sh) in border_strips(bx, by, bw, bh, 1.0) {
         fill(commands, sx, sy, sw, sh, Color::srgb_u8(0xcf, 0xe0, 0xff), Z + 0.01);
@@ -583,12 +637,8 @@ fn draw_gift(
     pname: &str,
     cur: usize,
 ) {
-    const VIS: usize = 7;
     let list = gift_list(inv);
-    let bw = 200.0;
-    let bh = 54.0 + list.len().min(VIS) as f32 * 14.0;
-    let bx = ((CANVAS_W as f32 - bw) / 2.0).round();
-    let by = ((CANVAS_H as f32 - bh) / 2.0).round();
+    let (bx, by, bw, bh) = gift_geom(list.len());
     fill(commands, bx, by, bw, bh, Color::srgba(0.016, 0.024, 0.04, 0.95), Z);
     for (sx, sy, sw, sh) in border_strips(bx, by, bw, bh, 1.0) {
         fill(commands, sx, sy, sw, sh, Color::srgb_u8(0xfc, 0x9a, 0xb8), Z + 0.01);
@@ -600,8 +650,8 @@ fn draw_gift(
     };
     center(commands, images, pname, by + 6.0, 0xfcfcfc, Z + 0.04);
     center(commands, images, "OFFER A GIFT", by + 16.0, 0x8a8a92, Z + 0.04);
-    let scroll = cur.saturating_sub(3).min(list.len().saturating_sub(VIS));
-    for (i, (_, id, qty)) in list.iter().skip(scroll).take(VIS).enumerate() {
+    let scroll = cur.saturating_sub(3).min(list.len().saturating_sub(GIFT_VIS));
+    for (i, (_, id, qty)) in list.iter().skip(scroll).take(GIFT_VIS).enumerate() {
         let y = by + 28.0 + i as f32 * 14.0;
         let on = scroll + i == cur;
         if on {
@@ -627,7 +677,7 @@ fn draw_gift(
     if scroll > 0 {
         label(commands, images, "<", bx + bw - 10.0, by + 24.0, 0xfc9ab8, Z + 0.04, DialogUi);
     }
-    if scroll + VIS < list.len() {
+    if scroll + GIFT_VIS < list.len() {
         label(commands, images, ">", bx + bw - 10.0, by + bh - 18.0, 0xfc9ab8, Z + 0.04, DialogUi);
     }
     let pad = state.pad_present;

@@ -193,6 +193,27 @@ fn enter_shop(
 }
 
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+/// The window's top-left corner (js x/y) — the anchor for the mouse hit-tests, matching redraw.
+fn shop_origin() -> (f32, f32) {
+    use super::room_render::{PLAY_X, PLAY_Y};
+    use crate::room::{PX_H, PX_W};
+    (PLAY_X + ((PX_W as f32 - W) / 2.0).round(), PLAY_Y + ((PX_H as f32 - H) / 2.0).round())
+}
+
+/// The BUY/SELL tab chips as (index, x, y, w, h) — same geometry redraw draws.
+fn shop_tabs() -> [(usize, f32, f32, f32, f32); 2] {
+    let (x, y) = shop_origin();
+    let mut tx = x + 6.0;
+    let mut out = [(0usize, 0.0, 0.0, 0.0, 0.0); 2];
+    for (i, name) in ["BUY", "SELL"].into_iter().enumerate() {
+        let tw = font::measure(name) as f32 + 8.0;
+        out[i] = (i, tx, y + 4.0, tw, 11.0);
+        tx += tw + 3.0;
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 fn shop_tick(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
@@ -207,6 +228,7 @@ fn shop_tick(
     clock: Res<super::room_render::FrameClock>,
     perks: Res<super::guildhall::CityPerks>,
     old: Query<Entity, With<ShopUi>>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     // The window owns the face buttons while open (the heldLatch rule).
     for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
@@ -223,6 +245,16 @@ fn shop_tick(
         shop.scroll = 0;
         dirty = true;
     }
+    // Mouse: click BUY/SELL to switch tabs (before `n`, which depends on the tab).
+    if ptr.click
+        && let Some((i, ..)) = shop_tabs().into_iter().find(|&(_, tx, ty, tw, th)| ptr.over(tx, ty, tw, th))
+        && i != shop.tab
+    {
+        shop.tab = i;
+        shop.cursor = 0;
+        shop.scroll = 0;
+        dirty = true;
+    }
     let n = if shop.tab == 0 { shop.stock.len() } else { sell_list(&inv, clock.0, perks.fish_mult).len() };
     if state.pressed(Action::Up) && shop.cursor > 0 {
         shop.cursor -= 1;
@@ -232,7 +264,31 @@ fn shop_tick(
         shop.cursor += 1;
         dirty = true;
     }
-    if state.pressed(Action::Slot1) && n > 0 {
+    // Mouse: hover a row highlights it, a click buys/sells it. Row rects + scroll mirror redraw.
+    let mut row_click = false;
+    {
+        let (ox, oy) = shop_origin();
+        let vis = ((H - 32.0) / ROW) as usize; // == redraw's (y+H-12-top)/ROW, top = y+20
+        let top = oy + 20.0;
+        let cur = shop.cursor.min(n.saturating_sub(1));
+        let scroll = shop.scroll.min(cur).max((cur + 1).saturating_sub(vis)).min(n.saturating_sub(vis));
+        for v in 0..vis {
+            if scroll + v >= n {
+                break;
+            }
+            if ptr.over(ox + 4.0, top + v as f32 * ROW - 1.0, W - 8.0, ROW - 1.0) {
+                if ptr.moved {
+                    shop.cursor = scroll + v;
+                    dirty = true;
+                }
+                if ptr.click {
+                    shop.cursor = scroll + v;
+                    row_click = true;
+                }
+            }
+        }
+    }
+    if (state.pressed(Action::Slot1) || row_click) && n > 0 {
         if shop.tab == 0 {
             dirty |= buy(&mut shop, &mut inv, &mut bought, &mut log, &mut saves, super::gather::farm_day(clock.0));
         } else {
