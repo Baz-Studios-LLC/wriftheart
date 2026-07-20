@@ -10,6 +10,7 @@
 
 use bevy::input::gamepad::{Gamepad, GamepadButton};
 use bevy::input::keyboard::KeyCode;
+use bevy::input::mouse::MouseButton;
 use bevy::prelude::*;
 
 /// Everything the game can ask the player to do. Gameplay speaks ONLY in these.
@@ -144,6 +145,7 @@ pub type BindRow = (String, Vec<String>);
 pub struct Bindings {
     keys: Vec<(Action, Vec<KeyCode>)>,
     pads: Vec<(Action, Vec<GamepadButton>)>,
+    mouse: Vec<(Action, Vec<MouseButton>)>,
 }
 
 impl Default for Bindings {
@@ -224,6 +226,9 @@ impl Default for Bindings {
                 (A::Sort, vec![G::LeftThumb]),   // L3
                 (A::Interact, vec![G::DPadUp]), // js pad 12: pushing UP at a door enters it
             ],
+            // Mouse buttons are UNBOUND by default — a row per action so rebind can fill
+            // one in (e.g. LMB -> Ability 1). Bind them in CONTROLS.
+            mouse: ACTIONS.iter().map(|&a| (a, Vec::new())).collect(),
         }
     }
 }
@@ -234,6 +239,9 @@ impl Bindings {
     }
     fn pad_binds(&self, action: Action) -> &[GamepadButton] {
         self.pads.iter().find(|(a, _)| *a == action).map(|(_, b)| b.as_slice()).unwrap_or(&[])
+    }
+    fn mouse_binds(&self, action: Action) -> &[MouseButton] {
+        self.mouse.iter().find(|(a, _)| *a == action).map(|(_, b)| b.as_slice()).unwrap_or(&[])
     }
 
     /// The label for a "press X" prompt — DERIVED from the live binding at draw time, never
@@ -270,6 +278,16 @@ impl Bindings {
         }
     }
 
+    /// Same, on the mouse table (LMB/RMB/… bind exactly one action, like keys).
+    pub fn rebind_mouse(&mut self, action: Action, b: MouseButton) {
+        for (_, bs) in &mut self.mouse {
+            bs.retain(|x| *x != b);
+        }
+        if let Some((_, bs)) = self.mouse.iter_mut().find(|(a, _)| *a == action) {
+            *bs = vec![b];
+        }
+    }
+
     pub fn reset(&mut self) {
         *self = Self::default();
     }
@@ -295,8 +313,17 @@ impl Bindings {
         bs.iter().map(|b| pad_label(*b)).collect::<Vec<_>>().join("/")
     }
 
-    /// Snapshot as (slug, labels) rows for settings.json.
-    pub fn export(&self) -> (Vec<BindRow>, Vec<BindRow>) {
+    /// The CONTROLS row's MOUSE column: every bound mouse button, '/'-joined.
+    pub fn mouse_names(&self, action: Action) -> String {
+        let bs = self.mouse_binds(action);
+        if bs.is_empty() {
+            return "--".into();
+        }
+        bs.iter().map(|b| mouse_label(*b)).collect::<Vec<_>>().join("/")
+    }
+
+    /// Snapshot as (slug, labels) rows for settings.json — (keys, pads, mouse).
+    pub fn export(&self) -> (Vec<BindRow>, Vec<BindRow>, Vec<BindRow>) {
         let keys = self
             .keys
             .iter()
@@ -307,12 +334,17 @@ impl Bindings {
             .iter()
             .map(|(a, bs)| (action_slug(*a).into(), bs.iter().map(|b| pad_label(*b).into()).collect()))
             .collect();
-        (keys, pads)
+        let mouse = self
+            .mouse
+            .iter()
+            .map(|(a, bs)| (action_slug(*a).into(), bs.iter().map(|b| mouse_label(*b).into()).collect()))
+            .collect();
+        (keys, pads, mouse)
     }
 
     /// Restore from settings.json rows. Unknown slugs/labels drop quietly (cross-build
     /// safety, same rule as the save file).
-    pub fn import(&mut self, keys: &[BindRow], pads: &[BindRow]) {
+    pub fn import(&mut self, keys: &[BindRow], pads: &[BindRow], mouse: &[BindRow]) {
         for (slug, labels) in keys {
             if let Some(a) = action_from_slug(slug)
                 && let Some((_, ks)) = self.keys.iter_mut().find(|(x, _)| *x == a)
@@ -325,6 +357,13 @@ impl Bindings {
                 && let Some((_, bs)) = self.pads.iter_mut().find(|(x, _)| *x == a)
             {
                 *bs = labels.iter().filter_map(|l| pad_from_label(l)).collect();
+            }
+        }
+        for (slug, labels) in mouse {
+            if let Some(a) = action_from_slug(slug)
+                && let Some((_, bs)) = self.mouse.iter_mut().find(|(x, _)| *x == a)
+            {
+                *bs = labels.iter().filter_map(|l| mouse_from_label(l)).collect();
             }
         }
     }
@@ -397,6 +436,7 @@ const DPAD: [GamepadButton; 4] =
 /// crossings count as presses so menus and facing taps work from the stick too.
 pub fn poll_input(
     keys: Res<ButtonInput<KeyCode>>,
+    mouse_btns: Res<ButtonInput<MouseButton>>,
     pads: Query<&Gamepad>,
     bindings: Res<Bindings>,
     dpad_dirs: Res<DpadDirs>,
@@ -414,6 +454,9 @@ pub fn poll_input(
     for (i, a) in ACTIONS.into_iter().enumerate() {
         let mut held = bindings.key_binds(a).iter().any(|k| keys.pressed(*k));
         let mut pressed = bindings.key_binds(a).iter().any(|k| keys.just_pressed(*k));
+        // Bound mouse buttons feed the same action state (e.g. LMB -> Ability 1).
+        held |= bindings.mouse_binds(a).iter().any(|b| mouse_btns.pressed(*b));
+        pressed |= bindings.mouse_binds(a).iter().any(|b| mouse_btns.just_pressed(*b));
         for g in &pads {
             for b in bindings.pad_binds(a) {
                 // Menus own the D-pad as arrows — its shortcut bindings go quiet there.
@@ -457,8 +500,64 @@ pub fn poll_input(
 }
 
 /// Consume the edge-triggered presses — the LAST system of every fixed tick (js endFrame()).
-pub fn clear_pressed(mut state: ResMut<ActionState>) {
+/// The pointer click is an edge too, so it clears here alongside the action presses: a stray
+/// click in the world can't leak into a menu opened on a later tick.
+pub fn clear_pressed(mut state: ResMut<ActionState>, mut ptr: ResMut<Pointer>) {
     state.pressed = [false; ACTIONS.len()];
+    ptr.click = false;
+}
+
+/// The mouse cursor mapped into CANVAS space (top-left origin, +Y DOWN — the same coords as
+/// `gfx::at()` and every UI rect), plus the left-click edge menus consume. Polled in PreUpdate
+/// beside [`poll_input`]; the click clears each fixed tick in [`clear_pressed`].
+#[derive(Resource, Default)]
+pub struct Pointer {
+    /// Cursor in canvas coords, or None when it's off the canvas (letterbox / outside window).
+    pub pos: Option<Vec2>,
+    /// Did the cursor move since the previous poll? Hover only steals the menu selection on
+    /// motion, so a resting cursor never fights the keyboard / pad.
+    pub moved: bool,
+    /// LMB pressed since the last fixed tick consumed it.
+    pub click: bool,
+    prev: Option<Vec2>,
+}
+
+impl Pointer {
+    /// Is the cursor inside the canvas rect `(x, y, w, h)`?
+    pub fn over(&self, x: f32, y: f32, w: f32, h: f32) -> bool {
+        self.pos.is_some_and(|p| p.x >= x && p.x < x + w && p.y >= y && p.y < y + h)
+    }
+    /// Cursor is inside the rect AND moved this poll — the guard for hover-to-select so a
+    /// still cursor lying over a row doesn't override keyboard navigation.
+    pub fn hovering(&self, x: f32, y: f32, w: f32, h: f32) -> bool {
+        self.moved && self.over(x, y, w, h)
+    }
+}
+
+/// Map the OS cursor into canvas space — the exact inverse of `gfx::fit_canvas`'s scale +
+/// letterbox. PreUpdate, beside `poll_input`, so a menu tick sees this frame's cursor.
+pub fn track_pointer(
+    windows: Query<&Window>,
+    settings: Res<crate::settings::Settings>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut ptr: ResMut<Pointer>,
+) {
+    use crate::{CANVAS_H, CANVAS_W};
+    let pos = windows.single().ok().and_then(|w| {
+        let c = w.cursor_position()?;
+        let fit = (w.width() / CANVAS_W as f32).min(w.height() / CANVAS_H as f32);
+        let s = if settings.pixel { fit.floor().max(1.0) } else { fit.max(0.01) };
+        let cx = (c.x - w.width() / 2.0) / s + CANVAS_W as f32 / 2.0;
+        let cy = (c.y - w.height() / 2.0) / s + CANVAS_H as f32 / 2.0;
+        (cx >= 0.0 && cx < CANVAS_W as f32 && cy >= 0.0 && cy < CANVAS_H as f32)
+            .then_some(Vec2::new(cx, cy))
+    });
+    ptr.moved = pos.is_some() && pos != ptr.prev;
+    ptr.prev = pos;
+    ptr.pos = pos;
+    if mouse.just_pressed(MouseButton::Left) {
+        ptr.click = true;
+    }
 }
 
 /// Pad button <-> on-screen name (port of PAD_NAMES: D-pad renders as the triangle glyphs —
@@ -520,6 +619,33 @@ pub fn key_from_label(l: &str) -> Option<KeyCode> {
 
 pub fn pad_from_label(l: &str) -> Option<GamepadButton> {
     PAD_LABELS.iter().find(|(_, x)| *x == l).map(|(b, _)| *b)
+}
+
+/// The bindable mouse buttons + their short on-screen names (font is uppercase + digits).
+const MOUSE_LABELS: &[(MouseButton, &str)] = &[
+    (MouseButton::Left, "LMB"),
+    (MouseButton::Right, "RMB"),
+    (MouseButton::Middle, "MMB"),
+    (MouseButton::Back, "MB4"),
+    (MouseButton::Forward, "MB5"),
+];
+
+pub fn mouse_label(b: MouseButton) -> &'static str {
+    MOUSE_LABELS.iter().find(|(x, _)| *x == b).map(|(_, l)| *l).unwrap_or("MB?")
+}
+
+pub fn mouse_from_label(l: &str) -> Option<MouseButton> {
+    MOUSE_LABELS.iter().find(|(_, x)| *x == l).map(|(b, _)| *b)
+}
+
+/// Is this mouse button one we can bind + name?
+pub fn mouse_bindable(b: MouseButton) -> bool {
+    MOUSE_LABELS.iter().any(|(x, _)| *x == b)
+}
+
+/// The mouse buttons, for the CONTROLS capture (press one to rebind).
+pub fn mouse_buttons() -> &'static [(MouseButton, &'static str)] {
+    MOUSE_LABELS
 }
 
 /// Is this key allowed as a binding? (= the font can print its name.)

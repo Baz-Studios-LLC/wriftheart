@@ -51,10 +51,12 @@ pub fn action_at(index: usize) -> Option<Action> {
 
 pub fn draw(d: &mut Draw, a: &Area, sel: usize, capturing: bool, bindings: &Bindings) {
     let label_x = a.x + 12.0;
-    let key_r = a.x + a.w - 58.0;
+    let key_r = a.x + a.w - 116.0;
+    let mouse_r = a.x + a.w - 58.0;
     let pad_r = a.x + a.w;
     d.text("ACTION", label_x, a.y, 0x606060, TEXT_Z);
     d.text_right("KEY", key_r, a.y, 0x606060, TEXT_Z);
+    d.text_right("MOUSE", mouse_r, a.y, 0x606060, TEXT_Z);
     d.text_right("PAD", pad_r, a.y, 0x606060, TEXT_Z);
 
     let rh = 10.0;
@@ -80,6 +82,7 @@ pub fn draw(d: &mut Draw, a: &Area, sel: usize, capturing: bool, bindings: &Bind
             continue;
         }
         d.text_right(&bindings.key_name(*act), key_r, y, col, TEXT_Z);
+        d.text_right(&bindings.mouse_names(*act), mouse_r, y, col, TEXT_Z);
         // The four MOVE rows are also driven by the LEFT STICK (fixed — an axis, not a
         // rebindable button); show it so the analog input isn't invisible (Baz).
         let is_move = matches!(act, Action::Up | Action::Down | Action::Left | Action::Right);

@@ -55,7 +55,8 @@ impl Plugin for PlayPlugin {
             .insert_resource(Time::<Fixed>::from_hz(60.0)) // the JS runs a fixed 60Hz update
             .add_systems(Startup, setup)
             .init_resource::<crate::input::DpadDirs>()
-            .add_systems(PreUpdate, (set_dpad_dirs, poll_input).chain())
+            .init_resource::<crate::input::Pointer>()
+            .add_systems(PreUpdate, ((set_dpad_dirs, poll_input).chain(), crate::input::track_pointer))
             .add_systems(
                 FixedUpdate,
                 (

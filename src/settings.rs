@@ -27,6 +27,8 @@ pub struct Settings {
     pub fullscreen: bool, // DEVIATION: a real toggle — the js could only print a key hint
     keys: Vec<crate::input::BindRow>, // custom keyboard bindings, (action slug, key labels)
     pads: Vec<crate::input::BindRow>, // custom pad bindings
+    #[serde(default)]
+    mouse: Vec<crate::input::BindRow>, // custom mouse-button bindings (LMB/RMB/…)
 }
 
 impl Default for Settings {
@@ -42,6 +44,7 @@ impl Default for Settings {
             fullscreen: true, // default to fullscreen on a fresh install (the menu toggle persists a choice)
             keys: vec![],
             pads: vec![],
+            mouse: vec![],
         }
     }
 }
@@ -71,7 +74,7 @@ pub fn store(settings: &mut Settings, bindings: &Bindings) {
         return;
     }
     let Some(path) = persist::data_file("settings.json") else { return };
-    (settings.keys, settings.pads) = bindings.export();
+    (settings.keys, settings.pads, settings.mouse) = bindings.export();
     if let Ok(json) = serde_json::to_string_pretty(&*settings) {
         let _ = std::fs::write(path, json);
     }
@@ -94,8 +97,8 @@ fn load_settings(mut commands: Commands, mut bindings: ResMut<Bindings>) {
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str::<Settings>(&s).ok())
         .unwrap_or_default();
-    if !settings.keys.is_empty() || !settings.pads.is_empty() {
-        bindings.import(&settings.keys, &settings.pads);
+    if !settings.keys.is_empty() || !settings.pads.is_empty() || !settings.mouse.is_empty() {
+        bindings.import(&settings.keys, &settings.pads, &settings.mouse);
     }
     commands.insert_resource(settings);
 }
@@ -110,15 +113,18 @@ mod tests {
     /// gone from its old action, unknown rows drop quietly.
     #[test]
     fn bindings_round_trip() {
+        use bevy::input::mouse::MouseButton;
         let mut b = Bindings::default();
         b.rebind_key(Action::Trash, KeyCode::KeyM); // steal M from Map
-        let (keys, pads) = b.export();
+        b.rebind_mouse(Action::Slot1, MouseButton::Left); // LMB -> Ability 1
+        let (keys, pads, mouse) = b.export();
         let mut fresh = Bindings::default();
-        fresh.import(&keys, &pads);
+        fresh.import(&keys, &pads, &mouse);
         assert_eq!(fresh.key_name(Action::Trash), "M");
         assert_eq!(fresh.key_name(Action::Map), "TAB"); // M was stripped; Tab remains
+        assert_eq!(fresh.mouse_names(Action::Slot1), "LMB"); // mouse binding survives the trip
         let bogus = vec![("nosuch".to_string(), vec!["Z".to_string()])];
-        fresh.import(&bogus, &[]); // must not panic or change anything
+        fresh.import(&bogus, &[], &[]); // must not panic or change anything
         assert_eq!(fresh.key_name(Action::Trash), "M");
     }
 

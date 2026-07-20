@@ -14,7 +14,7 @@ mod tabs;
 use super::save::SaveRequest;
 use super::screen::Screen;
 use crate::gfx::{at, font, PIXEL_LAYER};
-use crate::input::{key_bindable, Action, ActionState, Bindings};
+use crate::input::{key_bindable, mouse_bindable, Action, ActionState, Bindings};
 use crate::settings::{store, Settings};
 use crate::ui::frame_rect;
 use bevy::input::gamepad::{Gamepad, GamepadButton};
@@ -68,6 +68,7 @@ pub struct Capture {
 enum Captured {
     Key(KeyCode),
     Pad(GamepadButton),
+    Mouse(MouseButton),
 }
 
 #[derive(Component, Clone)]
@@ -102,8 +103,14 @@ fn open_title_options(
     redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, false);
 }
 
-/// Grab the next raw key or pad button while a rebind capture is armed (js Input.capture).
-fn capture_raw(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, mut cap: ResMut<Capture>) {
+/// Grab the next raw key, mouse button, or pad button while a rebind capture is armed (js
+/// Input.capture). A captured mouse click is consumed here, so it doesn't also click a menu row.
+fn capture_raw(
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    pads: Query<&Gamepad>,
+    mut cap: ResMut<Capture>,
+) {
     if !cap.active || cap.got.is_some() {
         return;
     }
@@ -114,6 +121,10 @@ fn capture_raw(keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, mut cap: 
     // Only keys the font can print a prompt for; Escape passes through as the cancel.
     if let Some(k) = keys.get_just_pressed().find(|k| key_bindable(**k)) {
         cap.got = Some(Captured::Key(*k));
+        return;
+    }
+    if let Some(b) = mouse.get_just_pressed().find(|b| mouse_bindable(**b)) {
+        cap.got = Some(Captured::Mouse(*b));
         return;
     }
     for g in &pads {
@@ -169,6 +180,7 @@ pub fn menu_tick(
     mut images: ResMut<Assets<Image>>,
     mut exit: MessageWriter<AppExit>,
     mut saves: MessageWriter<SaveRequest>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     match screen.get() {
         Screen::Play => {
@@ -223,6 +235,12 @@ pub fn menu_tick(
                                 store(&mut settings, &bindings);
                             }
                         }
+                        Captured::Mouse(b) => {
+                            if let Some(a) = controls::action_at(menu.index) {
+                                bindings.rebind_mouse(a, b);
+                                store(&mut settings, &bindings);
+                            }
+                        }
                     }
                     redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, false);
                 }
@@ -259,6 +277,34 @@ pub fn menu_tick(
                     dirty = true;
                 }
                 if state.pressed(Action::Slot1) {
+                    dirty |= confirm(
+                        &mut menu, &mut settings, &mut bindings, &mut capture, &mut next, &mut saves,
+                    );
+                }
+            }
+            // --- Mouse (Baz's request): hover highlights a row, LMB selects it, and clicking a
+            // chip switches tabs. Rebind capture consumed its own clicks above and returned, so
+            // this only runs for a live (non-capturing) menu. ---
+            let off = tabs::TITLES.len() - tabs_n;
+            let hover_tab = tab_chips(&menu)
+                .into_iter()
+                .find(|&(_, x, y, w, h)| ptr.over(x, y, w, h))
+                .map(|(i, ..)| i);
+            if let Some(abs) = hover_tab {
+                if ptr.click && abs - off != menu.tab {
+                    menu.tab = abs - off;
+                    menu.index = 0;
+                    dirty = true;
+                }
+            } else if let Some(r) =
+                ptr.pos.and_then(|p| row_at(menu.real_tab(), &content_area(), p, &settings, &menu))
+            {
+                if ptr.moved && menu.index != r {
+                    menu.index = r;
+                    dirty = true;
+                }
+                if ptr.click {
+                    menu.index = r;
                     dirty |= confirm(
                         &mut menu, &mut settings, &mut bindings, &mut capture, &mut next, &mut saves,
                     );
@@ -335,6 +381,76 @@ fn confirm(
     }
 }
 
+/// The panel's top-left corner (js px/py) — the anchor every other rect derives from.
+fn panel_xy() -> (f32, f32) {
+    (
+        ((CANVAS_W as f32 - PW) / 2.0).round(),
+        ((CANVAS_H as f32 - PH) / 2.0).round(),
+    )
+}
+
+/// The visible tab chips as (absolute tab index, x, y, w, h) — ONE geometry source shared by
+/// `redraw` (drawing) and `menu_tick` (mouse hit-testing), so the two can never drift.
+fn tab_chips(menu: &MenuState) -> Vec<(usize, f32, f32, f32, f32)> {
+    let (px, py) = panel_xy();
+    let (ix, tab_h, tab_y) = (px + 12.0, 11.0, py + 9.0);
+    let off = tabs::TITLES.len() - menu.n_tabs();
+    let mut tx = ix;
+    tabs::TITLES
+        .iter()
+        .enumerate()
+        .skip(off)
+        .map(|(i, title)| {
+            let cw = font::measure(title) as f32 + 8.0;
+            let chip = (i, tx, tab_y, cw, tab_h);
+            tx += cw + 3.0;
+            chip
+        })
+        .collect()
+}
+
+/// The tab content rect (js `a` in Menu.draw) — same single source for draw + hit-test.
+fn content_area() -> Area {
+    let (px, py) = panel_xy();
+    let (ix, iw) = (px + 12.0, PW - 24.0);
+    let ay = py + 9.0 + 11.0 + 9.0; // tab_y + tab_h + gap
+    Area { x: ix, y: ay, w: iw, h: py + PH - ay - 15.0 }
+}
+
+/// The absolute row index under a canvas point, or None (over a gap / header / outside). Mirrors
+/// the two row layouts: the scrolling CONTROLS table (tab 3, controls::draw) and the centred
+/// settings list (tabs::draw_list). Kept next to `content_area` so the geometry stays paired.
+fn row_at(tab: usize, a: &Area, p: Vec2, settings: &Settings, menu: &MenuState) -> Option<usize> {
+    if p.x < a.x || p.x >= a.x + a.w || p.y < a.y {
+        return None;
+    }
+    if tab == 3 {
+        let (rh, y0) = (10.0, a.y + 11.0);
+        let vis = (((a.y + a.h - y0) / rh).floor() as usize).max(1);
+        let n = controls::len();
+        let scroll = if n > vis {
+            (menu.index as i32 - (vis / 2) as i32).clamp(0, (n - vis) as i32) as usize
+        } else {
+            0
+        };
+        let vi = ((p.y - y0) / rh).floor();
+        if vi < 0.0 {
+            return None;
+        }
+        let vi = vi as usize;
+        (vi < vis.min(n - scroll)).then_some(scroll + vi)
+    } else {
+        let rows = rows_len(tab, settings, menu);
+        let rh = 18.0;
+        let y0 = a.y + (((a.h - rows as f32 * rh) / 2.0).round()).max(0.0);
+        if p.y < y0 {
+            return None;
+        }
+        let ri = ((p.y - y0) / rh).floor() as usize;
+        (ri < rows).then_some(ri)
+    }
+}
+
 /// (Re)build the whole panel — js Menu.draw, chrome verbatim (280x180, chip tabs, hint).
 #[allow(clippy::too_many_arguments)] // one redraw = the full window state
 fn redraw(
@@ -370,24 +486,19 @@ fn redraw(
     let (ix, iw, cx) = (px + pad, PW - pad * 2.0, px + PW / 2.0);
 
     // Tab bar — codex-style chips, left-aligned from the panel's inner edge (only the
-    // visible tabs: settings-only hides GAME).
-    let off = tabs::TITLES.len() - menu.n_tabs();
-    let (tab_h, tab_y) = (11.0, py + 9.0);
-    let mut tx = ix;
-    for (i, title) in tabs::TITLES.iter().enumerate().skip(off) {
-        let cw = font::measure(title) as f32 + 8.0;
+    // visible tabs: settings-only hides GAME). Geometry from tab_chips so mouse hit-testing
+    // lands on exactly what's drawn.
+    for (i, tx, tab_y, cw, tab_h) in tab_chips(menu) {
         let on = i == menu.real_tab();
         d.fill(tx, tab_y, cw, tab_h, if on { 0x26262e } else { 0x141418 }, Z + 0.1);
         if on {
             d.fill(tx, tab_y, cw, 1.0, GOLD, Z + 0.15); // active accent
         }
-        d.text(title, tx + 4.0, tab_y + 4.0, if on { 0xfcfcfc } else { 0x6c6c74 }, TEXT_Z);
-        tx += cw + 3.0;
+        d.text(tabs::TITLES[i], tx + 4.0, tab_y + 4.0, if on { 0xfcfcfc } else { 0x6c6c74 }, TEXT_Z);
     }
-    d.fill(ix, tab_y + tab_h + 2.0, iw, 1.0, 0x2a2a30, Z + 0.1); // underline
+    d.fill(ix, py + 9.0 + 11.0 + 2.0, iw, 1.0, 0x2a2a30, Z + 0.1); // underline
 
-    let ay = tab_y + tab_h + 9.0;
-    let a = Area { x: ix, y: ay, w: iw, h: py + PH - ay - 15.0 };
+    let a = content_area();
     match menu.real_tab() {
         3 => controls::draw(&mut d, &a, menu.index, capturing, bindings),
         t => tabs::draw_list(&mut d, &a, &tabs::list_rows(t, settings, menu.saved_flash), menu.index),
