@@ -1,0 +1,28 @@
+[package]
+name = "wriftheart"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.19.0", features = ["wav"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+
+# Bevy is a big dependency tree, and a cold build is slow. These are Bevy's own recommended
+# dev settings: leave OUR crate cheap to recompile, but optimise the dependencies (a debug
+# build of the renderer is unusably slow otherwise). Iteration stays quick after the first build.
+[profile.dev]
+opt-level = 1
+# Keep file:line for panic backtraces but strip the bulk of DWARF — the full debug
+# symbols in Bevy's ~500 deps were ballooning target/debug/deps to tens of GB. Set
+# to "full" temporarily if you need to step through a dependency in a debugger.
+debug = "line-tables-only"
+# Incremental compilation + opt-level=1 on this single big crate reproducibly hits a
+# macOS linker bug ("undefined symbol _anon.*.llvm.*" / drop_in_place from the wriftheart
+# rlib) — the codegen units drop internal symbols. A full recompile of the game crate is
+# only ~40s, so turn incremental off here; deps are cached separately either way.
+incremental = false
+
+[profile.dev.package."*"]
+opt-level = 3
