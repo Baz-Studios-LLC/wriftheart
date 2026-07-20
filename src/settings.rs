@@ -39,7 +39,7 @@ impl Default for Settings {
             flash: false,
             sound: true,
             autosave: true,
-            fullscreen: false,
+            fullscreen: true, // default to fullscreen on a fresh install (the menu toggle persists a choice)
             keys: vec![],
             pads: vec![],
         }

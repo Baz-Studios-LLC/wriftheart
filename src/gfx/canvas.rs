@@ -121,6 +121,11 @@ fn fit_canvas(
 /// improve-don't-copy blessing pending: the js could only PRINT the OS fullscreen shortcut
 /// — its webview couldn't act; a native window can, so the row really toggles.)
 fn apply_fullscreen(settings: Res<crate::settings::Settings>, mut windows: Query<&mut Window>) {
+    // The WRIFT_SHOT visual harness needs the fixed-size window it captures from — never let
+    // the (now default-on) fullscreen setting resize it mid-shot.
+    if std::env::var_os("WRIFT_SHOT").is_some() {
+        return;
+    }
     if !settings.is_changed() {
         return;
     }
