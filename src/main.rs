@@ -1,3 +1,6 @@
+// Release builds on Windows are GUI apps — don't pop a console window behind the game.
+// (Debug keeps the console so dev logs / WRIFT_SHOT output stay visible.)
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! WriftHeart — Rust/Bevy port (binary entry point).
 //!
 //! Thin by design: it wires the Bevy app; rendering setup lives in `gfx::PixelCanvasPlugin`
