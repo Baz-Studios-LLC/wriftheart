@@ -216,6 +216,16 @@ pub fn spawn_room_props(
                     blockers.push((fx - 12.0, fy - 28.0, 40.0, 42.0));
                 }
             }
+            // A lone roadside SHOP (worldgen "rare timber storefront"): it had no overworld
+            // sprite, so all you saw was its lantern glow + the F ENTER prompt (Baz: "what am
+            // I entering lol"). Render the store front + block it, like a town storefront.
+            "shop" => {
+                if let Some(img) = art.fronts.get("store") {
+                    let tf = at(PLAY_X + fx - 16.0, PLAY_Y + fy - 32.0, 48.0, 48.0, actor_z(fy + 16.0));
+                    child(commands, root, Sprite::from_image(img.clone()), tf);
+                    blockers.push((fx - 12.0, fy - 28.0, 40.0, 42.0));
+                }
+            }
             "crackedrock" => {
                 // A fissured wall section (js): sits ON the border wall tile (the wall
                 // already blocks, so no blocker). Bomb it or pick it open; once broken

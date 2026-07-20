@@ -276,7 +276,9 @@ pub fn menu_tick(
                     menu.index = (menu.index + 1) % rows;
                     dirty = true;
                 }
-                if state.pressed(Action::Slot1) {
+                // Slot1 OR Enter — Slot1 now defaults to LMB (which no longer fires in menus),
+                // so ENTER is the keyboard confirm; a bound pad/key Slot1 still works.
+                if state.pressed(Action::Slot1) || state.pressed(Action::MenuConfirm) {
                     dirty |= confirm(
                         &mut menu, &mut settings, &mut bindings, &mut capture, &mut next, &mut saves,
                     );

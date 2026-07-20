@@ -228,6 +228,7 @@ pub fn skills_input(
     mut inv: ResMut<crate::inventory::PlayerInv>,
     ident: Res<crate::app::identity::HeroIdent>,
     night: Res<crate::app::identity::Night>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     let pressed_dir = [Action::Up, Action::Down, Action::Left, Action::Right]
         .iter()
@@ -241,9 +242,38 @@ pub fn skills_input(
             so.dirty = true;
         }
     }
+    // Mouse: hover a node selects it, a click allocates it (refund stays on its button). The
+    // node-to-canvas map inverts skills_anim's root transform: node = centre + (x,y) - cam.
+    let mut click_alloc = false;
+    if let Some(pos) = ptr.pos.filter(|p| p.y >= AREA_TOP && p.x >= SIDEBAR_W) {
+        let (centre, cam) = (area_centre(), st.cam.round());
+        let mut best: Option<(usize, f32)> = None;
+        for (i, nd) in nodes().iter().enumerate() {
+            let r = match nd.kind {
+                "keystone" => 7.0,
+                "notable" | "start" => 5.0,
+                _ => 3.0,
+            };
+            let nc = centre + Vec2::new(nd.x as f32, nd.y as f32) - cam;
+            let d = nc.distance(pos);
+            if d <= r + 2.0 && best.is_none_or(|(_, bd)| d < bd) {
+                best = Some((i, d));
+            }
+        }
+        if let Some((i, _)) = best {
+            if ptr.moved && st.cursor != i {
+                st.cursor = i;
+                so.dirty = true;
+            }
+            if ptr.click {
+                st.cursor = i;
+                click_alloc = true;
+            }
+        }
+    }
     let cur = st.cursor;
     let n = &nodes()[cur];
-    if state.pressed(Action::Slot1)
+    if (state.pressed(Action::Slot1) || click_alloc)
         && !alloc.taken.contains(&cur)
         && cur != skilltree::start()
         && alloc.points >= n.cost as i32
