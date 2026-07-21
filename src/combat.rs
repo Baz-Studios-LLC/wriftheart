@@ -135,9 +135,11 @@ pub struct HitLanded {
 pub struct Afflicts(pub &'static str, pub i32);
 
 /// A wrong-tool strike glancing off a resource node (spark + sound, no damage). `note`
-/// carries a toast for the too-weak-tool case (js resistTool — "NEEDS A STRONGER PICK").
+/// carries a toast for the too-weak-tool case (js resistTool — "NEEDS A STRONGER PICK");
+/// `target` names the node so even a tink can shake its canopy (js shedLeaves).
 #[derive(Message)]
 pub struct Tinked {
+    pub target: Entity,
     pub at: Vec2,
     pub note: Option<&'static str>,
 }
@@ -197,6 +199,7 @@ pub fn resolve_combat(
                         _ => "NEEDS A STRONGER PICK",
                     });
                     tinks.write(Tinked {
+                        target: t_ent,
                         at: Vec2::new(tbox.x + tbox.w / 2.0, tbox.y + tbox.h / 2.0),
                         note,
                     });

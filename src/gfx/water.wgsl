@@ -51,20 +51,12 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let h = sin(sp.y * 0.5 + t * 1.1 + sin(sp.x * 0.19 + t * 0.6) * 2.0)
           + sin((sp.x + sp.y) * 0.16 - t * 0.7);
 
-    // DEPTH, smoothed: the mask is tile-res, so raw a-steps land as sharp 16px
-    // rects. Manual bilinear across the four surrounding texels rounds the deep
-    // patches off (the dirt-corner treatment), sampled at the SWAYED position so
-    // the contours breathe; then requantized to coarse steps so it stays
-    // posterized art, not a soft gradient.
-    let msz = vec2(19.0, 13.0);
-    let df = ((sp + vec2(0.5)) / vec2(304.0, 208.0)) * msz - 0.5;
-    let di = floor(df);
-    let fr = df - di;
-    let d00 = textureSampleLevel(mask, mask_sampler, (di + vec2(0.5, 0.5)) / msz, 0.0).a;
-    let d10 = textureSampleLevel(mask, mask_sampler, (di + vec2(1.5, 0.5)) / msz, 0.0).a;
-    let d01 = textureSampleLevel(mask, mask_sampler, (di + vec2(0.5, 1.5)) / msz, 0.0).a;
-    let d11 = textureSampleLevel(mask, mask_sampler, (di + vec2(1.5, 1.5)) / msz, 0.0).a;
-    let depth = floor(mix(mix(d00, d10, fr.x), mix(d01, d11, fr.x), fr.y) * 6.0 + 0.5) / 6.0;
+    // DEPTH: the mask's alpha is already bilinear-smoothed across tiles (water.rs
+    // bakes it at pixel res), so deep patches arrive as rounded contours. Sample
+    // at the SWAYED position so they breathe, then requantize to coarse steps so
+    // it stays posterized art, not a soft gradient.
+    let md = textureSampleLevel(mask, mask_sampler, (sp + vec2(0.5)) / vec2(304.0, 208.0), 0.0);
+    let depth = floor(md.a * 6.0 + 0.5) / 6.0;
 
     // Base: depth ramp, POSTERIZED by the height into three banded tones.
     var col = mix(params.shallow.rgb, params.deep.rgb, depth * 0.8);

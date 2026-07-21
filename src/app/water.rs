@@ -1,17 +1,20 @@
 //! water.rs — the WATER MASK + the living-surface overlay (PORT-ORIGINAL, part of the
 //! 2026-07-16 water pass; "we moved to rust for a reason").
 //!
-//! On every room stand-up this bakes a 19x13 mask from the tile grid: r = water
-//! ('~' and under-bridge 'B'), a = shore distance (tile BFS, clamped 3 deep) — the
-//! water.wgsl overlay drifts glints + tints the deeps, and reflection.wgsl clips
-//! actor mirrors to it. Each wet room's root carries its OWN overlay quad as a
-//! child, so water rides edge slides with the tiles and despawns with the room;
-//! dry rooms (and interiors) simply get none.
+//! On every room stand-up this bakes a PIXEL-RES (304x208) mask from the tile grid:
+//! r = water coverage — the '~'/'B' tiles PLUS the corner nooks that round water
+//! into land (the same [5,3,2,1,1] bite the edge dressing cuts, so every coast
+//! corner curves, both ways); a = shore depth, bilinear-smoothed across tile
+//! centers here so the shader reads rounded depth contours straight off the
+//! texture. water.wgsl drifts glints + tints the deeps over it, and
+//! reflection.wgsl clips actor mirrors to it. Each wet room's root carries its
+//! OWN overlay quad as a child, so water rides edge slides with the tiles and
+//! despawns with the room; dry rooms (and interiors) simply get none.
 
 use super::play::{ActiveRoot, CurGrid, SlideState};
 use crate::gfx::water_material::{WaterMaterial, WaterParams};
 use crate::gfx::{at, layers, PIXEL_LAYER};
-use crate::room::{COLS, PX_H, PX_W, ROWS};
+use crate::room::{COLS, PX_H, PX_W, ROWS, TILE};
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -92,23 +95,79 @@ fn rebake_mask(
         }
     }
 
-    let mut img = Image::new_fill(
-        Extent3d { width: COLS as u32, height: ROWS as u32, depth_or_array_layers: 1 },
-        TextureDimension::D2,
-        &[0, 0, 0, 0],
-        TextureFormat::Rgba8Unorm, // data, not colour — no srgb curve on the mask
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-    );
-    for r in 0..ROWS as u32 {
-        for c in 0..COLS as u32 {
-            if is_water(c as i32, r as i32)
-                && let Ok(px) = img.pixel_bytes_mut(UVec3::new(c, r, 0))
-            {
-                let d = depth[r as usize][c as usize];
-                px.copy_from_slice(&[255, 0, 0, d * 85]); // a = depth/3
+    // Coverage at pixel res: whole water tiles, then the water-into-land corner
+    // nooks — a ground tile whose convex corner meets water on both sides and the
+    // diagonal takes the dressing's bite of lake (the dressing itself now only
+    // paints the LAND-coloured half of the rounding; see edge_dressing.rs).
+    const NOOK: [i32; 5] = [5, 3, 2, 1, 1];
+    let mut cover = vec![false; (PX_W * PX_H) as usize];
+    for r in 0..ROWS {
+        for c in 0..COLS {
+            if !is_water(c, r) {
+                continue;
+            }
+            for py in r * TILE..(r + 1) * TILE {
+                for px in c * TILE..(c + 1) * TILE {
+                    cover[(py * PX_W + px) as usize] = true;
+                }
             }
         }
     }
+    // The bite test wants OPEN water only ('~', in-room): a 'B' neighbour is a
+    // bridge DECK — rounding the bank at a bridge mouth pinched the walkway (Baz).
+    let open_water = |c: i32, r: i32| (0..COLS).contains(&c) && (0..ROWS).contains(&r) && grid.0.code_at(c, r) == '~';
+    for r in 0..ROWS {
+        for c in 0..COLS {
+            if grid.0.code_at(c, r) != '.' {
+                continue; // only open ground rounds — walls stay square, like the dressing
+            }
+            for (dx, dy) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] {
+                if !(open_water(c + dx, r) && open_water(c, r + dy) && open_water(c + dx, r + dy)) {
+                    continue;
+                }
+                for (j, w) in NOOK.into_iter().enumerate() {
+                    let nx = if dx < 0 { c * TILE } else { c * TILE + TILE - w };
+                    let ny = if dy < 0 { r * TILE + j as i32 } else { r * TILE + TILE - 1 - j as i32 };
+                    for x in nx..nx + w {
+                        cover[(ny * PX_W + x) as usize] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Depth per pixel: bilinear between tile-center depths (land = 0, off-room
+    // clamps — the exact smoothing the shader used to do with four taps).
+    let dep = |cc: i32, rr: i32| -> f32 {
+        let (cc, rr) = (cc.clamp(0, COLS - 1), rr.clamp(0, ROWS - 1));
+        if is_water(cc, rr) { depth[rr as usize][cc as usize] as f32 / 3.0 } else { 0.0 }
+    };
+    let mut buf = vec![0u8; (PX_W * PX_H * 4) as usize];
+    for y in 0..PX_H {
+        for x in 0..PX_W {
+            let i = (y * PX_W + x) as usize;
+            if !cover[i] {
+                continue;
+            }
+            let fx = (x as f32 + 0.5) / TILE as f32 - 0.5;
+            let fy = (y as f32 + 0.5) / TILE as f32 - 0.5;
+            let (c0, r0) = (fx.floor() as i32, fy.floor() as i32);
+            let (fu, fv) = (fx - c0 as f32, fy - r0 as f32);
+            let d = dep(c0, r0) * (1.0 - fu) * (1.0 - fv)
+                + dep(c0 + 1, r0) * fu * (1.0 - fv)
+                + dep(c0, r0 + 1) * (1.0 - fu) * fv
+                + dep(c0 + 1, r0 + 1) * fu * fv;
+            buf[i * 4] = 255;
+            buf[i * 4 + 3] = (d * 255.0).round() as u8;
+        }
+    }
+    let img = Image::new(
+        Extent3d { width: PX_W as u32, height: PX_H as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        buf,
+        TextureFormat::Rgba8Unorm, // data, not colour — no srgb curve on the mask
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
     mask.image = images.add(img);
     mask.any = any;
 

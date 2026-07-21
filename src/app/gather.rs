@@ -270,12 +270,92 @@ impl Plugin for GatherPlugin {
             .init_resource::<TreeGrowth>()
             .add_systems(
                 FixedUpdate,
-                (node_hits, node_deaths, pickups_tick)
+                (node_hits, node_deaths, pickups_tick, leaves_tick)
                     .chain()
                     .run_if(not_sliding)
                     .after(crate::combat::resolve_combat),
             )
             .add_systems(Update, apply_shake);
+    }
+}
+
+/// Foliage colours per leafy tree kind (js LEAF_COLS): blossoms shed pink petals,
+/// blueblooms blue. Dead/burnt/crystal trees aren't here — nothing to shed.
+fn leaf_cols(kind: &str) -> Option<[u32; 2]> {
+    match kind {
+        "oak" => Some([0x74d07d, 0x2f8a3c]),
+        "pine" => Some([0x4f9e58, 0x2f7a38]),
+        "blossom" => Some([0xffd0ec, 0xf070b0]),
+        "jungletree" => Some([0x7fe88a, 0x1ca838]),
+        "bluebloom" => Some([0xa9d4ff, 0x5a8fe0]),
+        "giantflower" => Some([0xffd24a, 0xff6aa8]),
+        _ => None,
+    }
+}
+
+/// One leaf shaken loose from a struck canopy (js Entities.leafFall): unlike the
+/// chip burst, these flutter DOWN gently — slow fall plus side-to-side sway —
+/// from the tree's lower crown, drifting past the trunk.
+#[derive(Component)]
+struct Leaf {
+    x: f32,
+    y: f32,
+    vy: f32,
+    ph: f32,
+    amp: f32,
+    life: i32,
+}
+
+/// Shake 3-5 leaves from a canopy (js leafFall(x+8, y+offY+22, 13, cols)) — fired
+/// on ANY hit, tink and too-weak-tool included: even a glance shivers the crown.
+fn shed_leaves(commands: &mut Commands, rng: &mut GameRng, kind: &'static str, c: i32, r: i32) {
+    let Some(cols) = leaf_cols(kind) else { return };
+    let (x, y) = ((c * 16) as f32, (r * 16) as f32);
+    let (_, oy, ..) = crate::actors::props::prop_anchor(kind);
+    let (cx, top) = (x + 8.0, y + oy as f32 + 22.0);
+    let n = 3 + (rng.0.next_f64() * 3.0) as i32;
+    for _ in 0..n {
+        let col = cols[(rng.0.next_f64() * 2.0) as usize % 2];
+        let leaf = Leaf {
+            x: cx + (rng.0.next_f64() as f32 * 2.0 - 1.0) * 13.0,
+            y: top + rng.0.next_f64() as f32 * 12.0,
+            vy: 0.16 + rng.0.next_f64() as f32 * 0.14, // a drifting descent (half the js rate)
+            ph: rng.0.next_f64() as f32 * std::f32::consts::TAU,
+            amp: 0.3 + rng.0.next_f64() as f32 * 0.15, // the pendulum glide width
+            life: 70 + (rng.0.next_f64() * 40.0) as i32,
+        };
+        let tf = at(PLAY_X + leaf.x, PLAY_Y + leaf.y, 2.0, 1.0, 12.0);
+        commands.spawn((
+            Sprite::from_color(
+                Color::srgb_u8((col >> 16) as u8, (col >> 8) as u8, col as u8),
+                Vec2::new(2.0, 1.0),
+            ),
+            leaf,
+            tf,
+            PIXEL_LAYER,
+            super::battle::RoomActor,
+        ));
+    }
+}
+
+/// Flutter the shed leaves down like FALLING LEAVES (a feel pass past the js
+/// original — Baz: slower, more leaf-like): each rides a slow pendulum, gliding
+/// wide to one side, stalling, then flipping back — the descent is slowest
+/// mid-glide and quickest as it turns, and the leaf shows edge-on (1px) through
+/// the turn, broadside (2px) through the glide.
+fn leaves_tick(mut commands: Commands, mut q: Query<(Entity, &mut Leaf, &mut Sprite, &mut Transform)>) {
+    for (e, mut leaf, mut sprite, mut tf) in &mut q {
+        leaf.life -= 1;
+        if leaf.life <= 0 {
+            commands.entity(e).despawn();
+            continue;
+        }
+        let glide = (leaf.life as f32 / 16.0 + leaf.ph).cos();
+        leaf.x += glide * leaf.amp;
+        leaf.y += leaf.vy * (1.35 - 0.75 * glide.abs());
+        let w = if leaf.life <= 10 || glide.abs() < 0.35 { 1.0 } else { 2.0 };
+        sprite.custom_size = Some(Vec2::new(w, 1.0));
+        *tf = at(PLAY_X + leaf.x.round(), PLAY_Y + leaf.y.round(), w, 1.0, 12.0);
     }
 }
 
@@ -363,12 +443,17 @@ fn node_hits(
     nodes: Query<(&GatherNode, &Transform)>,
 ) {
     for hit in hits.read() {
-        if let Ok((_, tf)) = nodes.get(hit.target) {
+        if let Ok((node, tf)) = nodes.get(hit.target) {
             commands.entity(hit.target).insert(Shake { t: 8, base_x: tf.translation.x });
+            shed_leaves(&mut commands, &mut rng, node.kind, node.c, node.r);
         }
     }
     for tink in tinks.read() {
         spawn_burst(&mut commands, &mut rng, tink.at, 0xdcdce0, 3);
+        // Even a tink shakes a few leaves loose (js: resolveCombat's wrong-tool arm).
+        if let Ok((node, _)) = nodes.get(tink.target) {
+            shed_leaves(&mut commands, &mut rng, node.kind, node.c, node.r);
+        }
         // A too-weak pick/axe on a high-tier vein/tree says so (js resistTool toast).
         if let Some(note) = tink.note {
             log.add("resist", note, 1, 0xfc8868, false, true);

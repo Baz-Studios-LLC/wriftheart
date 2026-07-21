@@ -255,7 +255,6 @@ fn close_dev(mut commands: Commands, ui: Query<Entity, With<DevUi>>) {
 #[derive(bevy::ecs::system::SystemParam)]
 struct DevRefs<'w, 's> {
     house: Res<'w, super::home::PlayerHouse>,
-    respawn: Res<'w, super::home::RespawnPoint>,
     // NO songs / rng here — drive already reaches them via ctx.social.songs and
     // swap.rng; a duplicate ResMut is a B0002 PANIC AT BOOT, not a compile error.
     bps: ResMut<'w, super::blueprints::LearnedBlueprints>,
@@ -402,17 +401,15 @@ fn drive(
         Cmd::Weather => {} // the value IS the action (left/right)
         Cmd::WarpHome => {
             // HOME means your HOUSE — doorstep landing, just clear of the door mat so
-            // the warp doesn't suck you straight inside. Houseless: your set-spawn
-            // bed/inn; failing both, the world origin (the old, useless target —
-            // Baz: "warp home doesn't work").
-            let ((rx, ry), (px, py)) = if let Some(h) = refs.house.0.as_ref() {
-                (h.room, (h.x + 3.0, (h.y + 28.0).min(crate::room::PX_H as f32 - 24.0)))
-            } else if let Some(r) = refs.respawn.0.as_ref() {
-                (r.room, (r.x, r.y))
+            // the warp doesn't suck you straight inside. No house yet -> refuse and
+            // say why; the old bed/origin fallbacks dumped you somewhere that READ
+            // as a conjured home (Baz).
+            if let Some(h) = refs.house.0.as_ref() {
+                let ((rx, ry), (px, py)) = (h.room, (h.x + 3.0, (h.y + 28.0).min(crate::room::PX_H as f32 - 24.0)));
+                warp(rx, ry, px, py, &mut commands, &mut images, &mut swap, &mut ctx);
             } else {
-                ((0, 0), (144.0, 120.0))
-            };
-            warp(rx, ry, px, py, &mut commands, &mut images, &mut swap, &mut ctx);
+                log.add("dev", "NO HOME YET - BUILD A HOUSE FIRST", 1, 0xff9a66, false, true);
+            }
         }
         Cmd::WarpCastle => warp(crate::worldgen::world::CASTLE_RX, crate::worldgen::world::CASTLE_RY, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx),
         Cmd::WarpShard => {

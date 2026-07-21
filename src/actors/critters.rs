@@ -71,6 +71,9 @@ pub struct Critter {
     dirx: f32,
     diry: f32,
     move_t: i32,
+    /// Frames left on the COMMITTED flee heading — re-aimed only when this runs
+    /// out or the way ahead closes, so a cornered critter never strobes.
+    flee_t: i32,
     hop: f32,
     fleeing: bool,
     committed: bool,
@@ -320,6 +323,7 @@ fn spawn_on_room_change(
                 dirx: 0.0,
                 diry: 0.0,
                 move_t: 0,
+                flee_t: 0,
                 hop: 0.0,
                 fleeing: false,
                 committed: false,
@@ -433,22 +437,36 @@ fn critter_tick(
             if d.fly && e.aim.is_some() {
                 e.committed = true; // a bird makes for the nearest town and doesn't look back
             } else {
-                let m = if pd == 0.0 { 1.0 } else { pd };
-                let (mut ax, mut ay) = (-dxp / m, -dyp / m);
-                if solid_at(e.x + ax * d.flee, e.y + ay * d.flee) {
-                    // Rotate the escape heading until one clears (veer along the wall).
-                    for a in [0.7f32, -0.7, 1.4, -1.4, 2.2, -2.2] {
+                // COMMIT to an escape heading: re-aiming every tick made a cornered
+                // critter strobe left-right (Baz). Re-aim only when the commitment
+                // lapses or the way ahead closes — and pick by CLEARANCE (how far
+                // the heading can run before a wall), so it veers OUT of corners;
+                // dead even everywhere = truly boxed in, so it cowers instead.
+                e.flee_t -= 1;
+                let blocked = solid_at(e.x + e.dirx * d.flee, e.y + e.diry * d.flee);
+                if e.flee_t <= 0 || blocked || (e.dirx == 0.0 && e.diry == 0.0) {
+                    e.flee_t = 14;
+                    let m = if pd == 0.0 { 1.0 } else { pd };
+                    let (bx, by) = (-dxp / m, -dyp / m);
+                    let clearance = |ax: f32, ay: f32| {
+                        (1..=6).take_while(|i| !solid_at(e.x + ax * d.flee * *i as f32, e.y + ay * d.flee * *i as f32)).count()
+                    };
+                    // Candidates fan out from straight-away; ties keep the earliest
+                    // (closest to straight-away), so open ground still wins clean.
+                    let (mut best, mut best_c) = ((0.0, 0.0), 0);
+                    for a in [0.0f32, 0.7, -0.7, 1.4, -1.4, 2.2, -2.2, std::f32::consts::PI] {
                         let (c, s) = (a.cos(), a.sin());
-                        let (nx, ny) = (ax * c - ay * s, ax * s + ay * c);
-                        if !solid_at(e.x + nx * d.flee, e.y + ny * d.flee) {
-                            ax = nx;
-                            ay = ny;
-                            break;
+                        let cand = (bx * c - by * s, bx * s + by * c);
+                        let cl = clearance(cand.0, cand.1);
+                        if cl > best_c {
+                            (best, best_c) = (cand, cl);
+                            if cl == 6 {
+                                break;
+                            }
                         }
                     }
+                    (e.dirx, e.diry) = best; // (0,0) when every way is walled: cower
                 }
-                e.dirx = ax;
-                e.diry = ay;
             }
             mv!(e.dirx * d.flee, e.diry * d.flee);
         } else if d.fly {
@@ -460,6 +478,7 @@ fn critter_tick(
         } else {
             // Ground: wander in bursts, pause often.
             e.fleeing = false;
+            e.flee_t = 0; // next scare re-aims at once (wander re-uses dirx/diry)
             e.move_t -= 1;
             if e.move_t <= 0 {
                 e.move_t = 50 + (rng.0.next_f64() * 80.0) as i32;

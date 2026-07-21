@@ -96,7 +96,10 @@ pub(crate) fn mob_projectiles_tick(
         w.life -= 1;
         *hb = Hitbox { x: w.x + 5.0, y: w.y + 5.0, w: 6.0, h: 6.0 };
         *tf = at(PLAY_X + w.x + 5.0, PLAY_Y + w.y + 5.0, 5.0, 5.0, 8.6);
-        if grid.0.box_hits_solid(w.x + 5.0, w.y + 5.0, 6.0, 6.0)
+        // Webs share the shot rule: water doesn't stop them, walls do (see
+        // enemy_shots_tick's over-water note).
+        let (tc, tr) = (((w.x + 8.0) / 16.0).floor() as i32, ((w.y + 8.0) / 16.0).floor() as i32);
+        if (grid.0.code_at(tc, tr) != '~' && grid.0.box_hits_solid(w.x + 5.0, w.y + 5.0, 6.0, 6.0))
             || w.x < -16.0
             || w.x > crate::room::PX_W as f32
             || w.y < -16.0
@@ -136,6 +139,13 @@ pub(crate) fn enemy_shots_tick(
     mut bolts: Query<(Entity, &mut EBolt, &mut Transform, &mut Hitbox), Without<EnemyArrow>>,
 ) {
     let (w, h) = (crate::room::PX_W as f32, crate::room::PX_H as f32);
+    // Enemy shots sail OVER water exactly like the player's (archery.rs) — without
+    // this, a water sniper's bolt died on its OWN spawn tile ('~' is solid) and the
+    // spitgill just bobbed there looking harmless (Baz).
+    let over_water = |x: f32, y: f32| {
+        let (tc, tr) = (((x + 8.0) / 16.0).floor() as i32, ((y + 8.0) / 16.0).floor() as i32);
+        grid.0.code_at(tc, tr) == '~'
+    };
     for (e, mut a, mut tf, mut hb) in &mut arrows {
         a.x += a.vx;
         a.y += a.vy;
@@ -144,7 +154,13 @@ pub(crate) fn enemy_shots_tick(
         let rot = tf.rotation;
         *tf = at(PLAY_X + a.x, PLAY_Y + a.y, 16.0, 16.0, 8.6);
         tf.rotation = rot;
-        if grid.0.box_hits_solid(a.x + 5.0, a.y + 5.0, 6.0, 6.0) || a.x < -16.0 || a.x > w || a.y < -16.0 || a.y > h || a.life <= 0 {
+        if (!over_water(a.x, a.y) && grid.0.box_hits_solid(a.x + 5.0, a.y + 5.0, 6.0, 6.0))
+            || a.x < -16.0
+            || a.x > w
+            || a.y < -16.0
+            || a.y > h
+            || a.life <= 0
+        {
             commands.entity(e).despawn();
         }
     }
@@ -154,7 +170,13 @@ pub(crate) fn enemy_shots_tick(
         b.life -= 1;
         *hb = Hitbox { x: b.x + 3.0, y: b.y + 3.0, w: 7.0, h: 7.0 };
         *tf = at(PLAY_X + b.x + 1.0, PLAY_Y + b.y + 1.0, 8.0, 8.0, 8.6);
-        if grid.0.box_hits_solid(b.x + 3.0, b.y + 3.0, 7.0, 7.0) || b.x < -16.0 || b.x > w || b.y < -16.0 || b.y > h || b.life <= 0 {
+        if (!over_water(b.x, b.y) && grid.0.box_hits_solid(b.x + 3.0, b.y + 3.0, 7.0, 7.0))
+            || b.x < -16.0
+            || b.x > w
+            || b.y < -16.0
+            || b.y > h
+            || b.life <= 0
+        {
             commands.entity(e).despawn();
         }
     }
