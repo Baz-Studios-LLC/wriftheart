@@ -11,11 +11,22 @@ use bevy::prelude::*;
 
 /// Frame pick + transform for every biome mob: wolf is per-facing, the thornling disguises
 /// while dormant, the burrower is a dirt mound underground; fliers ride ABOVE the y-sort.
-pub(super) fn sync_mobs(
-    art: Res<MobArtBank>,
-    mut q: Query<(&Mob, &Health, &mut Sprite, &mut Transform, &mut Visibility)>,
-) {
-    for (m, h, mut sprite, mut tf, mut vis) in &mut q {
+/// The sync's query rows (a type alias keeps clippy content).
+type MobSprites<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Mob,
+        &'static Health,
+        &'static mut Sprite,
+        &'static mut Transform,
+        &'static mut Visibility,
+        Option<&'static crate::app::uniques::MobAfflictions>,
+    ),
+>;
+
+pub(super) fn sync_mobs(art: Res<MobArtBank>, mut q: MobSprites) {
+    for (m, h, mut sprite, mut tf, mut vis, aff) in &mut q {
         let d = &mobs::MOB_DEFS[m.def];
         let is_hopper = matches!(d.ai, mobs::Ai::Hopper { .. });
         let (img, w, hh) = match d.kind {
@@ -60,7 +71,11 @@ pub(super) fn sync_mobs(
         };
         sprite.image = img;
         // Ghosts drift translucent (js wraith globalAlpha 0.8); everyone else opaque.
-        sprite.color = if d.kind == "boglight" {
+        // FROZEN outranks everything: the ice-blue cast (this sync writes color every
+        // frame, so the tint must live HERE or it gets stomped — the frost-beam fix).
+        sprite.color = if aff.is_some_and(|a| a.freeze > 0) {
+            Color::srgb_u8(0x9a, 0xd4, 0xff)
+        } else if d.kind == "boglight" {
             // Half out of the world every other beat (js faded alpha 0.28).
             Color::srgba(1.0, 1.0, 1.0, if (m.anim % 260) >= 130 { 0.28 } else { 1.0 })
         } else if d.ghost {
@@ -159,16 +174,30 @@ pub(super) fn particles_tick(mut commands: Commands, mut q: Query<(Entity, &mut 
 /// Goblin sprite sync: frame by facing/step, hit-flash blink. A HumanSkin (bandit)
 /// swaps the goblin art for its person-in-costume frames, same gait.
 #[allow(clippy::type_complexity)] // the goblin render row: chassis + skin + sprite state
-pub(super) fn sync_goblins(
-    art: Res<GoblinArt>,
-    mut q: Query<(&Goblin, &Health, Option<&crate::actors::goblin::HumanSkin>, &mut Sprite, &mut Transform, &mut Visibility)>,
-) {
-    for (g, h, skin, mut sprite, mut tf, mut vis) in &mut q {
+/// The goblin sync's query rows (a type alias keeps clippy content).
+type GoblinSprites<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Goblin,
+        &'static Health,
+        Option<&'static crate::actors::goblin::HumanSkin>,
+        Option<&'static crate::app::uniques::MobAfflictions>,
+        &'static mut Sprite,
+        &'static mut Transform,
+        &'static mut Visibility,
+    ),
+>;
+
+pub(super) fn sync_goblins(art: Res<GoblinArt>, mut q: GoblinSprites) {
+    for (g, h, skin, aff, mut sprite, mut tf, mut vis) in &mut q {
         let kind_idx = if g.kind == GoblinKind::Spear { 1 } else { 0 };
         sprite.image = match skin {
             Some(s) => s.frames[g.facing as usize][g.frame].clone(), // stand / step
             None => art.0[kind_idx][g.facing as usize][g.frame].clone(),
         };
+        // FROZEN wears the same ice-blue cast the beasts do (sync_mobs' rule).
+        sprite.color = if aff.is_some_and(|a| a.freeze > 0) { Color::srgb_u8(0x9a, 0xd4, 0xff) } else { Color::WHITE };
         *tf = at(PLAY_X + g.x.round(), PLAY_Y + g.y.round(), 16.0, 16.0, actor_z(g.y.round() + 16.0));
         // Hit flash: skip-draw on alternating frames (js: if (e.flash & 1) return).
         *vis = if h.flash > 0 && (h.flash & 1) == 1 { Visibility::Hidden } else { Visibility::Inherited };

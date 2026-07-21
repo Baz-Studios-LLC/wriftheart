@@ -14,6 +14,7 @@ use crate::gfx::{at, PIXEL_LAYER};
 use bevy::prelude::*;
 
 /// The goblin brain + its attack spawns.
+#[allow(clippy::type_complexity)]
 pub(super) fn goblin_ai(
     mut commands: Commands,
     grid: Res<CurGrid>,
@@ -21,13 +22,21 @@ pub(super) fn goblin_ai(
     art: Res<AttackArt>,
     mut rng: ResMut<GameRng>,
     players: Query<(&Player, &Hitbox), Without<Goblin>>,
-    mut goblins: Query<(Entity, &mut Goblin, &mut Hitbox, &Knockback, &Health), Without<Player>>,
+    mut goblins: Query<
+        (Entity, &mut Goblin, &mut Hitbox, &Knockback, &Health, Option<&crate::app::uniques::MobAfflictions>),
+        Without<Player>,
+    >,
 ) {
     let Ok((p, pbox)) = players.single() else { return };
     let ppos = Vec2::new(p.x, p.y);
     let mut rand = || rng.0.next_f64() as f32;
-    for (ent, mut g, mut hb, kb, health) in &mut goblins {
+    for (ent, mut g, mut hb, kb, health, aff) in &mut goblins {
         if health.hp <= 0 {
+            continue;
+        }
+        // FROZEN SOLID (the frost beam): goblinkind freezes like any beast.
+        if aff.is_some_and(|a| a.freeze > 0) {
+            *hb = goblin_hitbox(&g);
             continue;
         }
         let act = goblin_think(&mut g, kb, &grid.0, &blockers.0, ppos, pbox, &mut rand);
@@ -54,7 +63,7 @@ pub(super) fn mobs_ai(
     art: Res<MobArtBank>,
     mut rng: ResMut<GameRng>,
     mut players: Query<(&mut Player, &Hitbox), Without<Mob>>,
-    mut q: Query<(&mut Mob, &mut Hitbox, &mut Combatant, &mut Health, &Knockback, Option<&crate::app::uniques::MobAfflictions>), Without<Player>>,
+    mut q: Query<(Entity, &mut Mob, &mut Hitbox, &mut Combatant, &mut Health, &Knockback, Option<&crate::app::uniques::MobAfflictions>), Without<Player>>,
 ) {
     let (ppos, pface, pbox_val) = {
         let Ok((p, pbox)) = players.single() else { return };
@@ -71,7 +80,7 @@ pub(super) fn mobs_ai(
     let mut pull: Option<(f32, f32, f32)> = None; // (tx, ty, strength)
     let mut swap_to: Option<Vec2> = None;
     let mut rand = || rng.0.next_f64() as f32;
-    for (mut m, mut hb, mut cb, mut health, kb, afflictions) in &mut q {
+    for (e, mut m, mut hb, mut cb, mut health, kb, afflictions) in &mut q {
         if health.hp <= 0 {
             continue;
         }
@@ -103,8 +112,31 @@ pub(super) fn mobs_ai(
         *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
             continue;
         }
+        // FROZEN SOLID (the frost beam): an ice statue — no thinking, no stepping,
+        // no contact bite — until it thaws (mobfx.rs paints the blue cast + mist).
+        if afflictions.is_some_and(|a| a.freeze > 0) {
+            cb.damage = None;
+            let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
+            let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
+            *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+            continue;
+        }
         // Knockback owns the body this tick (apply_mob_knockback moves it).
         if kb.timer == 0 {
+            // BURNING PANIC (Baz): a foe on fire bolts in a blind scramble — heading
+            // re-rolled every dozen ticks, legs pumping, no mind for its own attacks.
+            if afflictions.is_some_and(|a| a.burn > 0 && a.freeze <= 0) {
+                m.anim += 1;
+                let win = (m.anim as u64 / 12).wrapping_add(e.to_bits().wrapping_mul(0x9e37));
+                let ang = ((win.wrapping_mul(2654435761) >> 9) & 0xffff) as f32 / 65536.0 * std::f32::consts::TAU;
+                let spd = 0.9 * m.speed_mul;
+                mob_step(&mut m, d, &grid.0, &blockers, pbox, ang.cos() * spd, 0.0);
+                mob_step(&mut m, d, &grid.0, &blockers, pbox, 0.0, ang.sin() * spd);
+                let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
+                let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
+                *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+                continue;
+            }
             // Aggro gate: idle until the player is close; a struck foe jolts awake.
             if !m.aggro {
                 let (adx, ady) = ((ppos.x + 8.0) - (m.x + 8.0), (ppos.y + 9.0) - (m.y + 8.0));

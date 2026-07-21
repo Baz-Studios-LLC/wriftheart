@@ -12,9 +12,8 @@ use super::battle::RoomActor;
 use super::play::{CurRoom, GameWorld, Player};
 use super::room_render::{actor_z, PLAY_X, PLAY_Y};
 use crate::actors::encounter_art::WAGON;
-use crate::gfx::{at, bake, font, PIXEL_LAYER};
+use crate::gfx::{at, bake, PIXEL_LAYER};
 use crate::input::{Action, ActionState, Bindings};
-use crate::ui::label;
 
 /// A standing caravan (the merchant's cart) — its room-pixel anchor.
 #[derive(Component)]
@@ -24,7 +23,7 @@ pub struct CaravanWagon {
 }
 
 /// The proximity prompt above the wagon (rebuilt only when it appears/vanishes).
-#[derive(Component)]
+#[derive(Component, Clone)]
 struct CaravanPrompt;
 
 /// The wagon's per-site seed (stable per room), for the stock roll.
@@ -107,20 +106,20 @@ fn caravan_tick(
     players: Query<&Player>,
     wagons: Query<&CaravanWagon>,
     old: Query<Entity, With<CaravanPrompt>>,
-    mut shown: Local<bool>,
+    mut shown: Local<Option<(i32, i32)>>,
 ) {
     let Ok(p) = players.single() else { return };
     let near = wagons.iter().any(|w| (w.x + 16.0 - (p.x + 8.0)).hypot(w.y + 10.0 - (p.y + 8.0)) < 34.0);
-    if near != *shown {
-        *shown = near;
+    // The shared by-the-character bubble (prompts.rs), re-anchored as the hero moves.
+    let key = near.then_some((p.x as i32, p.y as i32));
+    if key != *shown {
+        *shown = key;
         for e in &old {
             commands.entity(e).despawn();
         }
         if near {
             let text = format!("{} TRADE", bindings.prompt(Action::Interact, false));
-            let w = font::measure(&text) as f32;
-            let cx = (crate::CANVAS_W as f32 - w) / 2.0;
-            label(&mut commands, &mut images, &text, cx.floor(), crate::CANVAS_H as f32 - 14.0, 0xfce0a8, 20.0, CaravanPrompt);
+            super::prompts::spawn_bubble(&mut commands, &mut images, &text, p.x + 8.0, p.y - 10.0, CaravanPrompt);
         }
     }
     if near && input.pressed(Action::Interact) {

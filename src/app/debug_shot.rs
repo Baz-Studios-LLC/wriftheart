@@ -1391,6 +1391,11 @@ fn flute_stage(
             held: [false; 4],
             dests: vec![],
             di: 0,
+            wt: 0,
+            wspin: 0.0,
+            whp: 0,
+            wdest: (0, 0),
+            whome: false,
         });
         return;
     }
@@ -1414,6 +1419,11 @@ fn flute_stage(
         held: [false; 4],
         dests: vec![],
         di: 0,
+        wt: 0,
+        wspin: 0.0,
+        whp: 0,
+        wdest: (0, 0),
+        whome: false,
     });
 }
 

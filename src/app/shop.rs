@@ -264,9 +264,10 @@ fn shop_tick(
         shop.cursor += 1;
         dirty = true;
     }
-    // Mouse: hover a row highlights it, a click buys/sells it. Row rects + scroll mirror redraw.
+    // Mouse: the list SCROLLS, so hover does nothing — a click selects a row, clicking
+    // the selected row buys/sells it (no accidental purchases on the first click).
     let mut row_click = false;
-    {
+    if ptr.click {
         let (ox, oy) = shop_origin();
         let vis = ((H - 32.0) / ROW) as usize; // == redraw's (y+H-12-top)/ROW, top = y+20
         let top = oy + 20.0;
@@ -277,12 +278,10 @@ fn shop_tick(
                 break;
             }
             if ptr.over(ox + 4.0, top + v as f32 * ROW - 1.0, W - 8.0, ROW - 1.0) {
-                if ptr.moved {
+                if shop.cursor != scroll + v {
                     shop.cursor = scroll + v;
                     dirty = true;
-                }
-                if ptr.click {
-                    shop.cursor = scroll + v;
+                } else {
                     row_click = true;
                 }
             }
@@ -404,7 +403,10 @@ fn draw_coin_str(
         let col = col_of(ch);
         if col != run_col && !run.is_empty() {
             label(commands, images, &run, cx, y, run_col, z, ShopUi);
-            cx += font::measure(&run) as f32;
+            // measure() drops the trailing letter-gap — without the +1 every colour
+            // boundary lost a pixel and the G/S/C letters crowded the digits (Baz:
+            // "prices are getting mangled").
+            cx += font::measure(&run) as f32 + 1.0;
             run.clear();
         }
         run_col = col;

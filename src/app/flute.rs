@@ -24,6 +24,11 @@ use crate::actors::mobs::Mob;
 use crate::combat::{Combatant, Health, HitLanded, Hitbox, Team};
 use crate::gfx::{at, font, layers, PIXEL_LAYER};
 use crate::input::{Action, ActionState, Bindings};
+
+/// The warp list acts on CLICKS only (hover would scroll the list under a still mouse).
+fn input_click(ptr: &crate::input::Pointer) -> bool {
+    ptr.click
+}
 use crate::inventory::PlayerInv;
 use crate::room::{PX_H, PX_W};
 use crate::songs::{self, SongDef};
@@ -93,6 +98,8 @@ pub struct Dest {
     pub rx: i32,
     pub ry: i32,
     pub dist: i32, // rooms away at cast time (the picker's "N AWAY" column)
+    /// YOUR HOUSE — always the top entry, and the landing aims for the doorstep.
+    pub home: bool,
 }
 
 #[derive(PartialEq)]
@@ -100,7 +107,18 @@ pub enum Phase {
     Play,
     Replay,
     Dest,
+    /// The js WARP CHARGE: the song holds the hero rooted while two rings spin up
+    /// around him — pain breaks it, completion teleports (warp_fx draws it).
+    Warp,
 }
+
+/// The js warp clocks: channel frames before the teleport, materialise-flash after.
+pub const WARP_CHARGE: i32 = 84;
+pub const WARP_ARRIVE: i32 = 22;
+
+/// Frames left of the landing flash + shockwave (set as the teleport fires).
+#[derive(Resource, Default)]
+pub struct WarpArrive(pub i32);
 
 pub struct FluteState {
     pub phase: Phase,
@@ -123,6 +141,13 @@ pub struct FluteState {
     pub held: [bool; 4],
     pub dests: Vec<Dest>,
     pub di: usize,
+    /// The warp channel (Phase::Warp): clock, accelerating spin, the hp that arms
+    /// the damage-cancel, and where the song is carrying you.
+    pub wt: i32,
+    pub wspin: f32,
+    pub whp: i32,
+    pub wdest: (i32, i32),
+    pub whome: bool,
 }
 
 /// Play-mode in flight (js fluting) — the player is rooted while the flute is up.
@@ -133,11 +158,14 @@ pub struct Fluting(pub Option<FluteState>);
 #[derive(Component)]
 pub struct FluteFx(pub u32);
 
-/// "Carry me to (rx, ry)" — handled by the loader (Song of Returning).
+/// "Carry me to (rx, ry)" — handled by the loader (Song of Returning). Written when
+/// the warp CHARGE completes, not when the destination is picked.
 #[derive(Message)]
 pub struct WarpTo {
     pub rx: i32,
     pub ry: i32,
+    /// Land at the house doorstep (js placeAtHouseDoor), not the room centre.
+    pub home: bool,
 }
 
 /// Teach a song (js learnSong): needs an instrument in the bag; toasts + dedups.
@@ -244,15 +272,26 @@ pub struct FluteCtx<'w> {
     pub log: ResMut<'w, super::rewards::LootLog>,
     pub sfx: MessageWriter<'w, super::sfx::Sfx>,
     pub warps: MessageWriter<'w, WarpTo>,
-    /// The Song of Opening rings out — caves.rs answers (FluteCtx is now AT the 16-field cap).
+    /// FluteCtx sits AT the 16-field cap — new resources nest here (the SocialCtx idiom).
+    pub extra: FluteExtra<'w>,
+}
+
+/// The overflow slice of the flute's context (FluteCtx is at Bevy's 16-field cap).
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct FluteExtra<'w> {
+    /// The Song of Opening rings out — caves.rs answers.
     pub openings: MessageWriter<'w, super::caves::OpeningSung>,
+    /// The Song of Returning's HOME entry needs to know where home is.
+    pub house: Res<'w, super::home::PlayerHouse>,
+    /// The landing flash's countdown, armed as the teleport fires.
+    pub arrive: ResMut<'w, WarpArrive>,
 }
 
 const NOTE_ACTS: [Action; 4] = [Action::Up, Action::Down, Action::Left, Action::Right];
 
 /// The whole play-mode state machine (js updateFlute), one fixed tick at a time.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
-fn flute_tick(
+pub(crate) fn flute_tick(
     mut commands: Commands,
     mut input: ResMut<ActionState>,
     mut fluting: ResMut<Fluting>,
@@ -294,6 +333,11 @@ fn flute_tick(
                         held: [false; 4],
                         dests: vec![],
                         di: 0,
+                        wt: 0,
+                        wspin: 0.0,
+                        whp: 0,
+                        wdest: (0, 0),
+                        whome: false,
                     });
                     ctx.sfx.write(super::sfx::Sfx("open"));
                 }
@@ -539,10 +583,10 @@ fn flute_tick(
                 f.di = (f.di + 1) % n;
                 ctx.sfx.write(super::sfx::Sfx("menuMove"));
             }
-            // Mouse: hover a destination highlights it, a click warps there. Row rects mirror
-            // the destination-picker draw (bx+4, by+19+i*10-2, pw-8, 9).
+            // Mouse: the list SCROLLS, so hover does nothing — a click selects a
+            // destination, clicking the selection warps there.
             let mut dest_click = false;
-            if !closed {
+            if !closed && input_click(&ptr) {
                 use super::room_render::{PLAY_X, PLAY_Y};
                 use crate::room::{PX_H, PX_W};
                 let vis = n.min(6);
@@ -552,12 +596,10 @@ fn flute_tick(
                 let by = (PLAY_Y + PX_H as f32 / 2.0 - ph / 2.0).round();
                 for i in 0..vis {
                     if ptr.over(bx + 4.0, by + 19.0 + i as f32 * 10.0 - 2.0, pw - 8.0, 9.0) {
-                        if ptr.moved && f.di != start + i {
+                        if f.di != start + i {
                             f.di = start + i;
                             ctx.sfx.write(super::sfx::Sfx("menuMove"));
-                        }
-                        if ptr.click {
-                            f.di = start + i;
+                        } else {
                             dest_click = true;
                         }
                     }
@@ -568,8 +610,32 @@ fn flute_tick(
                 input.consume(Action::Interact);
                 let d = &f.dests[f.di];
                 ctx.mana.cur -= songs::get("returning").map_or(10, |s| s.mana);
-                ctx.warps.write(WarpTo { rx: d.rx, ry: d.ry });
+                // The js WARP CHARGE: the song holds you rooted in the LIVE world while
+                // the rings spin up — the teleport fires only if the channel completes.
+                f.wdest = (d.rx, d.ry);
+                f.whome = d.home;
+                f.wt = 0;
+                f.wspin = 0.0;
+                f.whp = health.hp;
+                f.phase = Phase::Warp;
                 ctx.sfx.write(super::sfx::Sfx("warpCharge"));
+            }
+        }
+        Phase::Warp => {
+            f.wt += 1;
+            f.wspin += 0.14 + f.wt as f32 * 0.008; // accelerating spin (js)
+            if f.wt % 16 == 0 {
+                ctx.sfx.write(super::sfx::Sfx("warpTick"));
+            }
+            if health.hp < f.whp {
+                // took damage -> the song breaks (js cancelWarp)
+                ctx.log.add("song", "THE SONG BREAKS", 1, 0xfc8868, false, true);
+                ctx.sfx.write(super::sfx::Sfx("warpFail"));
+                closed = true;
+            } else if f.wt >= WARP_CHARGE {
+                ctx.warps.write(WarpTo { rx: f.wdest.0, ry: f.wdest.1, home: f.whome });
+                ctx.sfx.write(super::sfx::Sfx("warpGo"));
+                ctx.extra.arrive.0 = WARP_ARRIVE;
                 closed = true;
             }
         }
@@ -657,16 +723,22 @@ fn cast_song(
                         return None;
                     }
                     let dist = (((rx - ctx.cur.rx).pow(2) + (ry - ctx.cur.ry).pow(2)) as f64).sqrt().round() as i32;
-                    Some(Dest { name: name.to_uppercase(), rx, ry, dist })
+                    Some(Dest { name: name.to_uppercase(), rx, ry, dist, home: false })
                 })
                 .collect();
+            dests.sort_by_key(|d| d.dist);
+            // HOME leads the list when you have one (Baz) — the hearth outranks every town.
+            if let Some(h) = ctx.extra.house.0.as_ref().filter(|h| h.room != (ctx.cur.rx, ctx.cur.ry)) {
+                let dist =
+                    ((((h.room.0 - ctx.cur.rx).pow(2) + (h.room.1 - ctx.cur.ry).pow(2)) as f64).sqrt()).round() as i32;
+                dests.insert(0, Dest { name: "HOME".into(), rx: h.room.0, ry: h.room.1, dist, home: true });
+            }
             if dests.is_empty() {
                 ctx.log.add("song", "NOWHERE CALLS YOU BACK YET", 1, 0xb8a0d8, false, true);
                 ctx.sfx.write(super::sfx::Sfx("warpFail"));
                 fluting.0 = None;
                 return;
             }
-            dests.sort_by_key(|d| d.dist);
             if let Some(f) = &mut fluting.0 {
                 f.phase = Phase::Dest;
                 f.dests = dests;
@@ -718,7 +790,7 @@ fn cast_song(
             // The stones are caves.rs business: it answers with a split stone (mana
             // spent only if something answers) or lets the notes fade.
             fluting.0 = None;
-            ctx.openings.write(super::caves::OpeningSung { mana: song.mana });
+            ctx.extra.openings.write(super::caves::OpeningSung { mana: song.mana });
         }
         "greensong" => {
             let n = ctx.farm.ripen_room((ctx.cur.rx, ctx.cur.ry));
@@ -1178,6 +1250,134 @@ fn flute_overlay(
     }
 }
 
+/// Marker on every warp-fx sprite (rebuilt each frame, immediate-mode).
+#[derive(Component)]
+struct WarpFxUi;
+
+/// Bake the js radial-gradient glow once: a 64px disc whose alpha falls off with
+/// the square of distance (reads like the 'lighter' gradient the js painted).
+fn radial_glow(images: &mut Assets<Image>) -> Handle<Image> {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    const S: usize = 64;
+    let mut data = vec![0u8; S * S * 4];
+    for y in 0..S {
+        for x in 0..S {
+            let (dx, dy) = (x as f32 - 31.5, y as f32 - 31.5);
+            let a = (1.0 - (dx * dx + dy * dy).sqrt() / 32.0).clamp(0.0, 1.0);
+            let i = (y * S + x) * 4;
+            data[i] = 255;
+            data[i + 1] = 255;
+            data[i + 2] = 255;
+            data[i + 3] = (a * a * 255.0) as u8;
+        }
+    }
+    images.add(Image::new(
+        Extent3d { width: S as u32, height: S as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    ))
+}
+
+/// The js drawWarpFx, sprite by sprite: CHARGE = rising radial glow + two
+/// counter-rotating rings of squares tightening in (cyan + arcane purple, squashed
+/// into portal perspective) + sparks climbing the column; ARRIVE = a screen flash
+/// and an expanding shockwave ring.
+#[allow(clippy::too_many_arguments)] // it IS the effect's arity
+fn warp_fx(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    fluting: Res<Fluting>,
+    arrive: Res<WarpArrive>,
+    players: Query<&Player>,
+    old: Query<Entity, With<WarpFxUi>>,
+    mut glow: Local<Option<Handle<Image>>>,
+) {
+    use std::f32::consts::TAU;
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    let Ok(p) = players.single() else { return };
+    let (cx, cy) = (PLAY_X + p.x + 8.0, PLAY_Y + p.y + 9.0);
+    let z = 9.6;
+    if let Some(f) = fluting.0.as_ref().filter(|f| f.phase == Phase::Warp) {
+        let prog = (f.wt as f32 / WARP_CHARGE as f32).min(1.0);
+        let img = glow.get_or_insert_with(|| radial_glow(&mut images)).clone();
+        let gr = 20.0 + prog * 30.0;
+        let mut g = Sprite::from_image(img);
+        g.custom_size = Some(Vec2::splat(gr * 2.0));
+        g.color = Color::srgba(190.0 / 255.0, 160.0 / 255.0, 1.0, 0.22 + prog * 0.4);
+        commands.spawn((g, at(cx - gr, cy - gr, gr * 2.0, gr * 2.0, z - 0.05), PIXEL_LAYER, WarpFxUi));
+        for ring in 0..2u32 {
+            let dir = if ring == 1 { -1.0 } else { 1.0 };
+            let base = f.wspin * dir * (1.0 + ring as f32 * 0.4);
+            let rad = (if ring == 1 { 30.0f32 } else { 22.0 }) * (1.0 - prog * 0.6) + 4.0;
+            let col = if ring == 1 {
+                Color::srgba(127.0 / 255.0, 216.0 / 255.0, 1.0, 0.5 + prog * 0.5)
+            } else {
+                Color::srgba(184.0 / 255.0, 144.0 / 255.0, 1.0, 0.5 + prog * 0.5)
+            };
+            let s = 1.0 + (prog * 2.0).round();
+            for i in 0..10 {
+                let a = base + i as f32 * (TAU / 10.0);
+                let (px, py) = (cx + a.cos() * rad, cy + a.sin() * rad * 0.72); // squashed = portal perspective
+                commands.spawn((
+                    Sprite::from_color(col, Vec2::splat(s)),
+                    at((px - s / 2.0).round(), (py - s / 2.0).round(), s, s, z),
+                    PIXEL_LAYER,
+                    WarpFxUi,
+                ));
+            }
+        }
+        for i in 0..6 {
+            // sparks rising up the column (js)
+            let a = (i * 61) as f32 * TAU / 360.0;
+            let px = cx + (a + f.wt as f32 * 0.05).cos() * 9.0;
+            let py = cy + 18.0 - ((f.wt as f32 * 2.6 + i as f32 * 30.0) % 48.0);
+            commands.spawn((
+                Sprite::from_color(Color::srgba(224.0 / 255.0, 206.0 / 255.0, 1.0, 0.7), Vec2::new(1.0, 2.0)),
+                at(px.round(), py.round(), 1.0, 2.0, z + 0.02),
+                PIXEL_LAYER,
+                WarpFxUi,
+            ));
+        }
+    } else if arrive.0 > 0 {
+        let prog = 1.0 - arrive.0 as f32 / WARP_ARRIVE as f32;
+        let fa = (1.0 - prog / 0.5).max(0.0);
+        if fa > 0.0 {
+            commands.spawn((
+                Sprite::from_color(Color::srgba(216.0 / 255.0, 206.0 / 255.0, 1.0, 0.6 * fa), Vec2::new(PX_W as f32, PX_H as f32)),
+                at(PLAY_X, PLAY_Y, PX_W as f32, PX_H as f32, 12.5),
+                PIXEL_LAYER,
+                WarpFxUi,
+            ));
+        }
+        // the expanding shockwave, drawn as a ring of dots
+        let rad = prog * 64.0;
+        let s = ((1.0 - prog) * 4.0 + 1.0).round().max(1.0);
+        let col = Color::srgba(184.0 / 255.0, 144.0 / 255.0, 1.0, (1.0 - prog) * 0.7);
+        for i in 0..24 {
+            let a = i as f32 * (TAU / 24.0);
+            let (px, py) = (cx + a.cos() * rad, cy + a.sin() * rad);
+            commands.spawn((
+                Sprite::from_color(col, Vec2::splat(s)),
+                at((px - s / 2.0).round(), (py - s / 2.0).round(), s, s, z),
+                PIXEL_LAYER,
+                WarpFxUi,
+            ));
+        }
+    }
+}
+
+/// Burn the landing flash down on the fixed clock.
+fn arrive_tick(mut arrive: ResMut<WarpArrive>) {
+    if arrive.0 > 0 {
+        arrive.0 -= 1;
+    }
+}
+
 pub struct FlutePlugin;
 
 impl Plugin for FlutePlugin {
@@ -1185,13 +1385,14 @@ impl Plugin for FlutePlugin {
         app.init_resource::<Mana>()
             .init_resource::<LearnedSongs>()
             .init_resource::<Fluting>()
+            .init_resource::<WarpArrive>()
             .add_message::<WarpTo>()
             .add_systems(
                 bevy::app::FixedUpdate,
-                (flute_tick, mana_regen, flute_fx_tick, wake_on_hit, catch_up_tick)
+                (flute_tick, mana_regen, flute_fx_tick, wake_on_hit, catch_up_tick, arrive_tick)
                     .before(super::play::EndTick)
                     .run_if(playing),
             )
-            .add_systems(Update, flute_overlay.run_if(playing));
+            .add_systems(Update, (flute_overlay, warp_fx).run_if(playing));
     }
 }

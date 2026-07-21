@@ -71,10 +71,17 @@ pub fn handle_warp(
     let Some(req) = reqs.read().last() else { return };
     swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, req.rx, req.ry, house.0.as_ref().map(|h| h.room));
     if let Ok((mut p, mut h)) = players.single_mut() {
-        p.x = (PX_W / 2 - 8) as f32;
-        p.y = (PX_H / 2 - 8) as f32;
-        p.facing = crate::actors::hero::Facing::Down;
-        h.invuln = 30;
+        if req.home && let Some(hs) = house.0.as_ref() {
+            // js placeAtHouseDoor: centred on the door, a step below it.
+            p.x = hs.x + 3.0;
+            p.y = (hs.y + 28.0).min(PX_H as f32 - 24.0);
+            p.facing = crate::actors::hero::Facing::Up;
+        } else {
+            p.x = (PX_W / 2 - 8) as f32;
+            p.y = (PX_H / 2 - 8) as f32;
+            p.facing = crate::actors::hero::Facing::Down;
+        }
+        h.invuln = 50; // js: warp landings arrive with a longer mercy window
     }
 }
 

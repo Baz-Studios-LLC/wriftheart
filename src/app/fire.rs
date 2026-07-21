@@ -29,11 +29,22 @@ pub struct Burning {
     pub t: i32,
 }
 
-/// One flame tongue of the overlay (jittered by flame_flicker).
+/// One flame tongue of the overlay (jittered by flame_flicker), or its soft glow
+/// halo, or the hot spark riding near the crown.
 #[derive(Component)]
 struct FlameFx {
     host: Entity,
     lane: i32,
+    kind: FlameKind,
+}
+
+/// The js draws its fire with 'lighter' (ADDITIVE) compositing — sprites can't, so
+/// the look is rebuilt in layers: each tongue wears a wider half-alpha halo behind
+/// it, and the #fce0a8 hot spark flecks the top (js burningFx.draw, all three parts).
+enum FlameKind {
+    Tongue,
+    Glow,
+    Spark,
 }
 
 /// Positions of everything burning this tick — lighting.rs reads it (a blaze
@@ -64,9 +75,23 @@ pub fn ignite(commands: &mut Commands, host: Entity, kind: &str) {
             at(0.0, 0.0, 2.0, 5.0, 9.1),
             PIXEL_LAYER,
             RoomActor,
-            FlameFx { host, lane },
+            FlameFx { host, lane, kind: FlameKind::Tongue },
+        ));
+        commands.spawn((
+            Sprite::from_color(Color::srgba(0.99, 0.55, 0.16, 0.35), Vec2::new(4.0, 7.0)),
+            at(0.0, 0.0, 4.0, 7.0, 9.05),
+            PIXEL_LAYER,
+            RoomActor,
+            FlameFx { host, lane, kind: FlameKind::Glow },
         ));
     }
+    commands.spawn((
+        Sprite::from_color(Color::srgb_u8(0xfc, 0xe0, 0xa8), Vec2::new(2.0, 3.0)),
+        at(0.0, 0.0, 2.0, 3.0, 9.15),
+        PIXEL_LAYER,
+        RoomActor,
+        FlameFx { host, lane: 0, kind: FlameKind::Spark },
+    ));
 }
 
 /// Fire bolts touching a flammable node set it alight; grass lets the bolt fly on,
@@ -102,12 +127,18 @@ fn fire_tick(
     mut commands: Commands,
     clock: Res<super::room_render::FrameClock>,
     weather: Res<super::weather::WeatherState>,
+    slide: Res<super::play::SlideState>,
     mut lights: ResMut<BurningLights>,
     mut burning: Query<(Entity, &mut Burning, Option<&mut Health>, &Hitbox)>,
     mut flames: Query<(Entity, &FlameFx, &mut Transform)>,
     hosts: Query<&Hitbox, With<Burning>>,
 ) {
     let raining = crate::weather::get(weather.cur).kind == crate::weather::Kind::Rain;
+    // Mid-slide, burning things ride the OUTGOING root but their hitboxes stay
+    // room-local — shift flames AND glow by the live offset so the blaze slides out
+    // with its bush instead of hanging in the air (Baz: "the glow from fire doesn't
+    // transition right").
+    let (sx, sy) = slide.outgoing_offset().unwrap_or((0.0, 0.0));
     lights.0.clear();
     for (e, mut b, health, hb) in &mut burning {
         if raining {
@@ -116,7 +147,7 @@ fn fire_tick(
             continue;
         }
         b.t -= 1;
-        lights.0.push(((hb.x + hb.w / 2.0) as i32, (hb.y + hb.h / 2.0) as i32));
+        lights.0.push(((hb.x + hb.w / 2.0 + sx) as i32, (hb.y + hb.h / 2.0 + sy) as i32));
         if b.t <= 0 {
             commands.entity(e).remove::<Burning>();
             if let Some(mut h) = health {
@@ -124,7 +155,8 @@ fn fire_tick(
             }
         }
     }
-    // Flames ride their host's hitbox, flickering (js burningFx.draw's dance).
+    // Flames ride their host's hitbox, flickering (js burningFx.draw's dance: tongues
+    // bottom out 5px above the base at x+3+i*3, the spark flecks near the crown).
     for (fe, fx, mut tf) in &mut flames {
         let Ok(hb) = hosts.get(fx.host) else {
             commands.entity(fe).despawn();
@@ -133,13 +165,13 @@ fn fire_tick(
         let t = clock.0 as f32;
         let sway = ((t + fx.lane as f32 * 7.0) * 0.3).sin() * 1.5;
         let h = 5.0 + ((clock.0 + fx.lane as i64 * 5) % 4) as f32;
-        *tf = at(
-            PLAY_X + hb.x + fx.lane as f32 * 3.0 + sway,
-            PLAY_Y + hb.y + hb.h - 1.0 - h,
-            2.0,
-            h,
-            9.1,
-        );
+        let (bx, by) = (PLAY_X + sx + hb.x, PLAY_Y + sy + hb.y);
+        let base = by + hb.h - 5.0; // js: tongue bottoms at target y+11 of the 16px tile
+        *tf = match fx.kind {
+            FlameKind::Tongue => at(bx + 3.0 + fx.lane as f32 * 3.0 + sway, base - h, 2.0, h, 9.1),
+            FlameKind::Glow => at(bx + 2.0 + fx.lane as f32 * 3.0 + sway, base - h - 1.0, 4.0, h + 2.0, 9.05),
+            FlameKind::Spark => at(bx + 6.0, by + hb.h - 14.0, 2.0, 3.0, 9.15),
+        };
     }
 }
 
@@ -196,7 +228,7 @@ fn wildfire(
                     }
                 }
                 None => {
-                    commands.entity(fe).insert(MobAfflictions { chill: 0, burn: 110, burn_clock: 0 });
+                    commands.entity(fe).insert(MobAfflictions { burn: 110, ..Default::default() });
                 }
             }
         }

@@ -200,10 +200,26 @@ fn move_item(inv: &mut PlayerInv, from: &Cell, to: &Cell) -> bool {
     true
 }
 
-/// X on a bag cell: use the item (js useBagAt — blueprints join with the crafting port).
-fn use_bag_at(inv: &mut PlayerInv, i: usize, health: &mut Health) {
+/// X on a bag cell: use the item (js useBagAt). A blueprint learns its recipe right
+/// from the bag (Baz: "I bought this but I can't use it" — the slot path alone was
+/// unguessable); the learn handler validates + consumes.
+fn use_bag_at(inv: &mut PlayerInv, i: usize, health: &mut Health, bags: &mut super::BagWriters) {
     let Some(uid) = inv.bag.get(i).copied().flatten() else { return };
     let Some(def) = inv.def_of(uid) else { return };
+    if def.kind == "BLUEPRINT" {
+        bags.blueprints.write(crate::app::blueprints::LearnBlueprint(def.id));
+        return;
+    }
+    // A station kit / the house opens GHOST PLACEMENT straight from the bag (Baz:
+    // no equipping first) — consumed on PLACE, not on use, so a cancel keeps it.
+    if def.kind == "STATION" {
+        bags.stations.write(crate::app::cooking::PlaceStation(def.id));
+        return;
+    }
+    if def.kind == "STRUCTURE" {
+        bags.houses.write(crate::app::home::PlaceHouse);
+        return;
+    }
     if !def.consumable {
         return;
     }
@@ -292,6 +308,7 @@ pub fn actions(
     images: &mut Assets<Image>,
     player: &Player,
     health: &mut Health,
+    bags: &mut super::BagWriters,
 ) -> bool {
     let cells = cells(inv);
     let cur_i = so.gear_cursor.min(cells.len() - 1);
@@ -351,7 +368,7 @@ pub fn actions(
         true
     } else if state.pressed(Action::Slot3) && matches!(cur.kind, CellKind::Bag(_)) {
         if let CellKind::Bag(i) = cur.kind {
-            use_bag_at(inv, i, health);
+            use_bag_at(inv, i, health, bags);
         }
         true
     } else if state.pressed(Action::Slot4) {
@@ -669,10 +686,13 @@ fn item_stats_line(d: &crate::items::ItemDef) -> String {
         ];
         for (k, name) in LABELS {
             if let Some(v) = get(k).filter(|v| *v != 0.0) {
+                // Negative stats carry their own minus — a blind "+" prefix printed
+                // "+-1 ARMOR" (Baz: confusing).
+                let sign = if v >= 0.0 { "+" } else { "" };
                 if v.fract() == 0.0 {
-                    parts.push(format!("+{} {}", v as i64, name));
+                    parts.push(format!("{sign}{} {}", v as i64, name));
                 } else {
-                    parts.push(format!("+{} {}", pct(v), name));
+                    parts.push(format!("{sign}{} {}", pct(v), name));
                 }
             }
         }

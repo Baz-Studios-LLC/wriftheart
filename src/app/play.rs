@@ -159,6 +159,23 @@ impl SlideState {
             (s.delta.x * (1.0 - t), -s.delta.y * (1.0 - t)) // Bevy y-up -> screen y-down
         })
     }
+    /// The INCOMING room's root while a slide is in flight. ActiveRoot still points at
+    /// the OUTGOING root until the slide settles — anything spawned as a room child
+    /// mid-slide must join THIS root or it rides out and dies with the old room (the
+    /// vanishing-house bug).
+    pub fn incoming_root(&self) -> Option<Entity> {
+        self.0.as_ref().map(|s| s.new_root)
+    }
+    /// The OUTGOING room's current scroll offset in SCREEN px — it slides from rest
+    /// to a full room away. Free overlays anchored to the OLD room's local coords
+    /// (clinging flames, their glow) add this to ride out with it (the fire-glow
+    /// transition fix — Baz).
+    pub fn outgoing_offset(&self) -> Option<(f32, f32)> {
+        self.0.as_ref().map(|s| {
+            let t = (s.frame as f32 / s.total as f32).min(1.0);
+            (-s.delta.x * t, s.delta.y * t) // Bevy y-up -> screen y-down
+        })
+    }
 }
 
 /// Begin a room slide — the DUNGEON walk drives the same machinery (play.rs owns the
@@ -1154,6 +1171,7 @@ fn relabel_coords(
 /// The i-frame blink hides the body on alternating 4-frame windows (js hurtFlash >> 2).
 fn sync_player_sprite(
     art: Res<HeroArt>,
+    fluting: Res<super::flute::Fluting>,
     mut q: Query<(&Player, &Health, &mut Sprite, &mut Transform, &mut Visibility)>,
 ) {
     let Ok((p, h, mut sprite, mut tf, mut vis)) = q.single_mut() else { return };
@@ -1161,6 +1179,17 @@ fn sync_player_sprite(
     let bob = if p.moving && (p.anim_frame & 1) == 1 { 1.0 } else { 0.0 };
     // Spring-boots leap lifts the sprite (js hopZ) — a shadow-anchored bounce.
     *tf = at(PLAY_X + p.x.round(), PLAY_Y + p.y.round() - bob - p.hop_z.round(), 16.0, 16.0, actor_z(p.y.round() + 16.0));
+    // The Song of Returning's channel: SPIN + SHRINK + FADE the hero into the
+    // portal (the js hero treatment, verbatim numbers), pivoting on his center —
+    // at() already centres the translation, so rotation/scale pivot for free.
+    if let Some(f) = fluting.0.as_ref().filter(|f| f.phase == super::flute::Phase::Warp) {
+        let prog = (f.wt as f32 / super::flute::WARP_CHARGE as f32).min(1.0);
+        tf.rotation = Quat::from_rotation_z(-f.wspin); // canvas rotate = screen-clockwise
+        tf.scale = Vec3::splat(1.0 - prog * 0.55);
+        sprite.color = Color::srgba(1.0, 1.0, 1.0, 1.0 - prog * 0.35);
+    } else {
+        sprite.color = Color::WHITE;
+    }
     // DEAD hides the body outright (the death scene's corpse sprite stands in) — keyed
     // off HP, not the screen state: the state transition lags a frame and this sync
     // would win that race and re-show the standing hero beside his own corpse.

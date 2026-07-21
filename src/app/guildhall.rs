@@ -239,9 +239,16 @@ fn donate_tick(
     let mut dirty = donate.is_changed();
     if input.pressed(Action::Slot2) || input.pressed(Action::Pause) {
         input.consume(Action::Slot2);
+        input.consume(Action::Pause);
         donate.0 = None;
         sfx.write(super::sfx::Sfx("open"));
         return;
+    }
+    // The checklist OWNS the buttons while open (the menus rule): nothing leaks to
+    // the ability slots (Baz: B closed the menu on paper but played the flute in
+    // practice — flute_tick is ordered after this and finds the press spent).
+    for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
+        input.consume(a);
     }
     if input.pressed(Action::Up) {
         cur = (cur + w.reqs.len() - 1) % w.reqs.len();
@@ -280,8 +287,9 @@ fn donate_tick(
     if donate.0 != Some((widx, cur)) {
         donate.0 = Some((widx, cur));
     }
-    if (input.pressed(Action::Interact) || req_click) && !done {
+    if (input.pressed(Action::Interact) || input.pressed(Action::MenuConfirm) || req_click) && !done {
         input.consume(Action::Interact);
+        input.consume(Action::MenuConfirm);
         let req = &w.reqs[cur];
         if counts[cur] >= req.n {
             sfx.write(super::sfx::Sfx("tink"));
@@ -456,7 +464,7 @@ impl Plugin for GuildhallPlugin {
             .init_resource::<CityPerks>()
             .add_systems(
                 bevy::app::FixedUpdate,
-                (perks_tick, super::hall_exterior::hall_wake, altar_wake, altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact))
+                (perks_tick, super::hall_exterior::hall_wake, altar_wake, altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
                     .before(super::play::EndTick)
                     .run_if(super::screen::playing),
             );

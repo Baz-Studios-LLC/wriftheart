@@ -24,6 +24,22 @@ use bevy::prelude::*;
 
 const Z: f32 = 19.4; // over the play field + HUD, under pause (19.85) + flourish
 const CATS: [&str; 5] = ["WORLD", "TRAVEL", "HERO", "ITEMS", "QUEST"];
+
+/// The category chips as (index, x, y, w, h) — the SAME top chip-tab bar every other
+/// menu uses (Baz: the old side column was the odd one out). One geometry source for
+/// the draw and the mouse hit-test.
+fn tab_chips() -> Vec<(usize, f32, f32, f32, f32)> {
+    let mut tx = 8.0;
+    CATS.iter()
+        .enumerate()
+        .map(|(i, title)| {
+            let tw = font::measure(title) as f32 + 8.0;
+            let chip = (i, tx, 32.0, tw, 11.0);
+            tx += tw + 2.0;
+            chip
+        })
+        .collect()
+}
 const WEATHERS: [&str; 10] =
     ["natural", "clear", "overcast", "windy", "fog", "rain", "thunderstorm", "snow", "blizzard", "sandstorm"];
 
@@ -85,6 +101,38 @@ pub struct DevState {
 #[derive(Component)]
 struct DevUi;
 
+/// Click a chip to jump to its category (the shared tab-bar behaviour).
+fn dev_tab_click(ptr: Res<crate::input::Pointer>, mut state: ResMut<DevState>) {
+    if !ptr.click {
+        return;
+    }
+    if let Some((i, ..)) = tab_chips().into_iter().find(|&(_, x, y, w2, h2)| ptr.over(x, y, w2, h2))
+        && state.cat != i
+    {
+        state.cat = i;
+        state.row = 0;
+        state.dirty = true;
+    }
+}
+
+/// GOD MODE's purse: bottomless — anything spent refills instantly. The MORTAL purse is
+/// remembered the tick god mode comes on and restored the tick it goes off (Baz: no
+/// keeping the divine allowance). The stash rides the SAVED stats ledger under a hidden
+/// key, so it survives save/quit — and since god mode itself never persists, a load that
+/// finds the key restores the honest purse on the first tick.
+fn god_money(god: Res<GodMode>, mut stats: ResMut<super::stats::Stats>, mut inv: ResMut<crate::inventory::PlayerInv>) {
+    if god.0 {
+        if !stats.0.contains_key("godpurse") {
+            stats.0.insert("godpurse".into(), inv.money as f64); // capture BEFORE the pin
+        }
+        if inv.money < 999_999 {
+            inv.money = 999_999;
+        }
+    } else if let Some(m) = stats.0.remove("godpurse") {
+        inv.money = m as i64;
+    }
+}
+
 pub struct DevPlugin;
 
 impl Plugin for DevPlugin {
@@ -105,6 +153,8 @@ impl Plugin for DevPlugin {
                 drive.before(super::play::EndTick).run_if(in_state(Screen::Dev)),
             )
             .add_systems(Update, redraw.run_if(in_state(Screen::Dev)))
+            .add_systems(bevy::app::FixedUpdate, dev_tab_click.before(super::play::EndTick).run_if(in_state(Screen::Dev)))
+            .add_systems(bevy::app::FixedUpdate, god_money)
             // One tear-down for EVERY way out of the panel (backquote, PAUSE/SLOT2, and
             // any WARP row — all of which just `next.set(Play)`). Without this the opaque
             // DevUi backdrop outlived the state and the game looked frozen behind it.
@@ -145,6 +195,13 @@ fn close_dev(mut commands: Commands, ui: Query<Entity, With<DevUi>>) {
     }
 }
 
+/// Where HOME is (bundled — `drive` sits at Bevy's 16-param cap).
+#[derive(bevy::ecs::system::SystemParam)]
+struct HomeRefs<'w> {
+    house: Res<'w, super::home::PlayerHouse>,
+    respawn: Res<'w, super::home::RespawnPoint>,
+}
+
 /// Navigation + execution (the world stands frozen under us).
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 fn drive(
@@ -163,6 +220,7 @@ fn drive(
     mut next: ResMut<NextState<Screen>>,
     mut god: ResMut<GodMode>,
     badges: Query<Entity, With<GodBadge>>,
+    home: HomeRefs,
 ) {
     let nrows = rows(state.cat).len();
     if input.pressed(Action::Pause) || input.pressed(Action::Slot2) {
@@ -222,10 +280,10 @@ fn drive(
     input.consume(Action::Interact);
     input.consume(Action::Slot1);
     let Ok((mut p, mut health)) = players.single_mut() else { return };
-    let mut warp = |rx: i32, ry: i32, commands: &mut Commands, images: &mut Assets<Image>, swap: &mut super::title::loader::SwapCtx, ctx: &mut super::save::SaveCtx| {
+    let mut warp = |rx: i32, ry: i32, px: f32, py: f32, commands: &mut Commands, images: &mut Assets<Image>, swap: &mut super::title::loader::SwapCtx, ctx: &mut super::save::SaveCtx| {
         super::title::loader::swap_world_room(commands, images, swap, ctx, &caves, &songs_opened, &actors, rx, ry, None); // dev warp: no home-safe gate
-        p.x = 144.0;
-        p.y = 120.0;
+        p.x = px;
+        p.y = py;
         p.facing = crate::actors::hero::Facing::Down;
         health.invuln = 30;
         next.set(Screen::Play);
@@ -244,11 +302,24 @@ fn drive(
             log.add("dev", "THE SEASON TURNS", 1, 0xa8e0ff, false, true);
         }
         Cmd::Weather => {} // the value IS the action (left/right)
-        Cmd::WarpHome => warp(0, 0, &mut commands, &mut images, &mut swap, &mut ctx),
-        Cmd::WarpCastle => warp(crate::worldgen::world::CASTLE_RX, crate::worldgen::world::CASTLE_RY, &mut commands, &mut images, &mut swap, &mut ctx),
+        Cmd::WarpHome => {
+            // HOME means your HOUSE — doorstep landing, just clear of the door mat so
+            // the warp doesn't suck you straight inside. Houseless: your set-spawn
+            // bed/inn; failing both, the world origin (the old, useless target —
+            // Baz: "warp home doesn't work").
+            let ((rx, ry), (px, py)) = if let Some(h) = home.house.0.as_ref() {
+                (h.room, (h.x + 3.0, (h.y + 28.0).min(crate::room::PX_H as f32 - 24.0)))
+            } else if let Some(r) = home.respawn.0.as_ref() {
+                (r.room, (r.x, r.y))
+            } else {
+                ((0, 0), (144.0, 120.0))
+            };
+            warp(rx, ry, px, py, &mut commands, &mut images, &mut swap, &mut ctx);
+        }
+        Cmd::WarpCastle => warp(crate::worldgen::world::CASTLE_RX, crate::worldgen::world::CASTLE_RY, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx),
         Cmd::WarpShard => {
             if let Some(&(_, (rx, ry))) = swap.world.0.shard_sites().get(state.shard_idx) {
-                warp(rx, ry, &mut commands, &mut images, &mut swap, &mut ctx);
+                warp(rx, ry, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx);
             }
         }
         Cmd::Heal => {
@@ -406,37 +477,38 @@ fn redraw(
     label(&mut commands, &mut images, &info2, 10.0, 18.0, 0x8a8a92, Z + 0.2, DevUi);
     line(&mut commands, 28.0);
 
-    // Categories, left column.
-    for (i, cat) in CATS.iter().enumerate() {
-        let sel = i == state.cat;
-        let col = if sel { 0xfcfcfc } else { 0x5a5a66 };
-        if sel {
-            label(&mut commands, &mut images, ">", 10.0, 38.0 + i as f32 * 12.0, 0xffd34d, Z + 0.2, DevUi);
-        }
-        label(&mut commands, &mut images, cat, 18.0, 38.0 + i as f32 * 12.0, col, Z + 0.2, DevUi);
-    }
-    // The column divider.
-    commands.spawn((
-        Sprite::from_color(Color::srgb_u8(0x2a, 0x2a, 0x3a), Vec2::new(1.0, h - 76.0)),
-        at(78.0, 34.0, 1.0, h - 76.0, Z + 0.1),
-        PIXEL_LAYER,
-        DevUi,
-    ));
-
-    // Commands, right pane: label left, live value right, cursor row highlighted.
-    for (i, (name, cmd)) in rows(state.cat).iter().enumerate() {
-        let y = 38.0 + i as f32 * 12.0;
-        let sel = i == state.row;
-        if sel {
+    // Category chips — the standard top tab bar (codex/pause/slide-out look: lit bg +
+    // gold rule on the active chip).
+    for (i, tx, ty, tw, th) in tab_chips() {
+        let on = i == state.cat;
+        let bg = if on { Color::srgb_u8(0x2a, 0x2a, 0x18) } else { Color::srgb_u8(0x14, 0x14, 0x18) };
+        commands.spawn((Sprite::from_color(bg, Vec2::new(tw, th)), at(tx, ty, tw, th, Z + 0.15), PIXEL_LAYER, DevUi));
+        if on {
             commands.spawn((
-                Sprite::from_color(Color::srgba(1.0, 1.0, 1.0, 0.07), Vec2::new(w - 100.0, 10.0)),
-                at(86.0, y - 2.0, w - 100.0, 10.0, Z + 0.15),
+                Sprite::from_color(Color::srgb_u8(0xff, 0xd3, 0x4d), Vec2::new(tw, 1.0)),
+                at(tx, ty, tw, 1.0, Z + 0.2),
                 PIXEL_LAYER,
                 DevUi,
             ));
-            label(&mut commands, &mut images, ">", 88.0, y, 0xffd34d, Z + 0.2, DevUi);
         }
-        label(&mut commands, &mut images, name, 96.0, y, if sel { 0xfcfcfc } else { 0x9a9aa2 }, Z + 0.2, DevUi);
+        label(&mut commands, &mut images, CATS[i], tx + 4.0, ty + 2.0, if on { 0xfcfcfc } else { 0x6c6c74 }, Z + 0.2, DevUi);
+    }
+    line(&mut commands, 45.0);
+
+    // Commands, full width under the chips: label left, live value right, cursor row lit.
+    for (i, (name, cmd)) in rows(state.cat).iter().enumerate() {
+        let y = 52.0 + i as f32 * 12.0;
+        let sel = i == state.row;
+        if sel {
+            commands.spawn((
+                Sprite::from_color(Color::srgba(1.0, 1.0, 1.0, 0.07), Vec2::new(w - 16.0, 10.0)),
+                at(8.0, y - 2.0, w - 16.0, 10.0, Z + 0.15),
+                PIXEL_LAYER,
+                DevUi,
+            ));
+            label(&mut commands, &mut images, ">", 10.0, y, 0xffd34d, Z + 0.2, DevUi);
+        }
+        label(&mut commands, &mut images, name, 18.0, y, if sel { 0xfcfcfc } else { 0x9a9aa2 }, Z + 0.2, DevUi);
         let value: Option<String> = match cmd {
             Cmd::Weather => Some(format!("< {} >", WEATHERS[state.weather_idx].to_uppercase())),
             Cmd::WarpShard => world
@@ -494,7 +566,7 @@ fn god_toggle(
 }
 
 /// While on: hits can't land (a standing invuln floor) and the bar stays full.
-fn god_tick(god: Res<GodMode>, mut players: Query<&mut Health, With<Player>>) {
+fn god_tick(god: Res<GodMode>, mut players: Query<&mut Health, With<Player>>, mut mana: ResMut<super::flute::Mana>) {
     if !god.0 {
         return;
     }
@@ -502,6 +574,7 @@ fn god_tick(god: Res<GodMode>, mut players: Query<&mut Health, With<Player>>) {
         h.hp = h.max;
         h.invuln = h.invuln.max(2);
     }
+    mana.cur = mana.max; // the divine well never runs dry
 }
 
 fn set_badge(commands: &mut Commands, images: &mut Assets<Image>, on: bool, badges: &Query<Entity, With<GodBadge>>) {

@@ -166,10 +166,13 @@ pub fn spawn_beam(commands: &mut Commands, x: f32, y: f32, tx: f32, ty: f32) {
     let m = (tx - cx).hypot(ty - cy).max(1.0);
     let (ux, uy) = ((tx - cx) / m, (ty - cy) / m);
     let len = (m + 40.0).min(150.0);
-    // The glowing thread — a thin rotated bar the length of the beam.
+    // The glowing thread — a thin rotated bar the length of the beam. Its CENTER must
+    // land at (cx + u*len/2); at() takes a TOP-LEFT and re-adds half the size, so
+    // subtract that back out (the bar drew half its length off to the right — Baz:
+    // "beams still aren't lined up").
     let mut spr = Sprite::from_color(Color::srgba(1.0, 0.88, 0.54, 0.25), Vec2::new(len, 1.0));
     spr.custom_size = Some(Vec2::new(len, 1.0));
-    let mut tf = at(PLAY_X + cx + ux * len / 2.0, PLAY_Y + cy + uy * len / 2.0, len, 1.0, 8.9);
+    let mut tf = at(PLAY_X + cx + (ux * len - len) / 2.0, PLAY_Y + cy + (uy * len - 1.0) / 2.0, len, 1.0, 8.9);
     tf.rotation = Quat::from_rotation_z(-uy.atan2(ux));
     commands.spawn((
         spr,
@@ -220,6 +223,112 @@ fn beam_tick(
         if b.t >= BEAM_LIFE {
             commands.entity(e).despawn();
         }
+    }
+}
+
+// ---------------- frozen look: frost mist curling off (the ice-blue tint itself
+// lives in battle/fx.rs sync_mobs — it writes sprite colour every frame) ----------------
+/// One curl of frost mist rising off a frozen body.
+#[derive(Component)]
+struct FrostMote {
+    life: i32,
+}
+
+/// Marks a mob currently WEARING flame tongues (spawned once per blaze).
+#[derive(Component)]
+pub struct AblazeMark;
+
+/// One flame tongue clinging to a burning foe (js burningFx on enemies, non-lethal
+/// — the DoT itself ticks in uniques.rs).
+#[derive(Component)]
+struct MobFlame {
+    host: Entity,
+    lane: i32,
+}
+
+/// The worn-flame query rows (a type alias keeps clippy content).
+type MobFlames<'w, 's> = Query<
+    'w,
+    's,
+    (Entity, &'static MobFlame, &'static mut Transform),
+    (Without<FrostMote>, Without<crate::actors::mobs::Mob>),
+>;
+
+/// The afflicted-mob query rows (a type alias keeps clippy content).
+type FrozenMobs<'w, 's> = Query<
+    'w,
+    's,
+    (Entity, &'static crate::app::uniques::MobAfflictions, Option<&'static AblazeMark>, &'static Hitbox),
+    Or<(With<crate::actors::mobs::Mob>, With<crate::actors::goblin::Goblin>)>,
+>;
+
+/// No shader needed — a sprite TINT gives the blue look (Baz asked; sync_mobs
+/// paints it), and pale motes smoke off here while the freeze holds.
+#[allow(clippy::type_complexity)] // the Or-filter (mobs AND goblinkind) is the point
+fn frozen_look(
+    mut commands: Commands,
+    clock: Res<super::room_render::FrameClock>,
+    mut rng: ResMut<super::battle::GameRng>,
+    mobs: FrozenMobs,
+    mut motes: Query<(Entity, &mut FrostMote, &mut Transform, &mut Sprite), Without<crate::actors::mobs::Mob>>,
+    mut flames: MobFlames,
+    hosts: Query<
+        (&crate::app::uniques::MobAfflictions, &Hitbox),
+        Or<(With<crate::actors::mobs::Mob>, With<crate::actors::goblin::Goblin>)>,
+    >,
+) {
+    for (e, a, ablaze, hb) in &mobs {
+        // BURNING (Baz: "light on fire"): dress the foe in clinging tongues once per
+        // blaze; they ride + flicker below, and shed when the burn ends.
+        if a.burn > 0 && ablaze.is_none() {
+            commands.entity(e).insert(AblazeMark);
+            for lane in 0..3 {
+                commands.spawn((
+                    Sprite::from_color(
+                        Color::srgb_u8(0xfc, if lane & 1 == 1 { 0xae } else { 0x60 }, if lane & 1 == 1 { 0x40 } else { 0x20 }),
+                        Vec2::new(2.0, 5.0),
+                    ),
+                    at(0.0, 0.0, 2.0, 5.0, 9.12),
+                    PIXEL_LAYER,
+                    RoomActor,
+                    MobFlame { host: e, lane },
+                ));
+            }
+        } else if a.burn <= 0 && ablaze.is_some() {
+            commands.entity(e).remove::<AblazeMark>();
+        }
+        if a.freeze > 0 && (clock.0 + e.to_bits() as i64 * 3) % 7 == 0 {
+            let mx = hb.x + 1.0 + rng.0.next_f64() as f32 * (hb.w - 3.0);
+            let my = hb.y + rng.0.next_f64() as f32 * (hb.h * 0.5);
+            commands.spawn((
+                Sprite::from_color(Color::srgba(0.85, 0.95, 1.0, 0.75), Vec2::splat(2.0)),
+                at(PLAY_X + mx, PLAY_Y + my, 2.0, 2.0, 9.2),
+                PIXEL_LAYER,
+                RoomActor,
+                FrostMote { life: 26 },
+            ));
+        }
+    }
+    for (e, mut mo, mut tf, mut spr) in &mut motes {
+        mo.life -= 1;
+        if mo.life <= 0 {
+            commands.entity(e).despawn();
+            continue;
+        }
+        tf.translation.y += 0.35; // Bevy y-up: the mist rises
+        spr.color = spr.color.with_alpha(mo.life as f32 / 26.0 * 0.75);
+    }
+    // The flames ride their host, flickering (the fire.rs tongue dance, mob-sized).
+    for (fe, mf, mut tf) in &mut flames {
+        let alive = hosts.get(mf.host).ok().filter(|(a, _)| a.burn > 0);
+        let Some((_, hb)) = alive else {
+            commands.entity(fe).despawn();
+            continue;
+        };
+        let t = clock.0 as f32;
+        let sway = ((t + mf.lane as f32 * 7.0) * 0.3).sin() * 1.2;
+        let h = 4.0 + ((clock.0 + mf.lane as i64 * 5) % 4) as f32;
+        *tf = at(PLAY_X + hb.x + 2.0 + mf.lane as f32 * 5.0 + sway, PLAY_Y + hb.y + hb.h - 2.0 - h, 2.0, h, 9.12);
     }
 }
 
@@ -371,7 +480,7 @@ impl Plugin for MobFxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             bevy::app::FixedUpdate,
-            (burst_tick, beam_tick, drain_orb_tick, frog_tongue_tick)
+            (burst_tick, beam_tick, drain_orb_tick, frog_tongue_tick, frozen_look)
                 .before(crate::combat::resolve_combat)
                 .run_if(super::screen::playing),
         );

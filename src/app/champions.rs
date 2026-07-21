@@ -248,7 +248,11 @@ fn elite_tags(
         }
         let kind = crate::actors::mobs::MOB_DEFS[mob.def].kind;
         let name = elite_name(&promo.affixes, kind);
-        let w = crate::gfx::font::measure(&name) as f32;
+        // Even-pad to match bake_text's image width — an odd width centres the sprite on
+        // a half-pixel and the integer upscale shears the glyphs (the WINDVALE garble,
+        // here on every elite's name tag).
+        let m = crate::gfx::font::measure(&name);
+        let w = (m + (m & 1)) as f32;
         let tag = crate::ui::label(&mut commands, &mut images, &name, 0.0, 0.0, 0xffd0d0, 12.5, RoomActor);
         commands.entity(tag).insert(EliteTag { owner: e, w });
     }

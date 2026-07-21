@@ -301,15 +301,25 @@ pub fn menu_tick(
             } else if let Some(r) =
                 ptr.pos.and_then(|p| row_at(menu.real_tab(), &content_area(), p, &settings, &menu))
             {
-                if ptr.moved && menu.index != r {
+                // The CONTROLS table SCROLLS to centre its cursor — hover-select made the
+                // list reflow under a still mouse (Baz: "mouse movement to scroll is bad
+                // everywhere"). Scrolling tab: click selects, clicking the selection acts.
+                // Flat tabs keep hover-highlight (nothing moves under the cursor there).
+                let scrolling = menu.real_tab() == 3;
+                if !scrolling && ptr.moved && menu.index != r {
                     menu.index = r;
                     dirty = true;
                 }
                 if ptr.click {
-                    menu.index = r;
-                    dirty |= confirm(
-                        &mut menu, &mut settings, &mut bindings, &mut capture, &mut next, &mut saves,
-                    );
+                    if scrolling && menu.index != r {
+                        menu.index = r;
+                        dirty = true;
+                    } else {
+                        menu.index = r;
+                        dirty |= confirm(
+                            &mut menu, &mut settings, &mut bindings, &mut capture, &mut next, &mut saves,
+                        );
+                    }
                 }
             }
             if dirty {

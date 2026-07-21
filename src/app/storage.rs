@@ -159,10 +159,10 @@ fn storage_tick(
         st.cursor[side] += 1;
         dirty = true;
     }
-    // Mouse: hover a cell in either pane highlights it; a click transfers that stack. Both
-    // panes are clickable, so a click can also switch sides. Cell rects + scroll mirror redraw.
+    // Mouse: the panes SCROLL, so hover does nothing — a click selects a cell (switching
+    // sides if needed), clicking the selected cell transfers the stack.
     let mut cell_click = false;
-    {
+    if ptr.click {
         use super::room_render::{PLAY_X, PLAY_Y};
         use crate::room::{PX_H, PX_W};
         let x = PLAY_X + ((PX_W as f32 - W) / 2.0).round();
@@ -180,14 +180,11 @@ fn storage_tick(
                     break;
                 }
                 if ptr.over(cx - 1.0, top + v as f32 * ROW - 1.0, col_w, ROW - 1.0) {
-                    if ptr.moved && (st.side != s || st.cursor[s] != scroll + v) {
+                    if st.side != s || st.cursor[s] != scroll + v {
                         st.side = s;
                         st.cursor[s] = scroll + v;
                         dirty = true;
-                    }
-                    if ptr.click {
-                        st.side = s;
-                        st.cursor[s] = scroll + v;
+                    } else {
                         cell_click = true;
                     }
                 }

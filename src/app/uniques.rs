@@ -27,6 +27,11 @@ pub struct ChillHit(pub i32);
 #[derive(Component)]
 pub struct ScorchHit(pub i32);
 
+/// The frost beam's bite (frames) — a landed hit freezes the foe SOLID: no
+/// thinking, no stepping, no contact bite, an ice-blue cast with mist curling off.
+#[derive(Component)]
+pub struct FreezeHit(pub i32);
+
 /// Generated-weapon / gear extras a swing carries: bonus knockback shove + a lifesteal
 /// chance (js atk.knock / atk.leech). Read on the swing's landed hits.
 #[derive(Component)]
@@ -41,6 +46,8 @@ pub struct MobAfflictions {
     pub chill: i32,
     pub burn: i32,
     pub(crate) burn_clock: i32,
+    /// Frozen solid (the frost beam) — battle/ai.rs stops the body while it runs.
+    pub freeze: i32,
 }
 
 /// Enemy bolts the wisp can swat (a type alias keeps the query readable).
@@ -125,25 +132,29 @@ fn swing_bonus_hits(
 }
 
 /// Landed proc hits mark the foe; the timers live on the mob (js e.slowT / burning).
+#[allow(clippy::type_complexity)] // the Or-filter (mobs AND goblinkind) is the point
 fn proc_hits(
     mut commands: Commands,
     mut hits: MessageReader<HitLanded>,
     chills: Query<&ChillHit>,
     scorches: Query<&ScorchHit>,
-    mut mobs: Query<(Entity, Option<&mut MobAfflictions>), With<Mob>>,
+    freezes: Query<&FreezeHit>,
+    mut mobs: Query<(Entity, Option<&mut MobAfflictions>), Or<(With<Mob>, With<crate::actors::goblin::Goblin>)>>,
 ) {
     for hit in hits.read() {
-        let (chill, scorch) = (chills.get(hit.attacker).ok(), scorches.get(hit.attacker).ok());
-        if chill.is_none() && scorch.is_none() {
+        let (chill, scorch, freeze) =
+            (chills.get(hit.attacker).ok(), scorches.get(hit.attacker).ok(), freezes.get(hit.attacker).ok());
+        if chill.is_none() && scorch.is_none() && freeze.is_none() {
             continue;
         }
         let Ok((me, aff)) = mobs.get_mut(hit.target) else { continue };
-        let (c, b) = (chill.map_or(0, |c| c.0), scorch.map_or(0, |s| s.0));
+        let (c, b, f) = (chill.map_or(0, |c| c.0), scorch.map_or(0, |s| s.0), freeze.map_or(0, |f| f.0));
         if let Some(mut a) = aff {
             a.chill = a.chill.max(c);
             a.burn = a.burn.max(b);
+            a.freeze = a.freeze.max(f);
         } else {
-            commands.entity(me).insert(MobAfflictions { chill: c, burn: b, burn_clock: 0 });
+            commands.entity(me).insert(MobAfflictions { chill: c, burn: b, burn_clock: 0, freeze: f });
         }
     }
 }
@@ -151,10 +162,16 @@ fn proc_hits(
 /// Tick the mob-side timers: chill halves movement (mob_step reads the component),
 /// burn bites for 1 every 30 with a flash — and, like the player's DoTs, never
 /// lands the killing blow on its own.
-fn affliction_tick(mut mobs: Query<(&mut MobAfflictions, &mut Health), With<Mob>>) {
+#[allow(clippy::type_complexity)] // the Or-filter (mobs AND goblinkind) is the point
+fn affliction_tick(
+    mut mobs: Query<(&mut MobAfflictions, &mut Health), Or<(With<Mob>, With<crate::actors::goblin::Goblin>)>>,
+) {
     for (mut a, mut h) in &mut mobs {
         if a.chill > 0 {
             a.chill -= 1;
+        }
+        if a.freeze > 0 {
+            a.freeze -= 1;
         }
         if a.burn > 0 {
             a.burn -= 1;

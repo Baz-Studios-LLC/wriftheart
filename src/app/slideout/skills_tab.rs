@@ -260,13 +260,16 @@ pub fn skills_input(
                 best = Some((i, d));
             }
         }
-        if let Some((i, _)) = best {
-            if ptr.moved && st.cursor != i {
+        // CLICK-ONLY (Baz: hover-select panned the camera as the mouse moved — felt bad):
+        // a click SELECTS the node under the cursor; clicking the selected node again
+        // allocates it. Bare mouse motion does nothing.
+        if ptr.click
+            && let Some((i, _)) = best
+        {
+            if st.cursor != i {
                 st.cursor = i;
                 so.dirty = true;
-            }
-            if ptr.click {
-                st.cursor = i;
+            } else {
                 click_alloc = true;
             }
         }

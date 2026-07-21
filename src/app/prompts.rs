@@ -23,7 +23,7 @@ pub(crate) struct TakeCtx<'w> {
     pub learned: ResMut<'w, super::flute::LearnedSongs>,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub(crate) struct PromptUi;
 
 /// What the bubble said last tick (rebuild only when it changes; position rides along).
@@ -162,13 +162,28 @@ pub(crate) fn prompt_tick(
         commands.entity(e).despawn();
     }
     let Some((text, cx, by)) = want else { return };
-    let w = font::measure(&text) as f32;
-    let (bx, by) = ((cx as f32 - w / 2.0).round(), by as f32);
+    spawn_bubble(&mut commands, &mut images, &text, cx as f32, by as f32, PromptUi);
+}
+
+/// THE interact bubble — dark backing + gold label, centred on (cx, by) in room px.
+/// Every interact prompt in the game speaks this one language, anchored by the character
+/// (Baz: "some prompts were at the bottom, some by the character — I like them by the
+/// character").
+pub fn spawn_bubble(
+    commands: &mut Commands,
+    images: &mut Assets<Image>,
+    text: &str,
+    cx: f32,
+    by: f32,
+    marker: impl Bundle + Clone,
+) {
+    let w = font::measure(text) as f32;
+    let bx = (cx - w / 2.0).round();
     commands.spawn((
         Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.8), Vec2::new(w + 4.0, 9.0)),
         at(PLAY_X + bx - 2.0, PLAY_Y + by - 1.0, w + 4.0, 9.0, layers::PROMPT),
         PIXEL_LAYER,
-        PromptUi,
+        marker.clone(),
     ));
-    label(&mut commands, &mut images, &text, PLAY_X + bx, PLAY_Y + by, 0xfce0a8, layers::PROMPT_TEXT, PromptUi);
+    label(commands, images, text, PLAY_X + bx, PLAY_Y + by, 0xfce0a8, layers::PROMPT_TEXT, marker);
 }

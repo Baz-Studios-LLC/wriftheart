@@ -41,6 +41,9 @@ impl Plugin for BlueprintsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LearnedBlueprints>()
             .add_message::<LearnBlueprint>()
-            .add_systems(bevy::app::FixedUpdate, learn_blueprint.run_if(super::screen::playing));
+            // NOT gated on `playing`: the bag-use path fires from INSIDE the slide-out
+            // (Screen::SlideOut), and a gated reader let the message expire unread (Baz:
+            // "using the blueprint from the inventory still doesn't work").
+            .add_systems(bevy::app::FixedUpdate, learn_blueprint);
     }
 }

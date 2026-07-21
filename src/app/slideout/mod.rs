@@ -10,6 +10,7 @@
 
 mod char_tab;
 pub mod craft_tab;
+mod runes_tab;
 pub mod skills_tab;
 
 pub use skills_tab::{TreeAlloc, TreeStats};
@@ -32,6 +33,18 @@ pub(super) const Z: f32 = 16.0; // above the HUD band (13-14), below the codex (
 
 /// The slide-out's tab registry — the JS TABS rows, same keys, same order.
 const TABS: &[&str] = &["CHAR", "CRAFT", "SKILLS", "STATUS"];
+
+/// A STATION opens its OWN menu (Baz: independent of the normal slide-out): the same
+/// sliding panel, but the tab strip is the station's rows — CRAFT alone for most
+/// benches, and the enchanter adds RUNES (imbue the wand). No station = the player
+/// pages above.
+fn active_tabs(station: Option<&'static str>) -> &'static [&'static str] {
+    match station {
+        Some("enchanter") => &["CRAFT", "RUNES"],
+        Some(_) => &["CRAFT"],
+        None => TABS,
+    }
+}
 
 #[derive(Resource, Default)]
 pub struct SlideOut {
@@ -63,6 +76,7 @@ impl Plugin for SlideOutPlugin {
             .init_resource::<TreeStats>()
             .init_resource::<skills_tab::SkillsState>()
             .init_resource::<craft_tab::CraftState>()
+            .init_resource::<craft_tab::PinnedRecipes>()
             .add_systems(Startup, |mut commands: Commands, mut images: ResMut<Assets<Image>>| {
                 commands.insert_resource(skills_tab::SkillArt::build(&mut images));
             })
@@ -97,6 +111,18 @@ struct SlideCtx<'w> {
     inside: Res<'w, super::interior::Inside>,
     house: Res<'w, super::home::PlayerHouse>,
     cur: Res<'w, super::play::CurRoom>,
+    bags: BagWriters<'w>,
+    pins: ResMut<'w, craft_tab::PinnedRecipes>,
+}
+
+/// The bag-use hand-off writers (SlideCtx sits at the 16-field cap — these nest):
+/// blueprints learn, station kits and the house open GHOST PLACEMENT straight from
+/// the bag (Baz: no equipping first) — the slide-out closes itself when one starts.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct BagWriters<'w> {
+    pub blueprints: MessageWriter<'w, super::blueprints::LearnBlueprint>,
+    pub stations: MessageWriter<'w, super::cooking::PlaceStation>,
+    pub houses: MessageWriter<'w, super::home::PlaceHouse>,
 }
 
 /// Open from play, close from inside, switch tabs — on the fixed clock like every menu.
@@ -114,8 +140,12 @@ fn slideout_tick(
     old: Query<Entity, With<SlideOutUi>>,
     mut images: ResMut<Assets<Image>>,
     ptr: Res<crate::input::Pointer>,
+    god: Res<super::dev::GodMode>,
+    mut rune: ResMut<super::wands::WandRune>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    placing: Res<super::placing::Placing>,
 ) {
-    let SlideCtx { ref mut inv, ref mut craft, ref mut stats, ref mut rng, ref hero, ref skill_art, ref skills, ref alloc, ref learned, ref mut stash, ref inside, ref house, ref cur } = sc;
+    let SlideCtx { ref mut inv, ref mut craft, ref mut stats, ref mut rng, ref hero, ref skill_art, ref skills, ref alloc, ref learned, ref mut stash, ref inside, ref house, ref cur, ref mut bags, ref mut pins } = sc;
     // At home — INSIDE the house, or anywhere in the HOME ROOM (Baz: a yard bench should
     // reach the chest too) — crafting also draws from the storage chest.
     let home = inside.0.as_ref().is_some_and(|st| st.def.kind == "house")
@@ -145,11 +175,23 @@ fn slideout_tick(
                 so.anim = 0.0;
                 so.applied = 0.0;
                 next.set(Screen::SlideOut);
-                let ctx = RedrawCtx { inv, hero, skill_art, skills, alloc, learned: &learned.0, stash, home };
+                let ctx = RedrawCtx { inv, pins, god: god.0, hero, skill_art, skills, alloc, learned: &learned.0, stash, home, rune: rune.0 };
                 redraw(&mut commands, &old, &so, &bindings, &state, &ctx, player, &health, craft, &mut images);
             }
         }
         Screen::SlideOut => {
+            // A station kit used from the bag opened GHOST PLACEMENT (placing.rs) —
+            // hand the screen back so the reticle is usable at once.
+            if placing.0.is_some() {
+                next.set(Screen::Play);
+                return;
+            }
+            // A blueprint learned from the bag lands NEXT tick (blueprints.rs consumes the
+            // item + unlocks recipes) — redraw so the spent blueprint leaves the bag and
+            // the CRAFT list shows the new recipes at once.
+            if learned.is_changed() {
+                so.dirty = true;
+            }
             // Global BACK/close — but mid-move (carrying an item), B just cancels the carry.
             if state.pressed(Action::Slot2) && so.held.is_some() {
                 so.held = None;
@@ -170,7 +212,12 @@ fn slideout_tick(
             .find(|(a, _)| state.pressed(*a))
             {
                 let idx = TABS.iter().position(|t| *t == page).unwrap_or(0);
-                if idx == so.tab {
+                if craft.station.is_some() {
+                    // The station panel is its OWN menu — an opener key hands you
+                    // back to the player pages, ending the bench session.
+                    craft.station = None;
+                    craft.station_at = None;
+                } else if idx == so.tab {
                     next.set(Screen::Play); // already there — close (the I-toggle feel)
                     return;
                 }
@@ -187,7 +234,9 @@ fn slideout_tick(
                 state.latch(a);
             }
             let mut dirty = false;
-            let n = TABS.len();
+            // WHICH menu is this? A bench session runs the station's own tab rows.
+            let tabs = active_tabs(craft.station);
+            let n = tabs.len();
             let mut step = 0;
             if state.pressed(Action::TabNext) {
                 step += 1;
@@ -202,7 +251,7 @@ fn slideout_tick(
             }
             // Mouse: click a tab chip to switch pages (same page-change resets as the keys).
             if ptr.click
-                && let Some((i, ..)) = tab_chips().into_iter().find(|&(_, x, y, w, h)| ptr.over(x, y, w, h))
+                && let Some((i, ..)) = tab_chips(tabs).into_iter().find(|&(_, x, y, w, h)| ptr.over(x, y, w, h))
                 && i != so.tab
             {
                 so.tab = i;
@@ -212,7 +261,7 @@ fn slideout_tick(
             }
             // The CHAR page's unified cursor walks gear + trinkets + ability slots + bag
             // (the js gearCursor). Entering the tab parks it on the first bag slot.
-            if TABS[so.tab] == "CHAR" {
+            if tabs[so.tab] == "CHAR" {
                 if dirty {
                     so.gear_cursor = char_tab::home_cell(); // js charEntry()
                 }
@@ -233,19 +282,22 @@ fn slideout_tick(
                 }
                 // A/X/Y/T/H — the carry model (SHIFT = the keyboard's instant-stack mod).
                 let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
-                if char_tab::actions(&mut so, &state, shift, inv, &mut commands, &mut images, player, &mut health) {
+                if char_tab::actions(&mut so, &state, shift, inv, &mut commands, &mut images, player, &mut health, bags) {
                     dirty = true;
                 }
             }
-            if TABS[so.tab] == "CRAFT" {
+            if tabs[so.tab] == "CRAFT" {
                 let mut roll = || rng.0.next_f64();
-                if craft_tab::actions(&state, inv, stash, home, stats, alloc, &mut roll, craft, &learned.0, &ptr) {
+                if craft_tab::actions(&state, inv, stash, home, god.0, stats, alloc, &mut roll, craft, &learned.0, pins, &ptr) {
                     dirty = true;
                 }
+            }
+            if tabs[so.tab] == "RUNES" && runes_tab::actions(&state, &ptr, inv, &mut rune, &mut sfx, craft) {
+                dirty = true;
             }
             if dirty || so.dirty {
                 so.dirty = false;
-                let ctx = RedrawCtx { inv, hero, skill_art, skills, alloc, learned: &learned.0, stash, home };
+                let ctx = RedrawCtx { inv, pins, god: god.0, hero, skill_art, skills, alloc, learned: &learned.0, stash, home, rune: rune.0 };
                 redraw(&mut commands, &old, &so, &bindings, &state, &ctx, player, &health, craft, &mut images);
             }
         }
@@ -256,6 +308,8 @@ fn slideout_tick(
 /// The per-tab data redraw needs, bundled so the call sites stay readable.
 struct RedrawCtx<'a> {
     inv: &'a PlayerInv,
+    pins: &'a craft_tab::PinnedRecipes,
+    god: bool,
     hero: &'a HeroArt,
     skill_art: &'a skills_tab::SkillArt,
     skills: &'a skills_tab::SkillsState,
@@ -263,6 +317,7 @@ struct RedrawCtx<'a> {
     learned: &'a std::collections::HashSet<String>,
     stash: &'a super::storage::PlayerStash,
     home: bool,
+    rune: &'a str,
 }
 
 /// Ease the panel in from the right with the JS smoothstep (anim^2 * (3 - 2*anim)); every
@@ -275,7 +330,19 @@ fn slide_anim(
     mut q: Query<&mut Transform, (With<SlideOutUi>, Without<DimLayer>)>,
     mut dim: Query<&mut Sprite, With<DimLayer>>,
 ) {
-    if *screen.get() != Screen::SlideOut {
+    // Gate on SLIDE PROGRESS, not the screen state: the screen flips a frame after the
+    // opener's tick, and gating on it let the freshly-spawned panel RENDER once at its
+    // final position before the first shove (Baz: "appears open for a tenth of a second,
+    // then slides"). Mid-slide (anim < 1) this keeps animating right through the flip;
+    // settled-and-closed (anim = 1, not SlideOut) it stays idle.
+    if *screen.get() != Screen::SlideOut && so.anim >= 1.0 {
+        return;
+    }
+    // Wait for the panel to EXIST: a station open resets the anim one tick before the
+    // redraw spawns anything, and advancing against an empty panel banked a stale offset
+    // that shoved the late entities off-screen (Baz: "appears for a split second, then
+    // goes away until I press up").
+    if q.is_empty() {
         return;
     }
     // Frame-rate independent: SLIDE is "progress per 60fps-frame", scaled by the real delta so
@@ -305,6 +372,7 @@ fn close_slideout(
     ui: Query<Entity, With<SlideOutUi>>,
 ) {
     craft.station = None; // walking away from a station ends its session
+    craft.station_at = None;
     for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
         state.latch(a);
     }
@@ -315,9 +383,9 @@ fn close_slideout(
 
 /// The tab chips as (index, x, y, w, h) — ONE geometry source for `redraw` (drawing) and
 /// `slideout_tick` (mouse hit-testing), so a click lands on exactly the chip that's drawn.
-fn tab_chips() -> Vec<(usize, f32, f32, f32, f32)> {
+fn tab_chips(tabs: &[&str]) -> Vec<(usize, f32, f32, f32, f32)> {
     let mut tx = SIDEBAR_W + 6.0;
-    TABS.iter()
+    tabs.iter()
         .enumerate()
         .map(|(i, title)| {
             let tw = font::measure(title) as f32 + 8.0;
@@ -368,8 +436,10 @@ fn redraw(
         PIXEL_LAYER,
         SlideOutUi,
     ));
-    // Tab strip (same look as the codex: lit bg + gold rule on the active tab).
-    for (i, tx, ty, tw, th) in tab_chips() {
+    // Tab strip (same look as the codex: lit bg + gold rule on the active tab). A
+    // bench session shows the STATION's own rows, not the player pages.
+    let tabs = active_tabs(craft.station);
+    for (i, tx, ty, tw, th) in tab_chips(tabs) {
         let on = i == so.tab;
         let bg = if on { Color::srgb_u8(0x2a, 0x2a, 0x18) } else { Color::srgb_u8(0x14, 0x14, 0x18) };
         commands.spawn((Sprite::from_color(bg, Vec2::new(tw, th)), at(tx, ty, tw, th, Z + 1.0), PIXEL_LAYER, SlideOutUi));
@@ -381,11 +451,11 @@ fn redraw(
                 SlideOutUi,
             ));
         }
-        label(commands, images, TABS[i], tx + 4.0, ty + 2.0, if on { 0xfcfcfc } else { 0x6c6c74 }, Z + 1.1, SlideOutUi);
+        label(commands, images, tabs[i], tx + 4.0, ty + 2.0, if on { 0xfcfcfc } else { 0x6c6c74 }, Z + 1.1, SlideOutUi);
     }
     // Content area below the tab bar.
     let cy = 22.0;
-    match TABS[so.tab] {
+    match tabs[so.tab] {
         "CHAR" => {
             char_tab::draw(commands, images, so, bindings, state.pad_present, ctx.inv, ctx.hero, ctx.alloc, health);
         }
@@ -393,7 +463,10 @@ fn redraw(
             skills_tab::draw(commands, images, ctx.skill_art, ctx.skills, ctx.alloc, bindings, state.pad_present);
         }
         "CRAFT" => {
-            craft_tab::draw(commands, images, craft, ctx.inv, bindings, state.pad_present, so, ctx.learned, ctx.stash, ctx.home);
+            craft_tab::draw(commands, images, craft, ctx.inv, bindings, state.pad_present, so, ctx.learned, ctx.pins, ctx.stash, ctx.home, ctx.god);
+        }
+        "RUNES" => {
+            runes_tab::draw(commands, images, craft, ctx.inv, ctx.rune, bindings, state.pad_present);
         }
         _ => {
             // STATUS: the true empty state — no effect system means no active effects.
@@ -401,9 +474,9 @@ fn redraw(
             label(commands, images, "NO ACTIVE EFFECTS", x0 + PAD, cy + 18.0, 0x9aa0aa, Z + 1.0, SlideOutUi);
         }
     }
-    // Footer hint — derived prompts only (the CHAR and SKILLS pages draw their own
-    // bottom bands).
-    if TABS[so.tab] == "SKILLS" || TABS[so.tab] == "CHAR" || TABS[so.tab] == "CRAFT" {
+    // Footer hint — derived prompts only (the CHAR/SKILLS/CRAFT/RUNES pages draw
+    // their own bottom bands).
+    if tabs[so.tab] != "STATUS" {
         return;
     }
     let hint = format!(

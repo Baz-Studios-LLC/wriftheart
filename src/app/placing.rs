@@ -28,6 +28,9 @@ pub struct PlacingState {
     pub gy: i32,
     pub rot: u8,
     pub valid: bool,
+    /// Placing INSIDE the player's house (js home tables) — interior-canvas coords,
+    /// and the doorway mat must stay clear.
+    pub home: bool,
 }
 
 /// The placement in flight (None = not placing). play.rs roots the hero while Some.
@@ -75,9 +78,12 @@ fn start_placement(
     }
     let Some(kind) = want else { return };
     let Ok(p) = players.single() else { return };
+    // YOUR house welcomes stations (js home tables); every other roof — and a house
+    // inside a house — says no.
+    let in_house = inside.0.as_ref().is_some_and(|st| st.def.kind == "house") && kind != "house";
     if in_dungeon.0.is_some()
-        || inside.0.is_some()
-        || crate::worldgen::towns::town_role(world.0.seed, cur.rx, cur.ry).is_some()
+        || (inside.0.is_some() && !in_house)
+        || (!in_house && crate::worldgen::towns::town_role(world.0.seed, cur.rx, cur.ry).is_some())
     {
         let msg = if kind == "house" { "NO PLACE FOR A HOME HERE" } else { "NO PLACE FOR A CAMP HERE" };
         log.add("place", msg, 1, 0xfc8868, false, true);
@@ -92,7 +98,7 @@ fn start_placement(
     };
     let gx = ((p.x + 8.0) / 16.0).floor() as i32 + dx * 2 - 1;
     let gy = ((p.y + 8.0) / 16.0).floor() as i32 + dy * 2;
-    placing.0 = Some(PlacingState { kind, gx, gy, rot: 0, valid: false });
+    placing.0 = Some(PlacingState { kind, gx, gy, rot: 0, valid: false, home: in_house });
     sfx.write(super::sfx::Sfx("open"));
 }
 
@@ -108,6 +114,7 @@ fn placement_tick(
     mut blockers: ResMut<super::room_props::RoomBlockers>,
     mut ctx: PlaceCtx,
     active: Res<super::play::ActiveRoot>,
+    inside: Res<super::interior::Inside>,
     players: Query<&Player>,
     live_house: Query<Entity, With<super::home::HouseSprite>>,
 ) {
@@ -147,6 +154,13 @@ fn placement_tick(
     let over = |r: (f32, f32, f32, f32)| {
         pbox.0 < r.0 + r.2 && pbox.0 + pbox.2 > r.0 && pbox.1 < r.1 + r.3 && pbox.1 + pbox.3 > r.1
     };
+    // Indoors, the doorway mat is sacred — a table there would wall you in with
+    // your own furniture (the js separate-doorway check, home flavour).
+    let on_exit = pl.home
+        && inside.0.as_ref().is_some_and(|st| {
+            let (ex, ey, ew, eh) = st.def.exit;
+            x < (ex + ew) as f32 && x + 32.0 > ex as f32 && y < (ey + eh) as f32 && y + 16.0 > ey as f32
+        });
     pl.valid = if pl.kind == "house" {
         !grid.0.box_hits_solid(x - 11.0, y - 27.0, 38.0, 34.0)
             && !ctx.blockers_overlap(&blockers, x - 12.0, y - 28.0, 40.0, 34.0)
@@ -155,6 +169,7 @@ fn placement_tick(
         (0..2).all(|i| !grid.0.box_hits_solid(x + 1.0 + i as f32 * 16.0, y + 1.0, 14.0, 14.0))
             && !ctx.blockers_overlap(&blockers, x, y, 32.0, 16.0)
             && !over((x, y, 32.0, 16.0))
+            && !on_exit
     };
     if input.pressed(Action::Slot2) || input.pressed(Action::Pause) {
         input.consume(Action::Slot2);
@@ -184,6 +199,7 @@ fn placement_tick(
                 y,
                 kind: pl.kind.to_string(),
                 rot: pl.rot,
+                home: pl.home,
             });
             super::cooking::spawn_fire(&mut commands, &mut images, &mut blockers, x, y, pl.kind, pl.rot);
             let (line, col) = if pl.kind == "cook" {
@@ -311,11 +327,16 @@ pub struct PlacingPlugin;
 impl Plugin for PlacingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Placing>()
+            // start_placement runs UNGATED: a kit used from the BAG writes its message
+            // while the slide-out screen is up — a playing-gate would let it expire
+            // unread (the blueprint lesson). placement_tick stays play-only.
             .add_systems(
                 bevy::app::FixedUpdate,
-                (start_placement, placement_tick.after(start_placement))
-                    .before(super::play::EndTick)
-                    .run_if(super::screen::playing),
+                (
+                    start_placement,
+                    placement_tick.after(start_placement).run_if(super::screen::playing),
+                )
+                    .before(super::play::EndTick),
             )
             .add_systems(Update, ghost_render);
     }

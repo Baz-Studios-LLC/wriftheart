@@ -62,6 +62,7 @@ pub fn house_wake(
     in_dungeon: Res<super::dungeon::InDungeon>,
     inside: Res<super::interior::Inside>,
     active: Res<super::play::ActiveRoot>,
+    slide: Res<super::play::SlideState>,
     mut blockers: ResMut<super::room_props::RoomBlockers>,
     mut woke: Local<Option<(i32, i32)>>,
     live: Query<Entity, With<HouseSprite>>,
@@ -74,14 +75,22 @@ pub fn house_wake(
         return;
     }
     *woke = Some((cur.rx, cur.ry));
-    for e in &live {
-        commands.entity(e).despawn();
+    // Mid-slide, ActiveRoot still points at the OUTGOING root (it only flips at settle):
+    // parenting there sent the house out with the old room and its teardown DESPAWNED it
+    // (Baz: "my house is gone" / "appears in the room above, then disappears"). Join the
+    // INCOMING root instead — and skip the sweep while sliding, so an outgoing house
+    // rides away with its room and dies with that root, no mid-scroll pop.
+    let incoming = slide.incoming_root();
+    if incoming.is_none() {
+        for e in &live {
+            commands.entity(e).despawn();
+        }
     }
     let Some(rec) = &house.0 else { return };
     if rec.room != (cur.rx, cur.ry) {
         return;
     }
-    spawn_house(&mut commands, &art, &mut blockers, active.0, rec.x, rec.y);
+    spawn_house(&mut commands, &art, &mut blockers, incoming.unwrap_or(active.0), rec.x, rec.y);
 }
 
 fn spawn_house(commands: &mut Commands, art: &super::super::actors::props::PropArt, blockers: &mut super::room_props::RoomBlockers, root: Entity, x: f32, y: f32) {

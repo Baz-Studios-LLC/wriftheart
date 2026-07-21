@@ -12,14 +12,12 @@
 use super::gather::{Pickup, PickupKind, DAY_LEN};
 use super::interior::{DoorCooldown, Inside};
 use super::play::{CurRoom, Player};
-use super::room_render::{FrameClock, PLAY_X, PLAY_Y};
+use super::room_render::FrameClock;
 use super::screen::{playing, Screen};
 use super::shop::{stock_up, BoughtShop, ShopState};
 use crate::combat::Health;
-use crate::gfx::{at, font, layers, PIXEL_LAYER};
+use crate::gfx::{at, layers, PIXEL_LAYER};
 use crate::input::{Action, ActionState, Bindings};
-use crate::room::{PX_H, PX_W};
-use crate::ui::{border_strips, label};
 use bevy::prelude::*;
 
 const SLEEP_FADE: u32 = 38;
@@ -41,7 +39,7 @@ pub struct SleepFx {
 #[derive(Message)]
 pub struct SleepRequest;
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub(crate) struct PromptBar;
 
 #[derive(Component)]
@@ -109,7 +107,7 @@ pub(crate) fn interact_tick(
     mut players: Query<(&Player, &mut Health)>,
     books: Query<&Pickup>,
     old: Query<Entity, With<PromptBar>>,
-    mut last: Local<Option<String>>,
+    mut last: Local<Option<(String, i32, i32)>>,
 ) {
     let mut want: Option<(&str, &str)> = None; // (kind, label)
     if let (Some(state), Ok((p, mut health))) = (&inside.0, players.single_mut()) {
@@ -188,33 +186,20 @@ pub(crate) fn interact_tick(
         }
     }
 
-    // The bottom-centre prompt bar (js drawInteriorPrompt), rebuilt only when it changes.
-    let msg = want.map(|(_, l)| format!("{}  {}", bindings.prompt(Action::Interact, input.pad_present), l));
-    if msg == *last {
+    // The shared by-the-character bubble (prompts.rs — Baz: one prompt language),
+    // re-anchored as the hero moves along the counter.
+    let msg = want.map(|(_, l)| format!("{} {}", bindings.prompt(Action::Interact, input.pad_present), l));
+    let (px, py) = players.single().map(|(p, _)| (p.x as i32, p.y as i32)).unwrap_or((0, 0));
+    let key = msg.clone().map(|m| (m, px, py));
+    if key == *last {
         return;
     }
-    *last = msg.clone();
+    *last = key;
     for e in &old {
         commands.entity(e).despawn();
     }
     let Some(text) = msg else { return };
-    let w = font::measure(&text) as f32 + 8.0;
-    let (x, y) = (PLAY_X + ((PX_W as f32 - w) / 2.0).round(), PLAY_Y + PX_H as f32 - 26.0);
-    commands.spawn((
-        Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.8), Vec2::new(w, 11.0)),
-        at(x, y, w, 11.0, layers::PROMPT),
-        PIXEL_LAYER,
-        PromptBar,
-    ));
-    for (sx, sy, sw, sh) in border_strips(x, y, w, 11.0, 1.0) {
-        commands.spawn((
-            Sprite::from_color(Color::srgb_u8(0xfc, 0xe0, 0xa8), Vec2::new(sw, sh)),
-            at(sx, sy, sw, sh, layers::PROMPT + 0.02),
-            PIXEL_LAYER,
-            PromptBar,
-        ));
-    }
-    label(&mut commands, &mut images, &text, x + 4.0, y + 2.0, 0xfce0a8, layers::PROMPT_TEXT, PromptBar);
+    super::prompts::spawn_bubble(&mut commands, &mut images, &text, px as f32 + 8.0, py as f32 - 10.0, PromptBar);
 }
 
 /// The bard on the tavern stage (js bardTalk): hands you the flute + the Song of

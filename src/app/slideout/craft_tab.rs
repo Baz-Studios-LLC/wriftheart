@@ -18,6 +18,18 @@ use crate::ui::{frame_rect, label};
 use crate::{CANVAS_H, SIDEBAR_W};
 use bevy::prelude::*;
 
+/// Recipe output-ids pinned to the top of the craft list (js pinnedRecipes, saved).
+#[derive(Resource, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PinnedRecipes(pub std::collections::HashSet<String>);
+
+/// The craft list as SHOWN: pinned recipes float to the top (js shownRecipes — the
+/// stable sort keeps registry order within each group).
+pub fn shown(station: &str, learned: &std::collections::HashSet<String>, pins: &PinnedRecipes) -> Vec<&'static Recipe> {
+    let mut list = items::recipes_for(station, learned);
+    list.sort_by_key(|r| !pins.0.contains(r.out));
+    list
+}
+
 /// Page state (js craftCursor/craftScroll/craftFlash).
 #[derive(Resource, Default)]
 pub struct CraftState {
@@ -33,6 +45,8 @@ pub struct CraftState {
     /// Slot4 pressed in station mode: cooking.rs's station_remove tears it down for half
     /// the materials back (js removeTable).
     pub remove_requested: bool,
+    /// The enchanter's RUNES page cursor (runes_tab.rs).
+    pub rune_cursor: usize,
 }
 
 #[derive(Component, Clone)]
@@ -40,8 +54,8 @@ pub struct CraftUi;
 
 /// js canCraft: every cost line covered by the bag (+ the home chest, when crafting
 /// AT HOME — js homeCraft draws from playerStash too).
-fn can_craft(inv: &PlayerInv, stash: &PlayerStash, home: bool, r: &Recipe) -> bool {
-    r.cost.iter().all(|(id, q)| have_of(inv, stash, home, id) >= *q)
+fn can_craft(inv: &PlayerInv, stash: &PlayerStash, home: bool, god: bool, r: &Recipe) -> bool {
+    god || r.cost.iter().all(|(id, q)| have_of(inv, stash, home, id) >= *q)
 }
 
 /// A cost line's have-count — bag, plus the home chest when at home. "@FISH" is the
@@ -65,9 +79,10 @@ fn do_craft(
     alloc: &super::TreeAlloc,
     rng: &mut impl FnMut() -> f64,
     cs: &mut CraftState,
+    god: bool,
     r: &Recipe,
 ) {
-    if !can_craft(inv, stash, home, r) {
+    if !can_craft(inv, stash, home, god, r) {
         return;
     }
     // A forge COMMISSION (js craftGen): the preview isn't granted — roll a fresh
@@ -91,9 +106,10 @@ fn do_craft(
         return;
     }
     // Crafting tree: a chance to NOT consume each material; spared ones come back.
+    // GOD MODE pays nothing (Baz).
     let craft_save = skilltree::stat(&alloc.taken, "craft");
     let mut saved: Vec<&'static str> = Vec::new();
-    for (id, q) in r.cost {
+    for (id, q) in r.cost.iter().filter(|_| !god) {
         for _ in 0..*q {
             if *id == "@FISH" {
                 // The wildcard eats the cheapest fish — and the CRAFT save can't
@@ -127,11 +143,13 @@ pub fn actions(
     inv: &mut PlayerInv,
     stash: &mut PlayerStash,
     home: bool,
+    god: bool,
     stats: &mut Stats,
     alloc: &super::TreeAlloc,
     rng: &mut impl FnMut() -> f64,
     cs: &mut CraftState,
     learned: &std::collections::HashSet<String>,
+    pins: &mut PinnedRecipes,
     ptr: &crate::input::Pointer,
 ) -> bool {
     let mut dirty = false;
@@ -139,7 +157,7 @@ pub fn actions(
         cs.flash -= 1;
         dirty = true; // the banner floats + fades every tick
     }
-    let recipes = items::recipes_for(cs.station.unwrap_or("hand"), learned);
+    let recipes = shown(cs.station.unwrap_or("hand"), learned, pins);
     if recipes.is_empty() {
         return dirty;
     }
@@ -154,8 +172,19 @@ pub fn actions(
         cs.cursor = (cs.cursor + 1) % recipes.len();
         dirty = true;
     }
-    // Mouse: hover/click a recipe row selects it; a click on the CRAFT button crafts it. The
-    // row/button rects mirror `draw`; the scroll is the value `draw` last clamped into cs.scroll.
+    // Slot3 = PIN/unpin the cursor's recipe (js): the cursor FOLLOWS it as the list
+    // re-sorts, so pinning doesn't teleport your selection.
+    if state.pressed(Action::Slot3) {
+        let out = recipes[cs.cursor].out;
+        if !pins.0.remove(out) {
+            pins.0.insert(out.to_string());
+        }
+        let after = shown(cs.station.unwrap_or("hand"), learned, pins);
+        cs.cursor = after.iter().position(|r| r.out == out).unwrap_or(0);
+        dirty = true;
+    }
+    // Mouse: the list SCROLLS, so hover does nothing — a CLICK selects a recipe; the CRAFT
+    // button is the explicit act. Rects mirror `draw`; scroll is draw's last clamp.
     let (ax, ay, aw) = (SIDEBAR_W + PAD, 20.0, PANEL_W - PAD * 2.0);
     let ah = CANVAS_H as f32 - ay - 4.0;
     let lw = (aw * 0.52).round().min(154.0);
@@ -166,7 +195,7 @@ pub fn actions(
         if sc + v >= recipes.len() {
             break;
         }
-        if ptr.over(ax, ay + 1.0 + v as f32 * row, lw, row - 1.0) && (ptr.moved || ptr.click) {
+        if ptr.click && ptr.over(ax, ay + 1.0 + v as f32 * row, lw, row - 1.0) && cs.cursor != sc + v {
             cs.cursor = sc + v;
             dirty = true;
         }
@@ -175,7 +204,7 @@ pub fn actions(
     let dw = ax + aw - dx;
     let craft_click = ptr.click && ptr.over(dx, ay + ah - bh - 2.0, dw, bh);
     if state.pressed(Action::Slot1) || craft_click {
-        do_craft(inv, stash, home, stats, alloc, rng, cs, recipes[cs.cursor]);
+        do_craft(inv, stash, home, stats, alloc, rng, cs, god, recipes[cs.cursor]);
         dirty = true;
     }
     // Slot4 at a PLACED station = REMOVE TABLE (js inventory slot4 -> removeTable):
@@ -198,8 +227,10 @@ pub fn draw(
     pad: bool,
     _so: &SlideOut,
     learned: &std::collections::HashSet<String>,
+    pins: &PinnedRecipes,
     stash: &PlayerStash,
     home: bool,
+    god: bool,
 ) {
     let tag = || (SlideOutUi, CraftUi);
     // The content rect (js `a`): below the tab strip, panel-padded.
@@ -208,7 +239,7 @@ pub fn draw(
     let aw = PANEL_W - PAD * 2.0;
     let ah = CANVAS_H as f32 - ay - 4.0;
 
-    let recipes = items::recipes_for(cs.station.unwrap_or("hand"), learned);
+    let recipes = shown(cs.station.unwrap_or("hand"), learned, pins);
     let lw = (aw * 0.52).round().min(154.0); // left-list width (js LW)
     let row = 14.0;
     let list_h = ah - 12.0;
@@ -229,7 +260,7 @@ pub fn draw(
         let Some(r) = recipes.get(sc + v) else { break };
         let ry = ay + 1.0 + v as f32 * row;
         let sel = sc + v == cs.cursor;
-        let ok = can_craft(inv, stash, home, r);
+        let ok = can_craft(inv, stash, home, god, r);
         let out = items::get(r.out);
         if sel {
             commands.spawn((
@@ -247,6 +278,21 @@ pub fn draw(
         }
         let color = if sel { 0xfcfcfc } else if ok { 0xbcbcbc } else { 0x787878 };
         label(commands, images, &out.map_or(r.out, |d| d.name).to_uppercase(), ax + 16.0, ry + 3.0, color, Z + 1.1, tag());
+        if pins.0.contains(r.out) {
+            // The little cyan tack (js pin marker): head + point.
+            commands.spawn((
+                Sprite::from_color(Color::srgb_u8(0x7e, 0xc8, 0xe0), Vec2::new(4.0, 3.0)),
+                at(ax + lw - 8.0, ry + 3.0, 4.0, 3.0, Z + 1.15),
+                PIXEL_LAYER,
+                tag(),
+            ));
+            commands.spawn((
+                Sprite::from_color(Color::srgb_u8(0x7e, 0xc8, 0xe0), Vec2::new(2.0, 3.0)),
+                at(ax + lw - 7.0, ry + 6.0, 2.0, 3.0, Z + 1.15),
+                PIXEL_LAYER,
+                tag(),
+            ));
+        }
     }
     if recipes.len() > vis {
         // Scrollbar in the list gutter.
@@ -281,7 +327,7 @@ pub fn draw(
         return;
     };
     let out = items::get(r.out);
-    let ok = can_craft(inv, stash, home, r);
+    let ok = can_craft(inv, stash, home, god, r);
     if let Some(out) = out {
         let mut icon = Sprite::from_image(images.add(bake(out.icon, out.icon_pal)));
         icon.custom_size = Some(Vec2::splat(24.0));
@@ -367,17 +413,19 @@ pub fn draw(
     // offers the js REMOVE TABLE (half mats back).
     let hint = if cs.station.is_some() && cs.station_at.is_some() {
         format!(
-            "{}/{} TABS - {} REMOVE - {} CLOSE",
+            "{}/{} TABS - {} PIN - {} REMOVE - {} CLOSE",
             bindings.prompt(Action::TabPrev, pad),
             bindings.prompt(Action::TabNext, pad),
+            bindings.prompt(Action::Slot3, pad),
             bindings.prompt(Action::Slot4, pad),
             bindings.prompt(Action::Inventory, pad)
         )
     } else {
         format!(
-            "{}/{} TABS - {} CLOSE",
+            "{}/{} TABS - {} PIN - {} CLOSE",
             bindings.prompt(Action::TabPrev, pad),
             bindings.prompt(Action::TabNext, pad),
+            bindings.prompt(Action::Slot3, pad),
             bindings.prompt(Action::Inventory, pad)
         )
     };

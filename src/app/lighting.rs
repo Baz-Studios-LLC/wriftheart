@@ -187,10 +187,13 @@ fn update_overlay(
     // it. Radius quantized to 3px steps so the raster only rebuilds on real changes.
     if let (Some(f), Ok(p)) = (&scene.fluting.0, players.single()) {
         let gmax = f.glow.iter().copied().max().unwrap_or(0) as f32;
-        let r = 40.0
-            + (f.t as f32 * 0.1).sin() * 6.0
-            + gmax * 1.6
-            + if f.flash > 0 { 14.0 } else { 0.0 };
+        let r = if f.phase == super::flute::Phase::Warp {
+            // The channelling glow brightens the whole area as the warp charges
+            // (js collectLights' warp arm: r 34 -> 80).
+            34.0 + (f.wt as f32 / super::flute::WARP_CHARGE as f32).min(1.0) * 46.0
+        } else {
+            40.0 + (f.t as f32 * 0.1).sin() * 6.0 + gmax * 1.6 + if f.flash > 0 { 14.0 } else { 0.0 }
+        };
         lights.push((ox + p.x as i32 + 8, oy + p.y as i32 + 9, ((r / 3.0).round() * 3.0) as i32));
     }
     // Fixed flames in the room hold their ground against the night (js collectLights:

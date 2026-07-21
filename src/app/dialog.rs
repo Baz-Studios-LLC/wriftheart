@@ -312,18 +312,16 @@ fn dialog_tick(
             if state.pressed(Action::Down) {
                 *cur = (*cur + 1) % list.len();
             }
-            // Mouse: hover a gift row highlights it, a click gives it. Rows scroll, so map the
-            // visible row back through the same scroll the draw uses.
+            // Mouse: the list SCROLLS, so hover does nothing (it would reflow under a
+            // still cursor) — a click selects, clicking the selection gives it.
             let (bx, by, bw, _) = gift_geom(list.len());
             let scroll = (*cur).saturating_sub(3).min(list.len().saturating_sub(GIFT_VIS));
             let mut clicked = false;
             for vi in 0..list.len().min(GIFT_VIS) {
-                if ptr.over(bx + 6.0, by + 28.0 + vi as f32 * 14.0 - 2.0, bw - 12.0, 13.0) {
-                    if ptr.moved {
+                if ptr.click && ptr.over(bx + 6.0, by + 28.0 + vi as f32 * 14.0 - 2.0, bw - 12.0, 13.0) {
+                    if *cur != scroll + vi {
                         *cur = scroll + vi;
-                    }
-                    if ptr.click {
-                        *cur = scroll + vi;
+                    } else {
                         clicked = true;
                     }
                 }

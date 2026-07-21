@@ -3,8 +3,9 @@
 //! tapped-out cast fizzles with a red bar flash and the dry click. USING a rune
 //! sockets it (the old rune pops back into the bag; plain Arcane is the default).
 //! The spells, js verbatim: ARCANE BOLT (2 mana, the workhorse), FIREBOLT (3 —
-//! REAL fire: ignites foes and the world, app/fire.rs spreads it), FROST SHARD
-//! (3 — chills foes to a crawl), SPARK BOLT (4 — fast and PIERCING, a whole line).
+//! REAL fire: ignites foes and the world, app/fire.rs spreads it), the FROST BEAM
+//! (3 — DEVIATION, Baz: an instant ray, not a bolt — freezes the first foe SOLID
+//! for 2s, ice-blue with mist), SPARK BOLT (4 — fast and PIERCING, a whole line).
 //! Damage scales with the spell stat; bolts carry the crit fields; frost rides
 //! the ChillHit machinery and fire the ScorchHit burn, so mob afflictions land
 //! through the same proc pipeline swings use.
@@ -101,6 +102,20 @@ pub struct SpellBolt {
 #[derive(Component)]
 struct TrailMote(i32);
 
+/// The frost beam's 2-tick freezing bite, seated at the tip (no sprite — combat
+/// reads the Combatant + Hitbox; FreezeHit rides it into the proc pipeline).
+#[derive(Component)]
+struct FrostLance {
+    t: i32,
+}
+
+/// One bar of the frost ray (halo + core), fading over 12 frames.
+#[derive(Component)]
+struct FrostBeamFx {
+    t: i32,
+    a0: f32,
+}
+
 /// The 8-way aim (shared shape with archery's — small enough to keep local).
 fn aim_vec(state: &ActionState, p: &Player) -> (f32, f32) {
     let dx = (state.held(Action::Right) as i32 - state.held(Action::Left) as i32) as f32;
@@ -126,6 +141,7 @@ fn bolt_image(images: &mut Assets<Image>, sp: &Spell) -> Handle<Image> {
 
 /// Cast / socket / drink — one reader for the three magic routes.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+#[allow(clippy::type_complexity)] // the frost beam's Or-filter (mobs AND goblinkind) is the point
 fn wand_msgs(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
@@ -137,6 +153,9 @@ fn wand_msgs(
     tstats: Res<super::slideout::TreeStats>,
     mut rng: ResMut<super::battle::GameRng>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
+    grid: Res<CurGrid>,
+    blockers: Res<super::room_props::RoomBlockers>,
+    mobs: Query<&Hitbox, Or<(With<crate::actors::mobs::Mob>, With<crate::actors::goblin::Goblin>)>>,
     players: Query<&Player>,
 ) {
     let Ok(p) = players.single() else { return };
@@ -151,6 +170,75 @@ fn wand_msgs(
                 let (dx, dy) = aim_vec(&state, p);
                 // js: dmg x (1 + spell stat); the gear rows the catalog banked now bite.
                 let dmg = ((sp.dmg * (1.0 + crate::items::gear_stat(&inv, "spell"))) + 0.5).floor().max(1.0) as i32;
+                if sp.el == "frost" {
+                    // FROST BEAM (Baz: make it unique — a ray, not a ball): an instant
+                    // lance from the hero's center along the aim. It sails OVER water
+                    // (the bolt rule), stops at walls AND solid props (bushes, trees,
+                    // rocks — the blocker list), and the first foe it touches is
+                    // FROZEN SOLID for 5 seconds.
+                    let (cx, cy) = (p.x + 8.0, p.y + 9.0);
+                    let mut len: f32 = 8.0;
+                    while len < 140.0 {
+                        let (qx, qy) = (cx + dx * (len + 4.0), cy + dy * (len + 4.0));
+                        if qx < 2.0 || qy < 2.0 || qx > crate::room::PX_W as f32 - 2.0 || qy > crate::room::PX_H as f32 - 2.0 {
+                            break;
+                        }
+                        let over_water = grid.0.code_at((qx / 16.0).floor() as i32, (qy / 16.0).floor() as i32) == '~';
+                        if !over_water && grid.0.box_hits_solid(qx - 1.0, qy - 1.0, 2.0, 2.0) {
+                            break;
+                        }
+                        if blockers.0.iter().any(|b| qx > b.0 && qx < b.0 + b.2 && qy > b.1 && qy < b.1 + b.3) {
+                            break;
+                        }
+                        len += 4.0;
+                    }
+                    // The nearest foe along the line caps the ray at its body.
+                    let mut best: Option<(f32, Hitbox)> = None;
+                    for mhb in &mobs {
+                        let (mx, my) = (mhb.x + mhb.w / 2.0, mhb.y + mhb.h / 2.0);
+                        let proj = (mx - cx) * dx + (my - cy) * dy;
+                        if proj < 0.0 || proj > len {
+                            continue;
+                        }
+                        let (qx, qy) = (cx + dx * proj, cy + dy * proj);
+                        if (mx - qx).hypot(my - qy) < mhb.w.max(mhb.h) / 2.0 + 4.0
+                            && best.as_ref().is_none_or(|(b, _)| proj < *b)
+                        {
+                            best = Some((proj, *mhb));
+                        }
+                    }
+                    let tip = best.as_ref().map_or(len, |(p, _)| *p);
+                    if let Some((_, mhb)) = best {
+                        // The freezing bite, seated ON the foe's own hitbox so the ray
+                        // can't miss what it visibly touched — knock 0: a statue stays put.
+                        commands.spawn((
+                            FrostLance { t: 3 },
+                            crate::combat::Combatant { team: Team::Player, hurt_team: Some(Team::Enemy), damage: Some(dmg), persistent: true, knock: 0.0 },
+                            CritChance { chance: tstats.crit, mult: 2.0 + tstats.critmult },
+                            HitOnce::default(),
+                            super::uniques::FreezeHit(300),
+                            Hitbox { x: mhb.x - 1.0, y: mhb.y - 1.0, w: mhb.w + 2.0, h: mhb.h + 2.0 },
+                            RoomActor,
+                        ));
+                    }
+                    // The ray: a soft ice halo under a white-cold core, fading fast.
+                    for (wid, col, a0) in [(5.0, Color::srgba(0.48, 0.78, 1.0, 0.45), 0.45), (2.0, Color::srgba(0.92, 0.99, 1.0, 0.9), 0.9)] {
+                        let blen = tip.max(8.0);
+                        let spr = Sprite::from_color(col, Vec2::new(blen, wid));
+                        let mut tf = at(
+                            PLAY_X + cx + (dx * blen - blen) / 2.0,
+                            PLAY_Y + cy + (dy * blen - wid) / 2.0,
+                            blen,
+                            wid,
+                            8.9,
+                        );
+                        tf.rotation = Quat::from_rotation_z(-dy.atan2(dx));
+                        commands.spawn((spr, tf, PIXEL_LAYER, RoomActor, FrostBeamFx { t: 0, a0 }));
+                    }
+                    super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(cx + dx * tip, cy + dy * tip), 0xbff0ff, 6);
+                    sfx.write(super::sfx::Sfx("swing"));
+                    continue;
+                }
                 let (x, y) = (p.x + dx * 8.0, p.y + dy * 8.0);
                 let bolt = commands
                     .spawn((
@@ -266,6 +354,28 @@ fn bolt_tick(
     }
 }
 
+/// The frost beam's afterlife: the bite lives 2 ticks, the ray fades over 12.
+fn frost_tick(
+    mut commands: Commands,
+    mut lances: Query<(Entity, &mut FrostLance)>,
+    mut beams: Query<(Entity, &mut FrostBeamFx, &mut Sprite)>,
+) {
+    for (e, mut l) in &mut lances {
+        l.t -= 1;
+        if l.t <= 0 {
+            commands.entity(e).despawn();
+        }
+    }
+    for (e, mut b, mut spr) in &mut beams {
+        b.t += 1;
+        if b.t >= 12 {
+            commands.entity(e).despawn();
+            continue;
+        }
+        spr.color = spr.color.with_alpha((1.0 - b.t as f32 / 12.0) * b.a0);
+    }
+}
+
 pub struct WandsPlugin;
 
 impl Plugin for WandsPlugin {
@@ -275,6 +385,7 @@ impl Plugin for WandsPlugin {
             (
                 wand_msgs.after(super::play::tick).before(crate::combat::resolve_combat),
                 bolt_tick.after(crate::combat::resolve_combat),
+                frost_tick.after(crate::combat::resolve_combat),
             )
                 .before(super::play::EndTick)
                 .run_if(super::screen::playing),
