@@ -106,10 +106,13 @@ pub fn run(
             Local<f32>,
             Query<Entity, With<RecenterBtn>>,
         ),
+        // Where you FELL + the clock that expires it with the day's room reset.
+        (Res<crate::app::death::LastDeath>, Res<crate::app::room_render::FrameClock>),
     ),
     mut dmap_key: Local<Option<(i32, i32, i32, u32, i32)>>,
 ) {
-    let (towns, phouse, relics_res, players_q, in_dungeon, chant, mouse) = marks;
+    let (towns, phouse, relics_res, players_q, in_dungeon, chant, mouse, fell) = marks;
+    let death_room = fell.0 .0.filter(|(_, day)| *day == crate::app::gather::farm_day(fell.1 .0)).map(|(r, _)| r);
     let (ptr, mbtn, mut wheels, mut drag, mut wacc, btns) = mouse;
     // UNDERGROUND: the DUNGEON FLOOR MAP replaces the world map (js drawDungeonMap) —
     // auto-fit, no zoom/pan, rebuilt when the room/floor moves (or the chant meter ticks).
@@ -257,7 +260,7 @@ pub fn run(
         let ppos = players_q.single().map(|p| (p.x, p.y)).unwrap_or((0.0, 0.0));
         spawn_map(
             &mut commands, &world, &visited, cur.as_ref(), &view, &mut cache, &mut images, &quests, &tmaps, &inv,
-            &towns, &phouse, relics_whole, ppos,
+            &towns, &phouse, relics_whole, ppos, death_room,
         );
     } else if let Ok((_, mut tf)) = root.single_mut() {
         *tf = root_transform(&visited, cur.as_ref(), &view, &pins);
@@ -342,6 +345,7 @@ fn spawn_map(
     house: &crate::app::home::PlayerHouse,
     relics_whole: bool,
     ppos: (f32, f32),
+    death_room: Option<(i32, i32)>,
 ) {
     let b = bounds(visited, cur.rx, cur.ry, &pin_rooms(quests, tmaps));
     let (cell_w, cell_h) = cell_size(view.ts);
@@ -465,6 +469,11 @@ fn spawn_map(
             // YOUR home: the marked cottage, star and all.
             mark(commands, images, HOME_MARK, &[('b', 0x1a1208), ('r', 0xc83028), ('w', 0xd8c0c8), ('d', 0x6a4a1c), ('*', 0xfcd000)]);
             plate(commands, images, "HOME", 0xfcd000);
+        }
+        if death_room == Some((x, y)) {
+            // Where you FELL (today only — the corpse bag's window): a plain
+            // gravestone, deliberately NOT the dungeon skull.
+            mark(commands, images, GRAVE_MARK, &[('b', 0x1a1208), ('s', 0x9aa0ac), ('S', 0x5a6068), ('g', 0x4a8a3a)]);
         }
     }
     // Quest pins (js codex 271): '!' where the job is (until it's ready), '?' at the
@@ -706,6 +715,24 @@ const TOWN_MARK: &[&str] = &[
     "bwwwddwwwwb",
     "bwwwddwwwwb",
     "bbbbbbbbbbb",
+];
+
+/// Where you fell today: a small gravestone over grass — the corpse-run pin.
+#[rustfmt::skip]
+const GRAVE_MARK: &[&str] = &[
+    "...........",
+    "...bbbbb...",
+    "..bsssssb..",
+    "..bssSssb..",
+    "..bsSSSsb..",
+    "..bssSssb..",
+    "..bssSssb..",
+    "..bsssssb..",
+    "..bsssssb..",
+    "..bsSsSsb..",
+    "gbbsssssbbg",
+    "ggbbbbbbbgg",
+    "...........",
 ];
 
 /// YOUR home: the cottage with the gold star (js codex 241-245).

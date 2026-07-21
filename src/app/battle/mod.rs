@@ -64,6 +64,7 @@ impl Plugin for BattlePlugin {
             )
             .add_systems(Update, (fx::sync_goblins, fx::sync_mobs, fx::sync_attacks));
         app.init_resource::<crate::actors::goblin::HumanArt>();
+        app.init_resource::<crate::combat::LastAttacker>();
     }
 }
 

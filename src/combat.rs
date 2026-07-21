@@ -134,6 +134,17 @@ pub struct HitLanded {
 #[derive(Component)]
 pub struct Afflicts(pub &'static str, pub i32);
 
+/// The display name an attacker kills under (the death screen's "KILLED BY").
+/// Projectiles/hazards carry it from spawn; live mobs and goblins resolve
+/// automatically in the resolve pass.
+#[derive(Component)]
+pub struct Menace(pub &'static str);
+
+/// Who last hurt the PLAYER (display name) — None when the source was nameless
+/// (the death screen then skips its killed-by line).
+#[derive(Resource, Default)]
+pub struct LastAttacker(pub Option<&'static str>);
+
 /// A wrong-tool strike glancing off a resource node (spark + sound, no damage). `note`
 /// carries a toast for the too-weak-tool case (js resistTool — "NEEDS A STRONGER PICK");
 /// `target` names the node so even a tink can shake its canopy (js shedLeaves).
@@ -147,14 +158,27 @@ pub struct Tinked {
 /// The resolve pass. Mirrors the JS loop shape: for each live attacker, test every target.
 #[allow(clippy::type_complexity)] // ECS system queries are wide by nature
 pub fn resolve_combat(
-    mut attackers: Query<(Entity, &Combatant, &Hitbox, Option<&mut HitOnce>, Option<&AttackTool>, Option<&Afflicts>, Option<&CritChance>)>,
+    mut attackers: Query<(
+        Entity,
+        &Combatant,
+        &Hitbox,
+        Option<&mut HitOnce>,
+        Option<&AttackTool>,
+        Option<&Afflicts>,
+        Option<&CritChance>,
+        Option<&Menace>,
+        Option<&crate::actors::mobs::Mob>,
+        Option<&crate::actors::goblin::Goblin>,
+        Option<&crate::actors::goblin::HumanSkin>,
+    )>,
     mut targets: Query<(Entity, &Combatant, &Hitbox, &mut Health, &HurtProfile, Option<&mut Knockback>, Option<&Blood>, Option<&GatherTool>)>,
     mut rng: ResMut<crate::app::battle::GameRng>,
     mut hits: MessageWriter<HitLanded>,
     mut tinks: MessageWriter<Tinked>,
     mut sfx: MessageWriter<crate::app::sfx::Sfx>,
+    mut last_attacker: ResMut<LastAttacker>,
 ) {
-    for (a_ent, atk, abox, mut once, atk_tool, afflicts, crit_chance) in &mut attackers {
+    for (a_ent, atk, abox, mut once, atk_tool, afflicts, crit_chance, menace, a_mob, a_gob, a_skin) in &mut attackers {
         let Some(damage) = atk.damage else { continue };
         let ab = if atk.persistent { abox.expanded(3.0) } else { *abox };
         for (t_ent, tgt, tbox, mut health, profile, kb, blood, gather) in &mut targets {
@@ -215,6 +239,14 @@ pub fn resolve_combat(
                 dealt = ((dealt as f64) * mult).round() as i32;
             }
             health.hp -= dealt;
+            // Remember who hurt the PLAYER — the death screen names the killer.
+            // Every player hit overwrites (a stale name must not outlive its blow).
+            if tgt.team == Team::Player {
+                last_attacker.0 = menace
+                    .map(|m| m.0)
+                    .or_else(|| a_mob.map(|m| crate::actors::mobs::bestiary_name(crate::actors::mobs::MOB_DEFS[m.def].kind)))
+                    .or_else(|| a_gob.map(|_| if a_skin.is_some() { "BANDIT" } else { "GOBLIN" }));
+            }
             if health.hp <= 0 && tgt.team == Team::Enemy {
                 sfx.write(crate::app::sfx::Sfx("enemyDie")); // the core death sound was never fired
             }

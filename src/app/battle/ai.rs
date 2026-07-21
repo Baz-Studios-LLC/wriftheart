@@ -169,6 +169,7 @@ pub(super) fn mobs_ai(
                     Some(MobAct::Web { x, y, vx, vy }) => {
                         commands.spawn((
                             WebBolt { x, y, vx, vy, life: 120 },
+                            crate::combat::Menace(mobs::bestiary_name(d.kind)),
                             crate::combat::Afflicts("slow", 110),
                             Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(1), persistent: false, knock: 0.0 },
                             crate::combat::HitOnce::default(),
@@ -184,6 +185,7 @@ pub(super) fn mobs_ai(
                         let rock = commands
                             .spawn((
                                 ArcRock { sx, sy, tx, ty, t: 0, dur },
+                                crate::combat::Menace(mobs::bestiary_name(d.kind)),
                                 Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: None, persistent: false, knock: 0.0 },
                                 crate::combat::HitOnce::default(),
                                 Hitbox { x: -99.0, y: -99.0, w: 0.0, h: 0.0 },
@@ -207,6 +209,7 @@ pub(super) fn mobs_ai(
                         tf.rotation = Quat::from_rotation_z(-ang);
                         commands.spawn((
                             EnemyArrow { x, y, vx, vy, life: 42 },
+                            crate::combat::Menace(mobs::bestiary_name(d.kind)),
                             Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: false, knock: 0.0 },
                             crate::combat::HitOnce::default(),
                             Hitbox { x: x + 5.0, y: y + 5.0, w: 6.0, h: 6.0 },
@@ -222,6 +225,7 @@ pub(super) fn mobs_ai(
                             let e = commands
                                 .spawn((
                                     EBolt { x, y, vx: ang.cos() * sp, vy: ang.sin() * sp, life },
+                                    crate::combat::Menace(mobs::bestiary_name(d.kind)),
                                     Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(dmg), persistent: false, knock: 0.0 },
                                     crate::combat::HitOnce::default(),
                                     Hitbox { x: x + 3.0, y: y + 3.0, w: 7.0, h: 7.0 },

@@ -39,6 +39,8 @@ pub struct DeathState {
     t: u32,
     choice: usize,
     line: &'static str,
+    /// Who did it (display name) — None (a nameless end) skips the line.
+    killer: Option<&'static str>,
     coin_lost: i64,
     xp_lost: i32,
     items_dropped: i32,
@@ -65,14 +67,31 @@ enum DeathFx {
 #[derive(Component)]
 struct DeathChoice;
 
+/// Where the hero last FELL — (overworld room, farm day). Session-only and
+/// same-day-only, exactly like the corpse bag it points at: room snapshots don't
+/// cross a load, and the next day's room reset sweeps the bag — the map's
+/// gravestone marker dies with it (Baz). Dungeon deaths don't mark (runs regen).
+#[derive(Resource, Default)]
+pub struct LastDeath(pub Option<((i32, i32), i64)>);
+
+/// Any slot load (or new game) drops the marker — the bag's snapshot didn't
+/// cross either.
+fn clear_death_mark(mut loads: MessageReader<super::title::loader::LoadSlot>, mut ld: ResMut<LastDeath>) {
+    if loads.read().next().is_some() {
+        ld.0 = None;
+    }
+}
+
 pub struct DeathPlugin;
 
 impl Plugin for DeathPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LastLine>()
+            .init_resource::<LastDeath>()
             .add_systems(
                 bevy::app::FixedUpdate,
                 (
+                    clear_death_mark,
                     check_death.run_if(playing),
                     death_tick.before(super::play::EndTick).run_if(in_state(Screen::Dead)),
                 ),
@@ -93,6 +112,10 @@ fn check_death(
     hero_art: Res<HeroArt>,
     mut players: Query<(&Player, &Health, &mut Visibility)>,
     existing: Option<Res<DeathState>>,
+    cur: Res<super::play::CurRoom>,
+    in_dungeon: Res<super::dungeon::InDungeon>,
+    mut last_death: ResMut<LastDeath>,
+    last_attacker: Res<crate::combat::LastAttacker>,
     mut next: ResMut<NextState<Screen>>,
 ) {
     let Ok((p, h, mut vis)) = players.single_mut() else { return };
@@ -100,6 +123,11 @@ fn check_death(
     // pass would re-run the toll on the already-emptied bag and zero the numbers.
     if h.hp > 0 || existing.is_some() {
         return;
+    }
+    // Pin the fall on the map (overworld only — a dungeon run regenerates, so
+    // there's no bag to walk back to).
+    if in_dungeon.0.is_none() {
+        last_death.0 = Some(((cur.rx, cur.ry), super::gather::farm_day(clock.0)));
     }
     let mut rng = Mulberry32::new(clock.0 as u32 ^ 0x9e3779b1);
 
@@ -179,6 +207,7 @@ fn check_death(
         t: 0,
         choice: 0,
         line: deathlines::LINES[idx],
+        killer: last_attacker.0,
         coin_lost,
         xp_lost,
         items_dropped,
@@ -254,6 +283,25 @@ fn death_tick(
             DeathUi,
             DeathFx::Line,
         ));
+        // The culprit, when the blow had a name (Baz: "YOU WERE KILLED BY A [MOB]").
+        if let Some(name) = death.killer {
+            let phrase = if name.starts_with("THE ") {
+                format!("YOU WERE KILLED BY {name}")
+            } else if name.starts_with(['A', 'E', 'I', 'O', 'U']) {
+                format!("YOU WERE KILLED BY AN {name}")
+            } else {
+                format!("YOU WERE KILLED BY A {name}")
+            };
+            let (img, tw) = font::bake_text(&phrase, 0xb8a8a0, &mut images);
+            let iw = (tw + (tw & 1)) as f32;
+            commands.spawn((
+                Sprite { image: img, color: Color::srgba(1.0, 1.0, 1.0, 0.0), ..default() },
+                at((cx - iw / 2.0).round(), 70.0, iw, 6.0, Z_TEXT),
+                PIXEL_LAYER,
+                DeathUi,
+                DeathFx::Line,
+            ));
+        }
     }
     if t == 52 {
         // The itemized toll + the menu.

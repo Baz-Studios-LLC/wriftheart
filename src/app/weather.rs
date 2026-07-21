@@ -230,6 +230,7 @@ fn strike_gameplay(
         commands.spawn((
             StrikeZap(4),
             crate::combat::Combatant { team: crate::combat::Team::Hazard, hurt_team: Some(hurt), damage: Some(dmg), persistent: false, knock: 2.2 },
+            crate::combat::Menace("THE STORM"),
             crate::combat::HitOnce::default(),
             crate::combat::Hitbox { x: sx - 9.0, y: sy - 9.0, w: 18.0, h: 18.0 },
         ));
