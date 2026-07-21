@@ -47,6 +47,19 @@ pub fn ore_at_tier(t: i32) -> &'static str {
     ["copper", "copper", "iron", "silver", "gold", "mithril", "voidsteel"][t.clamp(0, 6) as usize]
 }
 
+/// The wood a biome's TREES yield (Baz: petalwood trees drop PETALWOOD, not oak) —
+/// kin biomes share a timber, strangers differ; everywhere plain stays plain wood.
+pub fn wood_for_biome(biome: &str) -> &'static str {
+    match biome {
+        "petalwood" | "bluebell" | "honeyglade" => "petalwood",
+        "hollowwood" | "gloammoor" | "starhollow" => "gloomwood",
+        "burnt" | "embermaw" | "emberscar" => "charwood",
+        "swamp" | "tarmire" | "witherlands" | "blackdeep" => "mirewood",
+        "arctic" => "frostpine",
+        _ => "wood",
+    }
+}
+
 /// The timber a tree yields as a bonus at zone `t` (js WOOD_LADDER; only tier 3+ upgrade).
 pub fn wood_at_tier(t: i32) -> Option<&'static str> {
     [None, None, None, Some("hardwood"), Some("ironbark"), Some("ironbark"), Some("voidwood")][t.clamp(0, 6) as usize]
@@ -278,7 +291,7 @@ fn chip_color(kind: &str) -> u32 {
 
 /// What a felled node drops (the STAPLE half of the js deathEffect tables; tier ladders,
 /// herbs-by-luck and silk join with the items/skills ports).
-fn drops_for(kind: &str, tier: i32, rng: &mut GameRng) -> Vec<&'static str> {
+fn drops_for(kind: &str, tier: i32, biome: &str, rng: &mut GameRng) -> Vec<&'static str> {
     let mut out = Vec::new();
     match kind {
         "bush" => {
@@ -309,9 +322,10 @@ fn drops_for(kind: &str, tier: i32, rng: &mut GameRng) -> Vec<&'static str> {
             }
         }
         _ => {
-            // Trees: 3-5 wood, + ~30% the zone's better timber deeper in (js WOOD_LADDER).
+            // Trees: 3-5 of the BIOME's wood, + ~30% the zone's better timber deeper
+            // in (js WOOD_LADDER).
             let n = 3 + (rng.0.next_f64() * 3.0) as usize;
-            out.extend(std::iter::repeat_n("wood", n));
+            out.extend(std::iter::repeat_n(wood_for_biome(biome), n));
             if let Some(w) = wood_at_tier(tier)
                 && rng.0.next_f64() < 0.3
             {
@@ -326,6 +340,11 @@ fn drops_for(kind: &str, tier: i32, rng: &mut GameRng) -> Vec<&'static str> {
 pub fn material_color(id: &str) -> u32 {
     match id {
         "wood" => 0x8a5a2a,
+        "petalwood" => 0xd8a0c0,
+        "gloomwood" => 0x4a5468,
+        "charwood" => 0x3a3230,
+        "mirewood" => 0x5a6a3a,
+        "frostpine" => 0x9ac0d0,
         "stone" => 0xa8a8a8,
         "fiber" => 0x3a8a2a,
         "herb" => 0x2fbf4f,
@@ -422,7 +441,7 @@ fn node_deaths(
             continue;
         }
         spawn_burst(&mut commands, &mut rng, Vec2::new(x + 8.0, y + 8.0), chip_color(node.kind), 8);
-        let mut drops = drops_for(node.kind, node.tier, &mut rng);
+        let mut drops = drops_for(node.kind, node.tier, crack.world.0.biome_key_at(cur.rx, cur.ry), &mut rng);
         // HARVEST YIELD: each drop has a tree-granted chance of a bonus copy (js gatherBonus).
         if tstats.gather > 0.0 {
             let bonus: Vec<&'static str> =

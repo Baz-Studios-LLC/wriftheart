@@ -863,6 +863,7 @@ pub fn sync_enc_people(
 
 /// Speech bubbles over the encounter folk — the floating-label rig (bake on change).
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+#[allow(clippy::type_complexity)] // the chat-bubble peek needs its Without wall
 pub fn shout_labels(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
@@ -870,9 +871,23 @@ pub fn shout_labels(
     victims: Query<(Entity, &Victim)>,
     wanderers: Query<(Entity, &Wanderer)>,
     mut labels: Query<(&mut Transform, &mut Visibility), With<ShoutLabel>>,
+    chat: Query<(&Transform, &Sprite), (With<crate::app::talk::ChatUi>, Without<ShoutLabel>)>,
     mut live: Local<bevy::platform::collections::HashMap<Entity, (String, Entity, f32)>>,
 ) {
     let mut seen: Vec<Entity> = Vec::new();
+    // Bubbles NEVER overlap (Baz): every placed rect this frame — seeded with the
+    // town chat bubble (its 11-tall backing; border strips and text are thinner) —
+    // and each shout hops ABOVE whatever it would cover.
+    let mut placed: Vec<(f32, f32, f32)> = chat
+        .iter()
+        .filter(|(_, s)| s.custom_size.is_some_and(|v| (v.y - 11.0).abs() < 0.5))
+        .map(|(t, s)| {
+            let w = s.custom_size.unwrap().x;
+            (t.translation.x + crate::CANVAS_W as f32 / 2.0 - w / 2.0,
+             crate::CANVAS_H as f32 / 2.0 - t.translation.y - 5.5,
+             w)
+        })
+        .collect();
     let mut place = |commands: &mut Commands,
                      images: &mut Assets<Image>,
                      labels: &mut Query<(&mut Transform, &mut Visibility), With<ShoutLabel>>,
@@ -902,9 +917,15 @@ pub fn shout_labels(
             && let Ok((mut tf, mut vis)) = labels.get_mut(*e)
         {
             // The bubble floats where the town bubbles float (talk.rs by = y - 13),
-            // clamped into the play field so a shore-side shout never clips off.
+            // clamped into the play field so a shore-side shout never clips off —
+            // then HOPS UPWARD past any bubble it would cover (Baz: never overlap).
             let bx = (PLAY_X + x + 8.0 - bw / 2.0).round().clamp(PLAY_X + 2.0, PLAY_X + crate::room::PX_W as f32 - bw - 2.0);
-            *tf = at(bx, (PLAY_Y + y - 13.0).round(), *bw, 11.0, crate::gfx::layers::CHAT);
+            let mut by = (PLAY_Y + y - 13.0).round();
+            while placed.iter().any(|&(ox, oy, ow)| bx < ox + ow && bx + *bw > ox && by < oy + 11.0 && by + 11.0 > oy) {
+                by -= 13.0;
+            }
+            placed.push((bx, by, *bw));
+            *tf = at(bx, by, *bw, 11.0, crate::gfx::layers::CHAT);
             *vis = if sliding.0 { Visibility::Hidden } else { Visibility::Inherited };
         }
         seen.push(owner);

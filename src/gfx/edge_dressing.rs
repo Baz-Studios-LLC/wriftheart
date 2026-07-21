@@ -159,6 +159,70 @@ pub fn dressing_rects(grid: &RoomGrid, world: &World, rx: i32, ry: i32) -> Vec<(
     out
 }
 
+/// DEVIATION companion to [`dressing_rects`] (Baz): the JS never scalloped hedges
+/// into water ('~' is solid, so those edges stayed razor-flat — fine over flat tile
+/// water, jarring next to the living shader surface). Emits the same jittered leaf
+/// bumps for every leafy edge FACING WATER — bumps only; the ground-notch cuts
+/// would need a flat water colour, and the shader surface owns that edge now.
+/// Same `edge_h` hash, so bumps stay continuous with the land scallops around
+/// corners. Rasterised by [`build_overlay`] on top of the JS-parity stream.
+fn water_hedge_rects(grid: &RoomGrid, rx: i32, ry: i32) -> Vec<(i32, i32, i32, i32, u32)> {
+    let (gx0, gy0) = (rx * COLS, ry * ROWS);
+    let t = TILE;
+    let leafy = |code: char| code == 'T' || code == 'G';
+    let watery = |c: i32, r: i32| grid.code_at(c, r) == '~';
+    let mut out = Vec::new();
+    // One bump: 1px-wide strip growing o px from (bx, by) along (dx, dy), lit at
+    // the outermost pixel — the same geometry as the four literal arms in pass 2.
+    let mut bump = |bx: i32, by: i32, dx: i32, dy: i32, o: i32| {
+        let (x0, y0) = (if dx < 0 { bx - o } else { bx }, if dy < 0 { by - o } else { by });
+        let (w, h) = if dx != 0 { (o, 1) } else { (1, o) };
+        out.push((x0, y0, w, h, FOL));
+        if o > 1 {
+            let (tx, ty) = (if dx > 0 { bx + o - 1 } else { x0 }, if dy > 0 { by + o - 1 } else { y0 });
+            out.push((tx, ty, 1, 1, FOLTIP));
+        }
+    };
+    for row in 0..ROWS {
+        for col in 0..COLS {
+            if !leafy(grid.code_at(col, row)) {
+                continue;
+            }
+            let (px, py) = (col * t, row * t);
+            let (wx, wy) = ((gx0 + col) * t, (gy0 + row) * t);
+            for x in 0..t {
+                if watery(col, row - 1) {
+                    let o = edge_h(wx + x, 1);
+                    if o > 0 {
+                        bump(px + x, py, 0, -1, o);
+                    }
+                }
+                if watery(col, row + 1) {
+                    let o = edge_h(wx + x, 2);
+                    if o > 0 {
+                        bump(px + x, py + t, 0, 1, o);
+                    }
+                }
+            }
+            for y in 0..t {
+                if watery(col - 1, row) {
+                    let o = edge_h(wy + y, 3);
+                    if o > 0 {
+                        bump(px, py + y, -1, 0, o);
+                    }
+                }
+                if watery(col + 1, row) {
+                    let o = edge_h(wy + y, 4);
+                    if o > 0 {
+                        bump(px + t, py + y, 1, 0, o);
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Hash for the scallop jitter — the JS `rnd` (Math.imul chain), bit-exact.
 fn rnd(a: i32, b: i32, c: i32) -> u32 {
     let h = (a.wrapping_add(1))
@@ -189,6 +253,11 @@ fn edge_h(n: i32, salt: i32) -> i32 {
 
 /// Rasterise the dressing into one transparent room-sized image (later fills overwrite,
 /// exactly like painting the canvas). One sprite per room, above the tile layer.
+///
+/// DEVIATION from the JS stream (Baz): the shader water paints its own surface and
+/// bank edge now, so the flat water-colour fills — corner nooks + hedge notches in
+/// the room's wcol — are dropped HERE at raster time. `dressing_rects` itself stays
+/// bit-exact against the JS golden (tests/dressing_parity.rs).
 pub fn build_overlay(grid: &RoomGrid, world: &World, rx: i32, ry: i32) -> Image {
     let mut img = Image::new_fill(
         Extent3d { width: PX_W as u32, height: PX_H as u32, depth_or_array_layers: 1 },
@@ -197,7 +266,14 @@ pub fn build_overlay(grid: &RoomGrid, world: &World, rx: i32, ry: i32) -> Image 
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
     );
-    for (x, y, w, h, rgb) in dressing_rects(grid, world, rx, ry) {
+    let wcol = water_color(world.water_style(rx * COLS, ry * ROWS));
+    let rects = dressing_rects(grid, world, rx, ry)
+        .into_iter()
+        // Water-colour fills: the shader surface owns that edge now.
+        .filter(|&(_, _, _, _, rgb)| rgb != wcol)
+        // ...and hedges get their leaf bumps over water too.
+        .chain(water_hedge_rects(grid, rx, ry));
+    for (x, y, w, h, rgb) in rects {
         for yy in y.max(0)..(y + h).min(PX_H) {
             for xx in x.max(0)..(x + w).min(PX_W) {
                 if let Ok(px) = img.pixel_bytes_mut(UVec3::new(xx as u32, yy as u32, 0)) {

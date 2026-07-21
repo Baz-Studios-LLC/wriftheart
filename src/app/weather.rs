@@ -256,6 +256,12 @@ fn tick(
         state.cur = want;
         state.vis = 0.0;
     }
+    if !outdoors {
+        // Under a roof the sky ENDS, it doesn't fade — the crossfade briefly rained
+        // INSIDE houses, caves and dungeons (Baz). Stepping back out fades in as usual.
+        state.prev_vis = 0.0;
+        state.vis = 1.0;
+    }
     state.vis = (state.vis + EASE).min(1.0);
     state.prev_vis = (state.prev_vis - EASE).max(0.0);
     if state.prev == state.cur {

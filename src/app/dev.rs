@@ -307,6 +307,32 @@ fn drive(
         state.row = (state.row as i32 - refs.ptr.wheel_steps).clamp(0, nrows as i32 - 1) as usize;
         state.dirty = true;
     }
+    // Mouse on the rows (Baz: "the options aren't clickable"): hover selects (a
+    // flat menu), a click RUNS the row — except the cycle rows, whose value IS the
+    // action: a click steps them right. Injected as presses so the key handlers
+    // below treat mouse and keyboard identically. Same geometry as redraw (52 + i*12).
+    if let Some(pp) = refs.ptr.pos {
+        for i in 0..nrows {
+            let ry = 52.0 + i as f32 * 12.0;
+            if pp.x >= 8.0 && pp.x < CANVAS_W as f32 - 8.0 && pp.y >= ry - 2.0 && pp.y < ry + 10.0 {
+                if refs.ptr.moved && state.row != i {
+                    state.row = i;
+                    state.dirty = true;
+                }
+                if refs.ptr.click {
+                    state.row = i;
+                    // The `< value >` side cycles; the label side RUNS (SpawnMob and
+                    // WarpShard have both; Weather's value is its only action).
+                    let on_value = pp.x > CANVAS_W as f32 * 0.62;
+                    match rows(state.cat)[i].1 {
+                        Cmd::Weather => input.press(Action::Right),
+                        Cmd::WarpShard | Cmd::SpawnMob if on_value => input.press(Action::Right),
+                        _ => input.press(Action::Interact),
+                    }
+                }
+            }
+        }
+    }
     if input.pressed(Action::TabNext) {
         input.consume(Action::TabNext);
         state.cat = (state.cat + 1) % CATS.len();
@@ -514,7 +540,7 @@ fn drive(
             log.add("dev", "GEM KIT", 1, 0xb060f0, false, true);
         }
         Cmd::WoodKit => {
-            for id in ["wood", "hardwood", "ironbark", "voidwood"] {
+            for id in ["wood", "hardwood", "ironbark", "voidwood", "petalwood", "gloomwood", "charwood", "mirewood", "frostpine"] {
                 ctx.inv.add_item(id, 20);
             }
             log.add("dev", "WOOD KIT - EVERY TIER", 1, 0xa07040, false, true);

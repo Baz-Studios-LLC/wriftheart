@@ -82,7 +82,7 @@ struct HeartFx {
 }
 
 #[derive(Component)]
-pub(crate) struct ChatUi;
+pub struct ChatUi;
 
 /// The relationship-side resource bundle, shared with the dialog windows (gift picker).
 #[derive(bevy::ecs::system::SystemParam)]

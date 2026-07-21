@@ -15,6 +15,11 @@ pub struct WaterParams {
     pub strength: f32,
     pub _p0: f32, // `storm` in the shader — rain agitation 0..1
     pub _p1: f32,
+    /// The style palette (Baz: water rebuilt FROM THE GROUND UP, shader-painted —
+    /// no more tile sprite underneath): shallow / deep / wave-light, rgb in xyz.
+    pub shallow: Vec4,
+    pub deep: Vec4,
+    pub wave: Vec4,
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]

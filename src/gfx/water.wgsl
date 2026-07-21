@@ -1,8 +1,12 @@
-// water.wgsl — the living water surface (PORT-ORIGINAL): moving highlight bands and a
-// deep-water tint over the baked tile animation. Drawn as one room-covering quad,
-// clipped to the WATER MASK (r = water, a = shore distance).
+// water.wgsl — the water surface, REBUILT FROM THE GROUND UP (Baz): the shader
+// PAINTS the whole body — no tile sprite underneath. Pixel-quantized and
+// posterized so it sits inside the game's art, not on top of it.
 //
-// Restraint is the design: low alphas, slow drift — WriftHeart, not a tech demo.
+// Recipe per pixel (room space, snapped to whole px):
+//   depth ramp (mask a: shore..deep) -> undulating surface height from two
+//   drifting interference waves whose SAMPLE POSITION wobbles (the ripple lives
+//   in the pattern itself) -> posterize into 3 banded tones -> ripple lines,
+//   crest glints, and a soft shore lap on top. Storms raise every amplitude.
 
 #import bevy_sprite::mesh2d_vertex_output::VertexOutput
 
@@ -10,12 +14,19 @@
 @group(2) @binding(1) var mask_sampler: sampler;
 
 struct WaterParams {
-    time: f32,    // seconds
-    strength: f32,// master dial for the whole effect
-    storm: f32,   // 0..1 — rain agitates the surface (weather tie-in)
+    time: f32,
+    strength: f32,
+    storm: f32,
     _p1: f32,
+    shallow: vec4<f32>,
+    deep: vec4<f32>,
+    wave: vec4<f32>,
 }
 @group(2) @binding(2) var<uniform> params: WaterParams;
+
+fn hash2(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -23,26 +34,64 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     if (m.r < 0.5) {
         return vec4(0.0);
     }
-    // Room-pixel position (the quad covers the 304x208 room exactly).
-    let px = in.uv * vec2(304.0, 208.0);
-    let t = params.time * (1.0 + params.storm * 0.8); // a storm hurries every wave
+    // Whole-pixel room position — the art law: no sub-pixel gradients.
+    let px = floor(in.uv * vec2(304.0, 208.0));
+    let t = params.time * (1.0 + params.storm * 0.7);
 
-    // Two slow crossing waves make a drifting interference pattern.
-    let w = sin(px.y * 0.35 + t * 1.1 + sin(px.x * 0.13 + t * 0.6) * 2.0)
-          + sin((px.x + px.y) * 0.11 - t * 0.7);
-    // Sparse glints on the crests; a faint trough shade opposite.
-    let glint = smoothstep(1.55 - params.storm * 0.35, 1.9, w) * (0.14 + params.storm * 0.10);
-    let shade = smoothstep(-1.9, -1.55, -w) * 0.05;
-    // The RIPPLE (Baz): fine undulating lines drifting down the surface — thin light
-    // crests with a whisper of shade beneath, wavelength a few pixels.
-    let rp = sin(px.y * 1.6 - t * 1.4 + sin(px.x * 0.35 + t * 0.5) * 1.4);
-    let ripple_lit = smoothstep(0.86 - params.storm * 0.12, 0.99, rp) * (0.07 + params.storm * 0.06);
-    let ripple_dim = smoothstep(0.86, 0.99, -rp) * 0.04;
-    // Deeper water sits darker (mask alpha = shore distance).
-    let deep = m.a * 0.16;
+    // The UNDULATION: the sample position itself sways (x by row, y by column),
+    // deep water swaying most — this is the ripple applied to the surface.
+    let amp = (1.0 + params.storm * 1.6) * m.a;
+    let sway = vec2(
+        floor(sin(px.y * 0.55 + t * 2.2) * amp + 0.5),
+        floor(sin(px.x * 0.31 - t * 1.6) * amp * 0.5 + 0.5),
+    );
+    let sp = px + sway;
 
-    let light = vec3(0.75, 0.92, 1.0) * (glint + ripple_lit);
-    let dark = (shade + deep + ripple_dim) * params.strength;
-    // Composite: glints + ripple crests lighten, depth/troughs darken.
-    return vec4(light * params.strength, (glint + ripple_lit + dark));
+    // Two slow crossing waves -> a drifting interference height field.
+    let h = sin(sp.y * 0.5 + t * 1.1 + sin(sp.x * 0.19 + t * 0.6) * 2.0)
+          + sin((sp.x + sp.y) * 0.16 - t * 0.7);
+
+    // DEPTH, smoothed: the mask is tile-res, so raw a-steps land as sharp 16px
+    // rects. Manual bilinear across the four surrounding texels rounds the deep
+    // patches off (the dirt-corner treatment), sampled at the SWAYED position so
+    // the contours breathe; then requantized to coarse steps so it stays
+    // posterized art, not a soft gradient.
+    let msz = vec2(19.0, 13.0);
+    let df = ((sp + vec2(0.5)) / vec2(304.0, 208.0)) * msz - 0.5;
+    let di = floor(df);
+    let fr = df - di;
+    let d00 = textureSampleLevel(mask, mask_sampler, (di + vec2(0.5, 0.5)) / msz, 0.0).a;
+    let d10 = textureSampleLevel(mask, mask_sampler, (di + vec2(1.5, 0.5)) / msz, 0.0).a;
+    let d01 = textureSampleLevel(mask, mask_sampler, (di + vec2(0.5, 1.5)) / msz, 0.0).a;
+    let d11 = textureSampleLevel(mask, mask_sampler, (di + vec2(1.5, 1.5)) / msz, 0.0).a;
+    let depth = floor(mix(mix(d00, d10, fr.x), mix(d01, d11, fr.x), fr.y) * 6.0 + 0.5) / 6.0;
+
+    // Base: depth ramp, POSTERIZED by the height into three banded tones.
+    var col = mix(params.shallow.rgb, params.deep.rgb, depth * 0.8);
+    if (h > 0.85) {
+        col = mix(col, params.wave.rgb, 0.18); // lit band, a whisper
+    } else if (h < -0.95) {
+        col = col * 0.9; // trough band
+    }
+
+    // Fine ripple LINES drifting down the swayed surface.
+    let rp = sin(sp.y * 1.6 - t * 1.4 + sin(sp.x * 0.5 + t * 0.5) * 1.4);
+    if (rp > 0.92 - params.storm * 0.1) {
+        col = mix(col, params.wave.rgb, 0.28);
+    }
+
+    // Sparse crest GLINTS (slow-twinkling, hash-seeded so they don't march).
+    let cell = floor(sp / 4.0);
+    let tw = hash2(cell);
+    if (h > 1.55 - params.storm * 0.3 && fract(tw + t * 0.13) > 0.95) {
+        col = mix(col, vec3(0.85, 0.95, 1.0), 0.5);
+    }
+
+    // The SHORE LAP: a soft bright rim right at the land edge, breathing slowly.
+    if (m.a < 0.12) {
+        let lap = 0.14 + 0.11 * sin(t * 1.3 + px.x * 0.22 + px.y * 0.17);
+        col = mix(col, params.wave.rgb, lap);
+    }
+
+    return vec4(col * params.strength, 1.0);
 }

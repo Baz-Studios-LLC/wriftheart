@@ -460,6 +460,12 @@ pub static DEFS: &[ItemDef] = &[
     timber("greenheart", "Greenheart", &[('D', 0x3a7a42), ('d', 0x22522a)], 40, Rarity::Uncommon, "Springy jungle timber. Bowyers pay well for a straight length."),
     timber("petalwood", "Petalwood", &[('D', 0xc88aa8), ('d', 0x8a5670)], 26, Rarity::Common, "Rose-hearted timber from the blossom meadows. It smells like spring."),
     timber("voidwood", "Voidwood", &[('D', 0x4a3468), ('d', 0x2c1c42)], 85, Rarity::Rare, "Timber felled in the chaos lands. It hums, faintly, when you hold it."),
+    // The BIOME woods (Baz: a grove's trees drop ITS timber, not plain oak).
+    timber("petalwood", "Petalwood", &[('D', 0xc887a8), ('d', 0x8a5070)], 14, Rarity::Common, "Rosy timber from the blossom groves. It never quite loses the scent."),
+    timber("gloomwood", "Gloomwood", &[('D', 0x525c74), ('d', 0x2e3446)], 16, Rarity::Common, "Grey-blue timber from the hollow woods. Lanternlight sinks into it."),
+    timber("charwood", "Charwood", &[('D', 0x4a403c), ('d', 0x241e1c)], 16, Rarity::Common, "Fire-hardened timber from the burnt lands. Still warm, somehow."),
+    timber("mirewood", "Mirewood", &[('D', 0x6a7444), ('d', 0x3c4424)], 14, Rarity::Common, "Water-dark timber from the mires. Heavier than it looks."),
+    timber("frostpine", "Frostpine", &[('D', 0x9cc2d4), ('d', 0x5a7e94)], 16, Rarity::Common, "Pale arctic pine, rimed to the core. It creaks like ice."),
     // FISHING (js): the rod is a TOOL — equip it, face water, cast (app/fishing.rs
     // runs the cast -> bite -> tap loop).
     ItemDef {

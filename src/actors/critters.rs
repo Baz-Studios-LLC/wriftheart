@@ -516,6 +516,11 @@ fn sync_critters(
             _ => 0,
         };
         sprite.image = art.0[e.frame_bank][frame].clone();
+        // Face the way you're running (Baz: rabbits fled BACKWARDS) — the grids
+        // face RIGHT (second guess, verified by Baz); idlers keep their last heading.
+        if e.dirx.abs() > 0.01 {
+            sprite.flip_x = e.dirx < 0.0;
+        }
         // Depth-sort at the body so a critter behind a trunk tucks behind (js baseY).
         let (iw, ih) = sprite_size(e.kind);
         *tf = crate::gfx::at(PLAY_X + e.x.round(), PLAY_Y + e.y.round() + hb, iw, ih, actor_z(e.y + 8.0));
