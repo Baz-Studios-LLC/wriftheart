@@ -10,7 +10,6 @@ use bevy::prelude::*;
 pub(super) const CRAWL_SPEED: f32 = 0.18; // px/frame — slow, readable
 pub(super) const IDLE_MAX: u32 = 420; // ~7s of stillness starts the story
 
-const TITLE_SC: f32 = 3.0;
 const BODY_SC: f32 = 2.0;
 
 /// js Relics.STORY — the opening lore, shown here and nowhere else until relics port.
@@ -23,12 +22,13 @@ const STORY: [&str; 6] = [
     "Seek out the shattered pieces of the Wriftheart, and face what waits beyond the wound.",
 ];
 
-/// One scrolling line: its centred x, cumulative offset down the scroll, and scale.
+/// One scrolling line: its centred x, cumulative offset down the scroll, and its
+/// pixel height (text rows are 6*scale; the logo masthead brings its own).
 #[derive(Component)]
 pub struct CrawlLine {
     x: f32,
     off: f32,
-    scale: f32,
+    h: f32,
 }
 
 /// Word-wrap at a pixel width for a given text scale (js wrap()).
@@ -62,27 +62,40 @@ pub(super) fn spawn(pen: &mut Pen, state: &mut TitleState) {
     pen.fill_rgba(0.0, 0.0, w, h, Color::srgba(0.008, 0.016, 0.03, 0.66), super::CRAWL_DIM_Z);
     pen.text_center("PRESS ANY KEY", w / 2.0, h - 12.0, 0x5a6a5a, super::TEXT_Z);
 
-    let mut items: Vec<(String, f32)> = vec![("WRIFTHEART".into(), TITLE_SC), (String::new(), BODY_SC)];
+    // The masthead is the word-art logo itself (title/logo.rs), scrolling up ahead
+    // of the story like a film title — the scale-3 font WRIFTHEART is retired.
+    let (lw, lh) = (super::logo::LOGO[0].len() as f32, super::logo::LOGO.len() as f32);
+    let lx = ((w - lw) / 2.0).round();
+    let logo_img = pen.images.add(crate::gfx::bake(super::logo::LOGO, super::logo::LOGO_PAL));
+    pen.commands.spawn((
+        Sprite { image: logo_img, custom_size: Some(Vec2::new(lw, lh)), ..default() },
+        at(lx, h, lw, lh, super::TEXT_Z),
+        PIXEL_LAYER,
+        Visibility::Hidden,
+        CrawlLine { x: lx, off: 0.0, h: lh },
+        TitleUi,
+    ));
+
+    let mut items: Vec<(String, f32)> = vec![(String::new(), BODY_SC)];
     for para in STORY {
         for ln in wrap(para, w - 36.0, BODY_SC) {
             items.push((ln, BODY_SC));
         }
         items.push((String::new(), BODY_SC));
     }
-    let mut off = 0.0;
+    let mut off = lh + 6.0;
     for (text, scale) in &items {
         if !text.is_empty() {
-            let lw = font::measure(text) as f32 * scale;
-            let x = ((w - lw) / 2.0).round();
-            let color = if *scale >= TITLE_SC { 0xfce0a8 } else { 0xdfeae2 };
-            let (img, bw) = font::bake_text(text, color, pen.images);
+            let tw = font::measure(text) as f32 * scale;
+            let x = ((w - tw) / 2.0).round();
+            let (img, bw) = font::bake_text(text, 0xdfeae2, pen.images);
             let iw = (bw + (bw & 1)) as f32;
             pen.commands.spawn((
                 Sprite { image: img, custom_size: Some(Vec2::new(iw * scale, 6.0 * scale)), ..default() },
                 at(x, h + off, iw * scale, 6.0 * scale, super::TEXT_Z),
                 PIXEL_LAYER,
                 Visibility::Hidden,
-                CrawlLine { x, off, scale: *scale },
+                CrawlLine { x, off, h: 6.0 * scale },
                 TitleUi,
             ));
         }
@@ -98,7 +111,7 @@ pub(super) fn scroll(state: &TitleState, mut lines: Query<(&CrawlLine, &mut Tran
     let h = CANVAS_H as f32;
     for (line, mut tf, mut sprite, mut vis) in &mut lines {
         let y = h - state.crawl_t * CRAWL_SPEED + line.off;
-        let lh = 6.0 * line.scale;
+        let lh = line.h;
         if y < -lh || y > h {
             *vis = Visibility::Hidden;
             continue;

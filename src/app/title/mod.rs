@@ -10,6 +10,7 @@
 mod crawl;
 mod flyover;
 pub mod loader;
+mod logo;
 mod slots;
 
 use super::save::{latest_slot, scan_metas, SlotMetas};
@@ -344,12 +345,27 @@ fn redraw(
     let (w, h) = (CANVAS_W as f32, CANVAS_H as f32);
     let cx = w / 2.0;
 
-    // The wordmark, scale 2 with a 1px drop shadow (js draws shadow then gold offset -1,-1).
-    let title = "WRIFTHEART";
-    let tw = font::measure(title) as f32 * 2.0;
-    let tx = ((w - tw) / 2.0).round();
-    pen.text_scaled(title, tx, 54.0, 0x0a0a0a, TEXT_Z - 0.01, 2.0);
-    pen.text_scaled(title, tx - 1.0, 53.0, 0xfce0a8, TEXT_Z, 2.0);
+    // The wordmark: Baz's word-art logo, pixelated to 200x85 (title/logo.rs),
+    // centred in the band above the menu — replaces the old scale-2 font title.
+    // A silhouette drop shadow (+1,+1, like the old font title's) lifts it off
+    // the flyover so the world in the letter gaps reads as BEHIND, not junk.
+    let (lw, lh) = (logo::LOGO[0].len() as f32, logo::LOGO.len() as f32);
+    let lx = ((w - lw) / 2.0).round();
+    let shadow_pal: Vec<(char, u32)> = logo::LOGO_PAL.iter().map(|(c, _)| (*c, 0x0a0a0a)).collect();
+    let shadow_img = pen.images.add(crate::gfx::bake(logo::LOGO, &shadow_pal));
+    pen.commands.spawn((
+        Sprite::from_image(shadow_img),
+        at(lx + 1.0, 11.0, lw, lh, TEXT_Z - 0.01),
+        PIXEL_LAYER,
+        TitleUi,
+    ));
+    let logo_img = pen.images.add(crate::gfx::bake(logo::LOGO, logo::LOGO_PAL));
+    pen.commands.spawn((
+        Sprite::from_image(logo_img),
+        at(lx, 10.0, lw, lh, TEXT_Z),
+        PIXEL_LAYER,
+        TitleUi,
+    ));
 
     if st.view == View::Slots {
         slots::draw(&mut pen, st, metas, bindings, state.pad_present);

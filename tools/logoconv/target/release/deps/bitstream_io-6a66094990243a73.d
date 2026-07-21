@@ -1,0 +1,10 @@
+/Users/brettbazaar/Code/Game Dev/wriftheart-rs/tools/logoconv/target/release/deps/bitstream_io-6a66094990243a73.d: /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/lib.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/huffman.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/read.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/write.rs
+
+/Users/brettbazaar/Code/Game Dev/wriftheart-rs/tools/logoconv/target/release/deps/libbitstream_io-6a66094990243a73.rlib: /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/lib.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/huffman.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/read.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/write.rs
+
+/Users/brettbazaar/Code/Game Dev/wriftheart-rs/tools/logoconv/target/release/deps/libbitstream_io-6a66094990243a73.rmeta: /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/lib.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/huffman.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/read.rs /Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/write.rs
+
+/Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/lib.rs:
+/Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/huffman.rs:
+/Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/read.rs:
+/Users/brettbazaar/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitstream-io-4.10.0/src/write.rs:
