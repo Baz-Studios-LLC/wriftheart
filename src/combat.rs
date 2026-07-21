@@ -150,6 +150,7 @@ pub fn resolve_combat(
     mut rng: ResMut<crate::app::battle::GameRng>,
     mut hits: MessageWriter<HitLanded>,
     mut tinks: MessageWriter<Tinked>,
+    mut sfx: MessageWriter<crate::app::sfx::Sfx>,
 ) {
     for (a_ent, atk, abox, mut once, atk_tool, afflicts, crit_chance) in &mut attackers {
         let Some(damage) = atk.damage else { continue };
@@ -211,6 +212,9 @@ pub fn resolve_combat(
                 dealt = ((dealt as f64) * mult).round() as i32;
             }
             health.hp -= dealt;
+            if health.hp <= 0 && tgt.team == Team::Enemy {
+                sfx.write(crate::app::sfx::Sfx("enemyDie")); // the core death sound was never fired
+            }
             health.invuln = profile.invuln;
             health.flash = profile.flash;
             // Knockback away from the attacker's centre (the shared JS onHurt shape).
@@ -236,6 +240,19 @@ pub fn resolve_combat(
                     .map(|a| (a.0, a.1)),
                 crit,
             });
+            // Impact SFX — every sound is already in the bank; the trigger was missing (Baz:
+            // "most sound effects are missing"). Harvest picks by tool; else hit / hurt.
+            if gather.is_some() {
+                sfx.write(crate::app::sfx::Sfx(match atk_tool.map(|t| t.0) {
+                    Some(Tool::Axe) => "wood",
+                    Some(Tool::Pick) => "stone",
+                    _ => "leaf",
+                }));
+            } else if tgt.team == Team::Enemy {
+                sfx.write(crate::app::sfx::Sfx("hit"));
+            } else if tgt.team == Team::Player {
+                sfx.write(crate::app::sfx::Sfx("hurt"));
+            }
         }
     }
 }

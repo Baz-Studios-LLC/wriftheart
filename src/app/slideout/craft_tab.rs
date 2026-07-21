@@ -28,6 +28,11 @@ pub struct CraftState {
     /// Some(station) while the page is opened AT a placed station (js craftStation) —
     /// the list swaps to that station's recipes; cleared when the slide-out closes.
     pub station: Option<&'static str>,
+    /// The opened station's room-px anchor — the REMOVE action needs to know WHICH one.
+    pub station_at: Option<(f32, f32)>,
+    /// Slot4 pressed in station mode: cooking.rs's station_remove tears it down for half
+    /// the materials back (js removeTable).
+    pub remove_requested: bool,
 }
 
 #[derive(Component, Clone)]
@@ -171,6 +176,12 @@ pub fn actions(
     let craft_click = ptr.click && ptr.over(dx, ay + ah - bh - 2.0, dw, bh);
     if state.pressed(Action::Slot1) || craft_click {
         do_craft(inv, stash, home, stats, alloc, rng, cs, recipes[cs.cursor]);
+        dirty = true;
+    }
+    // Slot4 at a PLACED station = REMOVE TABLE (js inventory slot4 -> removeTable):
+    // cooking.rs's station_remove tears it down + refunds half the mats.
+    if cs.station.is_some() && cs.station_at.is_some() && state.pressed(Action::Slot4) {
+        cs.remove_requested = true;
         dirty = true;
     }
     dirty
@@ -352,12 +363,23 @@ pub fn draw(
         text.color = Color::srgba(1.0, 1.0, 1.0, a);
         commands.spawn((text, at(px + 5.0, py, iw, 6.0, Z + 1.25), PIXEL_LAYER, tag()));
     }
-    // Footer hint (js drawCraft, minus PIN until pins port).
-    let hint = format!(
-        "{}/{} TABS - {} CLOSE",
-        bindings.prompt(Action::TabPrev, pad),
-        bindings.prompt(Action::TabNext, pad),
-        bindings.prompt(Action::Inventory, pad)
-    );
+    // Footer hint (js drawCraft, minus PIN until pins port). At a placed station, Slot4
+    // offers the js REMOVE TABLE (half mats back).
+    let hint = if cs.station.is_some() && cs.station_at.is_some() {
+        format!(
+            "{}/{} TABS - {} REMOVE - {} CLOSE",
+            bindings.prompt(Action::TabPrev, pad),
+            bindings.prompt(Action::TabNext, pad),
+            bindings.prompt(Action::Slot4, pad),
+            bindings.prompt(Action::Inventory, pad)
+        )
+    } else {
+        format!(
+            "{}/{} TABS - {} CLOSE",
+            bindings.prompt(Action::TabPrev, pad),
+            bindings.prompt(Action::TabNext, pad),
+            bindings.prompt(Action::Inventory, pad)
+        )
+    };
     label(commands, images, &hint, ax, CANVAS_H as f32 - 12.0, 0x707070, Z + 1.0, tag());
 }

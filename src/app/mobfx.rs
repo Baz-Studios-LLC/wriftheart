@@ -206,7 +206,11 @@ fn beam_tick(
                 let (qx, qy) = (b.cx + b.ux * proj, b.cy + b.uy * proj);
                 if (px - qx).hypot(py - qy) < 7.0 {
                     cb.damage = Some(1);
-                    *hb = Hitbox { x: p.x + 2.0, y: p.y + 3.0, w: 12.0, h: 12.0 };
+                    // The damage box must overlap the hero, but combat.rs derives knockback
+                    // from the ATTACKER box centre — placing it ON the hero gave a zero vector
+                    // that flung him in a fixed direction ("teleport", Baz). Seat it a few px
+                    // BEHIND him along the beam so the shove reads as the lance pushing through.
+                    *hb = Hitbox { x: px - b.ux * 6.0 - 6.0, y: py - b.uy * 6.0 - 6.0, w: 12.0, h: 12.0 };
                 }
             }
         } else {

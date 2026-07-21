@@ -1175,3 +1175,88 @@ pub const SKELETON: (&[&str], &[(char, u32)]) = (&[
         "................",
         "................",
 ], &[('W', 0xe8e6da), ('K', 0x23231f)]);
+
+/// The player's BESPOKE FARMHOUSE (Baz: "a new nice looking farmhouse sprite — the old
+/// one was one of our first and needs love"). 48x52: a gabled, outlined shingle roof with
+/// a stone chimney and attic window over timber-framed cream walls, shuttered windows
+/// with flowerboxes, an awned door with a lantern and brass handle, on a stone
+/// foundation with a door step. Drawn at (x-16, y-36); the home's blocker is unchanged.
+pub const FARMHOUSE: (&[&str], &[(char, u32)]) = (&[
+    "......................KKKK......................",
+    "......................KRRK......KKKKKKKK........",
+    ".....................KRrrrK......CCCCCC.........",
+    "...................KRrrrrrrrK....Cccccm.........",
+    "..................KRrrrrrrrrrK...Cccccm.........",
+    "................KRqqqqqqqqqqqqqK.Cccccm.........",
+    "...............KRrrrbbbbbbbbrrrrKCmmmmm.........",
+    ".............KRrrrrrbGGbbGGbrrrrrCccccm.........",
+    "............KRrrrrrrbGGbbGGbrrrrrCccccm.........",
+    "..........KRqqqqqqqqbggbbggbqqqqqCccccm.........",
+    ".........KRrrrrrrrrrbbbbbbbbrrrrrCccccm.........",
+    ".......KRrrrrrrrrrrrbggbbggbrrrrrKKKKKKrK.......",
+    "......KRrrrrrrrrrrrrbggbbggbrrrrrrrrrrrrrK......",
+    "....KRqqqqqqqqqqqqqqbbbbbbbbqqqqqqqqqqqqqqqK....",
+    "...KRrrrrrrrrrrrrrrddddddddddrrrrrrrrrrrrrrrK...",
+    ".KRrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrK.",
+    "KRrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    ".qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq.",
+    "...KddWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWddK...",
+    "...KddWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWddK...",
+    "...KDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDK...",
+    "...KddwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwddK...",
+    "...KddwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwddK...",
+    "...KddwwwwwwwwwwwqqqqqqqqqqqqqqwwwwwwwwwwwddK...",
+    "...KddddbbbbbbbbdqqqqqqqqqqqqqqdbbbbbbbbddddK...",
+    "...KddddbGGbbGGbKKKKKKKKKKKKKKKKbGGbbGGbddddK...",
+    "...KddddbGGbbGGbddwKKKKKKKKKKwddbGGbbGGbddddK...",
+    "...KddddbggbbggbddwKOOOOOOOOKwddbggbbggbddddK...",
+    "...KddddbggbbggbddwKOOOOOOOOKwddbggbbggbddddK...",
+    "...KddddbbbbbbbbKKwKoggggggoKwddbbbbbbbbddddK...",
+    "...KddddbggbbggbLLwKoggggggoKwddbggbbggbddddK...",
+    "...KddddbggbbggbLLwKobbbbbboKwddbggbbggbddddK...",
+    "...KddddbggbbggbLLwKooooKoooKwddbggbbggbddddK...",
+    "...KddddbbbbbbbbKKwKooooKoooKwddbbbbbbbbddddK...",
+    "...KddwDDDDDDDDDDwwKooooKoooKwwDDDDDDDDDDwddK...",
+    "...KddwlfllFllfllwwKooooKoooKwwlfllFllfllwddK...",
+    "...KddwddddddddddwwKooooKoooKwwddddddddddwddK...",
+    "...KddwwwwwwwwwwwwwKooooKoyoKwwwwwwwwwwwwwddK...",
+    "...KddwwwwwwwwwwwwwKooooKoyoKwwwwwwwwwwwwwddK...",
+    "...KddwwwwwwwwwwwwwKooooKoooKwwwwwwwwwwwwwddK...",
+    "...KddwwwwwwwwwwwwwKooooKoooKwwwwwwwwwwwwwddK...",
+    "...KddwwwwwwwwwwwwwKooooKoooKwwwwwwwwwwwwwddK...",
+    "...KddeeeeeeeeeeeeeKooooKoooKeeeeeeeeeeeeeddK...",
+    "...KddeeeeeeeeeeeeeKooooKoooKeeeeeeeeeeeeeddK...",
+    "...KddeeeeeeeeeeeeeKooooooooKeeeeeeeeeeeeeddK...",
+    "..KSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSK..",
+    "..KssssssssssssssssssssssssssssssssssssssssssK..",
+    "..KsssssssssssssssSSSSSSSSSSSSsssssssssssssssK..",
+    "..KtttttttttttttttSSSSSSSSSSSStttttttttttttttK..",
+    "..................tttttttttttt..................",
+    "................................................",
+], &[
+    ('r', 0xb8412c), // roof shingle
+    ('R', 0xd85a3a), // roof lit edge
+    ('q', 0x7e2a1c), // roof seam / eave shadow
+    ('c', 0x8a8790), // chimney stone
+    ('C', 0xa8a5ae), // chimney lit
+    ('m', 0x5e5b62), // chimney mortar
+    ('w', 0xe8dcc0), // wall cream
+    ('W', 0xf4ecd8), // wall lit
+    ('e', 0xc8b898), // wall shade
+    ('d', 0x6b4a2a), // timber dark
+    ('D', 0x8a5f33), // timber mid
+    ('g', 0x9ec8e6), // glass
+    ('G', 0xc4e2f4), // glass lit
+    ('b', 0x2a2018), // window frame
+    ('o', 0x7c4c1c), // door wood
+    ('O', 0x9a6428), // door lit
+    ('y', 0xe0c060), // brass handle
+    ('s', 0x9a978e), // foundation stone
+    ('S', 0xb6b2a6), // stone lit
+    ('t', 0x6a675e), // stone dark
+    ('f', 0xd84848), // flowers red
+    ('F', 0xe8b04a), // flowers gold
+    ('l', 0x3c8a3c), // flowerbox leaves
+    ('L', 0xffd870), // lantern glow
+]);

@@ -235,6 +235,8 @@ pub struct ModeCtx<'w> {
     pub relics: Res<'w, super::dungeon::Relics>,
     pub fishing: Res<'w, super::fishing::Fishing>,
     pub fluting: Res<'w, super::flute::Fluting>,
+    /// Read-only: the ghost-placement mode roots the hero (placing.rs owns the inputs).
+    pub placing: Res<'w, super::placing::Placing>,
     /// Read-only for the slide-in room build (farm.rs owns the mutations).
     pub farm: Res<'w, super::farm::FarmTiles>,
     pub cleared: Res<'w, super::encounters::ClearedEncounters>,
@@ -283,6 +285,8 @@ pub struct UseRoutes<'w> {
     pub rng: ResMut<'w, super::battle::GameRng>,
     /// Seeded people-in-costume frames for humanoid foes (bandits) — room spawns.
     pub human_art: ResMut<'w, crate::actors::goblin::HumanArt>,
+    /// Read-only: the home room is a mob-free SAFE ZONE (spawn_or_restore's gate).
+    pub house: Res<'w, super::home::PlayerHouse>,
     pub beams: MessageWriter<'w, super::saltmaze::FireBeam>,
     pub sfx: MessageWriter<'w, super::sfx::Sfx>,
 }
@@ -589,6 +593,7 @@ pub fn tick(
                     &world.0.room_entities(cur.rx, cur.ry),
                     (cur.rx, cur.ry),
                     super::gather::farm_day(clock.0),
+                    uses.house.0.as_ref().is_some_and(|h| h.room == (cur.rx, cur.ry)),
                 );
                 banners.room_entered(&world.0, &mut town_names, cur.rx, cur.ry); // announce towns/regions
             }
@@ -613,6 +618,7 @@ pub fn tick(
     // are NOTES (flute.rs owns them), and the foes keep coming.
     if modes.fishing.0.is_some()
         || modes.fluting.0.is_some()
+        || modes.placing.0.is_some()
         || modes.pit.0.is_some()
         || modes.donate.0.is_some()
         || modes.side.0.is_some()

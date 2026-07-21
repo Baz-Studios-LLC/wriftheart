@@ -306,13 +306,16 @@ fn death_tick(
         h.invuln = 0;
         h.flash = 0;
         kb.timer = 0; // the killing blow's shove dies with you (js respawn: knockTimer = 0)
-        p.x = (PX_W / 2 - 8) as f32;
-        p.y = (PX_H / 2 - 8) as f32;
+        // SET SPAWN (bed or inn): wake at the chosen point; else the start room (js).
+        let set = extras.respawn.0.as_ref().map(|r| (r.room, r.x, r.y));
+        let (room, sx, sy) = set.unwrap_or(((0, 0), (PX_W / 2 - 8) as f32, (PX_H / 2 - 8) as f32));
+        p.x = sx;
+        p.y = sy;
         p.facing = crate::actors::hero::Facing::Down;
         p.cooldowns = [0; 4];
         p.lock_timer = 0;
         *hb = Hitbox { x: p.x + 3.0, y: p.y + 2.0, w: 10.0, h: 13.0 };
-        swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &extras.caves, &extras.songs, &actors, 0, 0);
+        swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &extras.caves, &extras.songs, &actors, room.0, room.1, extras.house.0.as_ref().map(|h| h.room));
         write_save(&ctx, &extras, &p, &h, swap.world.0.seed);
         commands.remove_resource::<DeathState>();
         next.set(if to_title { Screen::Title } else { Screen::Play });

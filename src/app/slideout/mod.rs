@@ -26,7 +26,7 @@ use crate::{CANVAS_H, SIDEBAR_W};
 use bevy::prelude::*;
 
 pub(super) const PANEL_W: f32 = PX_W as f32; // fills the play area (js PANEL_W = 304)
-const SLIDE: f32 = 0.2; // slide progress per tick (js SLIDE)
+const SLIDE: f32 = 0.08; // slide progress per 60fps-frame (~0.2s open); js SLIDE was 0.2/frame
 pub(super) const PAD: f32 = 8.0;
 pub(super) const Z: f32 = 16.0; // above the HUD band (13-14), below the codex (17.8+)
 
@@ -95,6 +95,8 @@ struct SlideCtx<'w> {
     learned: Res<'w, super::blueprints::LearnedBlueprints>,
     stash: ResMut<'w, super::storage::PlayerStash>,
     inside: Res<'w, super::interior::Inside>,
+    house: Res<'w, super::home::PlayerHouse>,
+    cur: Res<'w, super::play::CurRoom>,
 }
 
 /// Open from play, close from inside, switch tabs — on the fixed clock like every menu.
@@ -113,9 +115,11 @@ fn slideout_tick(
     mut images: ResMut<Assets<Image>>,
     ptr: Res<crate::input::Pointer>,
 ) {
-    let SlideCtx { ref mut inv, ref mut craft, ref mut stats, ref mut rng, ref hero, ref skill_art, ref skills, ref alloc, ref learned, ref mut stash, ref inside } = sc;
-    // At home (inside your built house), crafting also draws from the storage chest.
-    let home = inside.0.as_ref().is_some_and(|st| st.def.kind == "house");
+    let SlideCtx { ref mut inv, ref mut craft, ref mut stats, ref mut rng, ref hero, ref skill_art, ref skills, ref alloc, ref learned, ref mut stash, ref inside, ref house, ref cur } = sc;
+    // At home — INSIDE the house, or anywhere in the HOME ROOM (Baz: a yard bench should
+    // reach the chest too) — crafting also draws from the storage chest.
+    let home = inside.0.as_ref().is_some_and(|st| st.def.kind == "house")
+        || (inside.0.is_none() && house.0.as_ref().is_some_and(|h| h.room == (cur.rx, cur.ry)));
     let Ok((player, mut health)) = players.single_mut() else { return };
     match screen.get() {
         Screen::Play => {
@@ -266,6 +270,7 @@ struct RedrawCtx<'a> {
 /// The world-dim behind stays put and fades in with the ease instead.
 fn slide_anim(
     screen: Res<State<Screen>>,
+    time: Res<Time>,
     mut so: ResMut<SlideOut>,
     mut q: Query<&mut Transform, (With<SlideOutUi>, Without<DimLayer>)>,
     mut dim: Query<&mut Sprite, With<DimLayer>>,
@@ -273,7 +278,9 @@ fn slide_anim(
     if *screen.get() != Screen::SlideOut {
         return;
     }
-    so.anim = (so.anim + SLIDE).min(1.0);
+    // Frame-rate independent: SLIDE is "progress per 60fps-frame", scaled by the real delta so
+    // a 120Hz display doesn't slide twice as fast (Baz: slow it so it visibly slides out).
+    so.anim = (so.anim + SLIDE * time.delta_secs() * 60.0).min(1.0);
     let ease = so.anim * so.anim * (3.0 - 2.0 * so.anim);
     if let Ok(mut sprite) = dim.single_mut() {
         // js 0.45; darkening needs MORE alpha under linear blending to read the same.

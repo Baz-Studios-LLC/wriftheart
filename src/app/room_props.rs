@@ -97,6 +97,10 @@ pub fn spawn_room_props(
     let today = farm_day(clock); // the dawn day — must match the harvest stamp (gather.rs)
     let fday = farm_day(clock);
     let ztier = World::zone_tier(room.0, room.1); // js harvestTier: richer mats + tougher gates deeper
+    // The HARVEST GATE (can this axe/pick cut it) keys off the BIOME, not the zone tier — a
+    // biome region straddles tier rings, so a tier-gated tree was cuttable in one room and
+    // "needs a stronger axe" in the identical next room (Baz). Biome tier is uniform per region.
+    let btier = world.biome_at(room.0, room.1).tier;
     let mut blockers = Vec::new();
     // The burnt village is hand-built INSTEAD of its natural contents (js game.js:1036
     // spawns from an empty list there) — no trees, no bushes, only the ruin.
@@ -167,8 +171,9 @@ pub fn spawn_room_props(
                     _ => 0x8a5a2a,
                 };
                 let pe = child(commands, root, Sprite::from_image(img), tf);
-                // Trees + crystal/stalagmite rock nodes gate on the zone tier; a cactus doesn't.
-                let req = if k == "cactus" { 0 } else { ztier.clamp(1, 6) };
+                // Trees + crystal/stalagmite gate on the BIOME tier (uniform per region); a
+                // cactus doesn't. The DROP tier stays `ztier` so deeper still pays better.
+                let req = if k == "cactus" { 0 } else { btier.clamp(1, 6) };
                 commands.entity(pe).insert(node_bundle(k, c, r, tool, hp, hb, Some(blocker), chips, tree, ztier, req));
                 blockers.push(blocker);
             }
@@ -190,7 +195,8 @@ pub fn spawn_room_props(
                 let pe = child(commands, root, Sprite::from_image(img), at(PLAY_X + fx, PLAY_Y + fy, 16.0, 16.0, 3.4));
                 let blocker = (fx + 2.0, fy + 3.0, 12.0, 11.0);
                 let hb = Hitbox { x: fx + 2.0, y: fy + 3.0, w: 12.0, h: 11.0 };
-                commands.entity(pe).insert(node_bundle("boulder", c, r, Tool::Pick, 3, hb, Some(blocker), 0xa8a8a8, false, ztier, ztier.max(1)));
+                // Gate on biome tier (uniform per region); drop tier stays ztier (deeper = better).
+                commands.entity(pe).insert(node_bundle("boulder", c, r, Tool::Pick, 3, hb, Some(blocker), 0xa8a8a8, false, ztier, btier.max(1)));
                 blockers.push(blocker);
             }
             "grass" => {

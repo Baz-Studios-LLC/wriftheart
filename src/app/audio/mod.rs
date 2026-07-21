@@ -58,6 +58,7 @@ impl Plugin for AudioPlugin {
             .init_resource::<NoteHoldBank>()
             .init_resource::<MusicState>()
             .add_systems(Startup, bake)
+            .add_systems(Update, finish_bake)
             .add_systems(Update, (play_sfx, music_tick, flute_hold_tick));
     }
 }
@@ -219,40 +220,73 @@ fn render_sfx(key: &str) -> Option<Vec<f32>> {
 }
 
 /// Bake every voice the game can ask for (a few hundred ms of CPU, once).
-fn bake(
+const SFX_KEYS: [&str; 38] = [
+    "swing", "hit", "enemyDie", "hurt", "wood", "stone", "leaf", "tink", "coin", "pickup", "craft", "levelup",
+    "menuMove", "menuConfirm", "open", "warpCharge", "warpTick", "warpGo", "warpFail", "sleep", "wake", "block",
+    "thunder", "heartbeat", "cast", "splash", "reel", "itemget", "dig", "cluck", "moo", "songmatch", "bellring",
+    "noteU", "noteD", "noteL", "noteR", "noteChiff",
+];
+
+/// The finished off-thread bake: every voice pre-encoded to WAV bytes.
+struct Baked {
+    sfx: Vec<(&'static str, Vec<u8>)>,
+    holds: [Vec<u8>; 4],
+    music: Vec<(&'static str, Vec<u8>)>,
+}
+
+/// The bake in flight (removed once the banks fill).
+#[derive(Resource)]
+struct BakeJob(std::sync::Mutex<std::sync::mpsc::Receiver<Baked>>);
+
+/// Kick the synthesis onto a BACKGROUND thread — it renders ~38 sfx + the full music
+/// loops (seconds of DSP), which used to run inside Startup and froze the boot before
+/// the first frame could present (Baz: "can we jump right into the game?"). The banks
+/// fill a beat after the title appears; every consumer already tolerates a missing key
+/// (play_sfx skips, music_tick retries each tick until its track exists).
+fn bake(mut commands: Commands) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let sfx = SFX_KEYS
+            .iter()
+            .filter_map(|k| render_sfx(k).map(|s| (*k, synth::wav_bytes(s, SFX_GAIN))))
+            .collect();
+        // The four HELD-voice loops (js noteOn's steady state) — perfectly seamless
+        // bodies (wav_loop: trimming the tail would break the seam and warble on wrap).
+        let holds = [440.0, 261.63, 293.66, 392.0].map(|f| synth::wav_loop(synth::note_hold_loop(f), SFX_GAIN));
+        // wav_LOOP for music too: a loop's length is musically exact (sixteenths * beat)
+        // and the render WRAPS note tails across the seam — trimming would repeat EARLY,
+        // by a different amount per track (the "different speeds" bug).
+        let music = tracks::render_all().into_iter().map(|(n, s)| (n, synth::wav_loop(s, MUSIC_GAIN))).collect();
+        let _ = tx.send(Baked { sfx, holds, music });
+    });
+    commands.insert_resource(BakeJob(std::sync::Mutex::new(rx)));
+}
+
+/// Collect the finished bake into the banks (one try_recv a frame until it lands).
+fn finish_bake(
+    mut commands: Commands,
+    job: Option<Res<BakeJob>>,
     mut sfx_bank: ResMut<SfxBank>,
     mut music_bank: ResMut<MusicBank>,
     mut hold_bank: ResMut<NoteHoldBank>,
     mut sources: ResMut<Assets<AudioSource>>,
 ) {
-    const KEYS: [&str; 38] = [
-        "swing", "hit", "enemyDie", "hurt", "wood", "stone", "leaf", "tink", "coin", "pickup", "craft", "levelup",
-        "menuMove", "menuConfirm", "open", "warpCharge", "warpTick", "warpGo", "warpFail", "sleep", "wake", "block",
-        "thunder", "heartbeat", "cast", "splash", "reel", "itemget", "dig", "cluck", "moo", "songmatch", "bellring",
-        "noteU", "noteD", "noteL", "noteR", "noteChiff",
-    ];
-    for key in KEYS {
-        if let Some(samples) = render_sfx(key) {
-            let bytes = synth::wav_bytes(samples, SFX_GAIN);
-            sfx_bank.0.insert(key, sources.add(AudioSource { bytes: bytes.into() }));
-        }
+    let Some(job) = job else { return };
+    let done = match job.0.lock() {
+        Ok(rx) => rx.try_recv().ok(),
+        Err(_) => None,
+    };
+    let Some(b) = done else { return };
+    for (key, bytes) in b.sfx {
+        sfx_bank.0.insert(key, sources.add(AudioSource { bytes: bytes.into() }));
     }
-    // The four HELD-voice loops (js noteOn's steady state) — perfectly seamless bodies;
-    // flute_hold_tick spawns/fades them off the flute's live held state.
-    for (i, f) in [440.0, 261.63, 293.66, 392.0].into_iter().enumerate() {
-        // wav_LOOP: the held voice is a 1.0s seamless body (pitch/vibrato land home at the
-        // seam) — trimming its tail would break that alignment and warble on every wrap.
-        hold_bank.0[i] = sources.add(AudioSource { bytes: synth::wav_loop(synth::note_hold_loop(f), SFX_GAIN).into() });
+    for (i, bytes) in b.holds.into_iter().enumerate() {
+        hold_bank.0[i] = sources.add(AudioSource { bytes: bytes.into() });
     }
-    for (name, samples) in tracks::render_all() {
-        // wav_LOOP, not wav_bytes: a music loop's length is musically exact (sixteenths *
-        // beat), and the render WRAPS note tails across the seam — trimming trailing quiet
-        // would shorten the loop so it repeats EARLY, and by a DIFFERENT amount per track
-        // (Baz: "songs sound like they play at different speeds" — night/frost/dread lost
-        // ~240ms each, dungeon/boss ~30ms).
-        let bytes = synth::wav_loop(samples, MUSIC_GAIN);
+    for (name, bytes) in b.music {
         music_bank.0.insert(name, sources.add(AudioSource { bytes: bytes.into() }));
     }
+    commands.remove_resource::<BakeJob>();
 }
 
 /// The bus consumer: every Sfx key plays its baked voice (fire-and-forget entities).

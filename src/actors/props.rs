@@ -357,6 +357,8 @@ pub struct PropArt {
     pub bushes: Vec<Handle<Image>>,
     /// Town storefronts by building kind (buildings_art.rs, 48x48).
     pub fronts: HashMap<&'static str, Handle<Image>>,
+    /// The player's bespoke farmhouse (buildings_art::FARMHOUSE, 48x52).
+    pub farmhouse: Handle<Image>,
     pub well: Handle<Image>,
     pub torch: [Handle<Image>; 2],
     /// Ore-node boulders: [tier 1..=5 -> 15 variants].
@@ -372,6 +374,10 @@ impl PropArt {
     pub fn build(images: &mut Assets<Image>) -> Self {
         let mut art = PropArt {
             bushes: BUSH_VARIANTS.iter().map(|g| images.add(bake(g, &[]))).collect(),
+            farmhouse: {
+                let (grid, pal) = crate::actors::buildings_art::FARMHOUSE;
+                images.add(bake(grid, pal))
+            },
             boulders: ORE_NODES
                 .iter()
                 .map(|(main, lite, grids)| {

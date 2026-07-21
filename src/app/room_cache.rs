@@ -139,9 +139,13 @@ pub fn spawn_or_restore(
     ents: &[RoomEntity],
     room: (i32, i32),
     today: i64,
+    home_safe: bool,
 ) {
     let Some(snap) = cache.0.get(&room).filter(|s| s.day == today) else {
-        spawn_room_mobs(commands, images, rng, human_art, world, cleared, armed, ents, room);
+        // YOUR home room is a SAFE ZONE (Baz): the natural roster never rolls there.
+        if !home_safe {
+            spawn_room_mobs(commands, images, rng, human_art, world, cleared, armed, ents, room);
+        }
         return;
     };
     // A same-day return to an encounter room: every restored foe is the camp's (the
@@ -152,7 +156,7 @@ pub fn spawn_or_restore(
     if enc_room {
         armed.0 = Some(room);
     }
-    for m in &snap.mobs {
+    for m in snap.mobs.iter().filter(|_| !home_safe) {
         match *m {
             MobSnap::Mob { def, x, y, hp, max } => {
                 let mut e = commands.spawn((mob_bundle(def, x, y), RoomActor, PIXEL_LAYER));

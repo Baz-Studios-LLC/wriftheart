@@ -14,7 +14,7 @@ use super::interior::{DoorCooldown, Inside};
 use super::play::{CurRoom, Player};
 use super::room_render::{FrameClock, PLAY_X, PLAY_Y};
 use super::screen::{playing, Screen};
-use super::shop::{coin_str, stock_up, BoughtShop, ShopState};
+use super::shop::{stock_up, BoughtShop, ShopState};
 use crate::combat::Health;
 use crate::gfx::{at, font, layers, PIXEL_LAYER};
 use crate::input::{Action, ActionState, Bindings};
@@ -105,6 +105,7 @@ pub(crate) fn interact_tick(
     clock: Res<FrameClock>,
     perks: Res<super::guildhall::CityPerks>,
     mut sc: ServiceCtx,
+    mut dialog: ResMut<super::dialog::Dialog>,
     mut players: Query<(&Player, &mut Health)>,
     books: Query<&Pickup>,
     old: Query<Entity, With<PromptBar>>,
@@ -139,9 +140,41 @@ pub(crate) fn interact_tick(
                             sc.next.set(Screen::Shop);
                             want = None; // the window replaces the bar (it returns on close)
                         }
-                        "rest" => inn_rest(&mut sc, state, &perks, cur.rx, cur.ry),
+                        "rest" => {
+                            // The inn's chooser: REST, or REST AND SET SPAWN (Baz) — the
+                            // cost + doorstep are precomputed so the pick just pays.
+                            let cost = inn_cost(state, &perks, &sc.people, cur.rx, cur.ry);
+                            let back = state.return_pos;
+                            let mk = |spawn| super::dialog::ChoiceAct::InnRest {
+                                cost,
+                                spawn,
+                                room: (cur.rx, cur.ry),
+                                x: back.0,
+                                y: back.1,
+                            };
+                            dialog.0 = Some(super::dialog::DialogState::choice(
+                                "THE INN".into(),
+                                vec![("REST".into(), mk(false)), ("REST AND SET SPAWN".into(), mk(true))],
+                                Entity::PLACEHOLDER,
+                            ));
+                            sc.next.set(Screen::Dialog);
+                            want = None; // the window replaces the bar
+                        }
                         "bard" => bard_talk(&mut sc),
                         "heal" => church_heal(&mut health, &mut sc),
+                        "bed" if state.def.kind == "house" => {
+                            // YOUR bed offers the chooser: REST or SET SPAWN (Baz).
+                            dialog.0 = Some(super::dialog::DialogState::choice(
+                                "THE BED".into(),
+                                vec![
+                                    ("REST".into(), super::dialog::ChoiceAct::Rest),
+                                    ("SET SPAWN".into(), super::dialog::ChoiceAct::SetSpawn),
+                                ],
+                                Entity::PLACEHOLDER,
+                            ));
+                            sc.next.set(Screen::Dialog);
+                            want = None; // the window replaces the bar
+                        }
                         "bed" => start_sleep(&mut sc.sleeping, 1.0),
                         "storage" => {
                             sc.next.set(Screen::Storage); // the two-pane chest (storage.rs resets on open)
@@ -234,26 +267,22 @@ fn bard_talk(sc: &mut ServiceCtx) {
     sc.log.add("talk", HINTS[n], 1, 0xcfe0ff, false, true);
 }
 
-/// js innRest: deeper lands charge more to rest (base 40, +50% per zone tier); a
-/// friendly innkeep still knocks a little off (keeper_discount).
-fn inn_rest(sc: &mut ServiceCtx, inside: &super::interior::InsideState, perks: &super::guildhall::CityPerks, rx: i32, ry: i32) {
-    // The Provisioners restored: their city's inn rests you free (js perk).
+/// js innRest's price: base 40, +50% per zone tier, keeper-discounted; the Provisioners'
+/// restored city rests you FREE (their perk).
+fn inn_cost(
+    inside: &super::interior::InsideState,
+    perks: &super::guildhall::CityPerks,
+    people: &super::talk::PeopleLedger,
+    rx: i32,
+    ry: i32,
+) -> i64 {
     if perks.free_inn {
-        start_sleep(&mut sc.sleeping, 1.0);
-        sc.log.add("inn", "THE PROVISIONERS COVER YOUR BED", 1, 0xffd34d, false, true);
-        return;
+        return 0;
     }
     const INN_COST: f64 = 40.0;
     let tier = crate::worldgen::world::World::zone_tier(rx, ry);
-    let kd = super::shop::keeper_discount(inside, &sc.people);
-    let cost = (INN_COST * (1.0 + tier as f64 * 0.5) * kd).ceil() as i64;
-    if sc.inv.money < cost {
-        sc.log.add("inn", &format!("NEED {} TO REST", coin_str(cost)), 1, 0xfc6868, false, true);
-        return;
-    }
-    sc.inv.money -= cost;
-    start_sleep(&mut sc.sleeping, 1.0);
-    sc.log.add("inn", &format!("RESTED (-{})", coin_str(cost)), 1, 0xa8e0ff, false, true);
+    let kd = super::shop::keeper_discount(inside, people);
+    (INN_COST * (1.0 + tier as f64 * 0.5) * kd).ceil() as i64
 }
 
 /// js churchHeal: the free blessing — full health, or a gentle nudge if already hale.
@@ -267,7 +296,7 @@ fn church_heal(health: &mut Health, sc: &mut ServiceCtx) {
     sc.saves.write(super::save::SaveRequest);
 }
 
-fn start_sleep(sleeping: &mut Sleeping, heal_frac: f32) {
+pub(crate) fn start_sleep(sleeping: &mut Sleeping, heal_frac: f32) {
     if sleeping.0.is_none() {
         sleeping.0 = Some(SleepFx { t: 0, applied: false, heal_frac });
     }

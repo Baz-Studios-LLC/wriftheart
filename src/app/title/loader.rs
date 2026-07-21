@@ -65,10 +65,11 @@ pub fn handle_warp(
     caves: Res<super::super::caves::CrackCaves>,
     songs_opened: Res<super::super::caves::OpenedSongstones>,
     actors: Query<Entity, With<RoomActor>>,
+    house: Res<crate::app::home::PlayerHouse>,
     mut players: Query<(&mut Player, &mut Health)>,
 ) {
     let Some(req) = reqs.read().last() else { return };
-    swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, req.rx, req.ry);
+    swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, req.rx, req.ry, house.0.as_ref().map(|h| h.room));
     if let Ok((mut p, mut h)) = players.single_mut() {
         p.x = (PX_W / 2 - 8) as f32;
         p.y = (PX_H / 2 - 8) as f32;
@@ -162,7 +163,7 @@ pub fn handle_load_slot(
 
     // --- Room swap: the old room (props ride its root), cast and ground loot leave. ---
     let (rx, ry) = data.as_ref().map_or((0, 0), |d| (d.rx, d.ry));
-    swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &extras.caves, &extras.songs, &actors, rx, ry);
+    swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &extras.caves, &extras.songs, &actors, rx, ry, extras.house.0.as_ref().map(|h| h.room));
 
     // --- The hero lands where the save left him (or room centre, facing down). ---
     let Ok((mut p, mut h, mut hb, mut kb)) = players.single_mut() else { return };
@@ -211,6 +212,7 @@ pub(crate) fn swap_world_room(
     actors: &Query<Entity, With<RoomActor>>,
     rx: i32,
     ry: i32,
+    home_room: Option<(i32, i32)>,
 ) {
     commands.entity(swap.active.0).despawn();
     despawn_room_actors(commands, actors);
@@ -244,6 +246,7 @@ pub(crate) fn swap_world_room(
         &ents,
         (rx, ry),
         crate::app::gather::farm_day(ctx.clock.0),
+        home_room == Some((rx, ry)), // the home room is a mob-free safe zone (Baz)
     );
     swap.banners.anchor(&swap.world.0, rx, ry); // silent arrival — no announcement
 }

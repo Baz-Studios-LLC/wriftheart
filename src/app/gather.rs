@@ -484,6 +484,7 @@ fn pickups_tick(
     cur: Res<super::play::CurRoom>,
     discovered: Res<super::codex::items_tab::Discovered>,
     mut fanfare: ResMut<super::fanfare::Fanfare>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
     players: Query<&Player>,
     mut q: Query<(Entity, &mut Pickup, &mut Transform, &Sprite, &mut Visibility)>,
     mut glows: Query<(Entity, &PickupGlow, &mut Transform), Without<Pickup>>,
@@ -509,6 +510,7 @@ fn pickups_tick(
                     inv.money += add;
                     stats.bump("coins", add as f64); // js bump('coins') — the ledger
                     log.add("coin", "COPPER", add as i32, 0xfcd000, true, false);
+                    sfx.write(super::sfx::Sfx("coin"));
                 }
                 PickupKind::Book(id) => {
                     gathered.tomes.insert(id);
@@ -525,7 +527,9 @@ fn pickups_tick(
                     // (Discovered is stamped by a separate watcher, so it still holds the
                     // PRE-pickup set here).
                     if super::fanfare::should_play(id, &discovered) {
-                        super::fanfare::begin(&mut fanfare, id);
+                        super::fanfare::begin(&mut fanfare, id); // fanfare fires "itemget" itself
+                    } else {
+                        sfx.write(super::sfx::Sfx("pickup")); // repeat pickups just chirp
                     }
                 }
             }

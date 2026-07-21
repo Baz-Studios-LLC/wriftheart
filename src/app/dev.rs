@@ -223,7 +223,7 @@ fn drive(
     input.consume(Action::Slot1);
     let Ok((mut p, mut health)) = players.single_mut() else { return };
     let mut warp = |rx: i32, ry: i32, commands: &mut Commands, images: &mut Assets<Image>, swap: &mut super::title::loader::SwapCtx, ctx: &mut super::save::SaveCtx| {
-        super::title::loader::swap_world_room(commands, images, swap, ctx, &caves, &songs_opened, &actors, rx, ry);
+        super::title::loader::swap_world_room(commands, images, swap, ctx, &caves, &songs_opened, &actors, rx, ry, None); // dev warp: no home-safe gate
         p.x = 144.0;
         p.y = 120.0;
         p.facing = crate::actors::hero::Facing::Down;

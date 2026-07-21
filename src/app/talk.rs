@@ -92,6 +92,11 @@ pub(crate) struct ChatCtx<'w> {
     pub log: ResMut<'w, super::rewards::LootLog>,
     pub stats: ResMut<'w, super::stats::Stats>,
     pub saves: MessageWriter<'w, super::save::SaveRequest>,
+    /// The bed/inn chooser's arms (dialog.rs): REST starts the sleep fade...
+    pub sleeping: ResMut<'w, super::services::Sleeping>,
+    /// ...and SET SPAWN records the death respawn point (home doorstep / inn door).
+    pub house: ResMut<'w, super::home::PlayerHouse>,
+    pub respawn: ResMut<'w, super::home::RespawnPoint>,
 }
 
 /// A heart drifts up — you've grown a little closer (js Entities.heartFx).

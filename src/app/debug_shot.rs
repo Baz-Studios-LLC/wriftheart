@@ -349,7 +349,7 @@ fn town_stage(
             Some((a.parse().ok()?, b.parse().ok()?))
         })
         .unwrap_or((-4, -10));
-    super::title::loader::swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, rx, ry);
+    super::title::loader::swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, rx, ry, None);
     // WRIFT_CLOCK=frames pins time-of-day (dusk/night shadow + lighting shots).
     if let Some(c) = std::env::var("WRIFT_CLOCK").ok().and_then(|s| s.parse().ok()) {
         ctx.clock.0 = c;
@@ -1382,6 +1382,7 @@ fn flute_stage(
             seq: "ULDRUL".into(),
             glow: [0, 0, 10, 0], // L mid-ring
             song: None,
+            armed: None,
             ri: 0,
             rt: 0,
             flash: 0,
@@ -1404,6 +1405,7 @@ fn flute_stage(
         seq: String::new(),
         glow: [12, 0, 0, 8],
         song: crate::songs::get("returning"),
+        armed: None,
         ri: 3,
         rt: 900, // hold mid-replay for the capture (no cast fires)
         flash: 10,

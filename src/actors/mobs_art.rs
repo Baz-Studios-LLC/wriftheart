@@ -66,8 +66,100 @@ pub static WOLF_DOWN: &[MobFrame] = &[MobFrame { grid: &["................", "..
 pub static WOLF_UP: &[MobFrame] = &[MobFrame { grid: &["................", "..n........n....", "..nn......nn....", "..naa....aan....", "...naaaaaaan....", "...nananaann....", "...naaaaaaan....", "..naaaaaaaaan...", "..naaaaaaaaan...", "..naaaaaaaaan...", "...na.nn.an.....", "...nn.nn.nn.....", "......nn........", ".....nnn........", "......nn........", "................"], pal: &[] }, MobFrame { grid: &["................", "..n........n....", "..nn......nn....", "..naa....aan....", "...naaaaaaan....", "...nananaann....", "...naaaaaaan....", "..naaaaaaaaan...", "..naaaaaaaaan...", "..naaaaaaaaan...", "..nn.a..a.nn....", "...n.nn.n.n.....", "......nn........", ".....nnn........", "......nn........", "................"], pal: &[] }];
 pub static WOLF_RIGHT: &[MobFrame] = &[MobFrame { grid: &["................", "................", "................", ".n........n.n...", "nna......nnannn.", "naan....naaaaan.", ".nan...naaaPaaAn", "..naaaaaaaaaaaAn", "..naaaaaaaaaan..", "..naaaaaaaan....", "...aa...aa......", "...nn...nn......", "................", "................", "................", "................"], pal: &[] }, MobFrame { grid: &["................", "................", "................", ".n........n.n...", "nna......nnannn.", "naan....naaaaan.", ".nan...naaaPaaAn", "..naaaaaaaaaaaAn", "..naaaaaaaaaan..", "..naaaaaaaan....", "..aa.....aa.....", "..nn.....nn.....", "................", "................", "................", "................"], pal: &[] }];
 
+// These four enemies had unique AI but NO body art (never added to ALL_FRAMES), so they
+// fired bolts / erupted / detonated while INVISIBLE (Baz). Sprites ported 1:1 from the JS
+// reference (enemies.js pixel grids), padded from the JS 16x10 to our 16x16 convention.
+
+/// Rooted crystal (prismshard): a faceted violet kite with a cyan edge + a moving white glint.
+pub static PRISMSHARD_FRAMES: &[MobFrame] = &[
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            "................", ".......c........", "......cvc.......",
+            ".....cvWvc......", ".....cvvvc......", "....cvvWvvc.....",
+            "....cvvvvvc.....", ".....cvvvc......", "......ccc.......",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('c', 0x6fe6e0), ('v', 0xb388ff), ('W', 0xfcfcfc)],
+    },
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            "................", ".......c........", "......cvc.......",
+            ".....cvvvc......", ".....cWvvc......", "....cvvvWvc.....",
+            "....cvvvvvc.....", ".....cvvvc......", "......ccc.......",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('c', 0x6fe6e0), ('v', 0xb388ff), ('W', 0xfcfcfc)],
+    },
+];
+
+/// Rooted vent (ashgeyser): a dark mound with a red-hot core; frame B flings embers up.
+pub static ASHGEYSER_FRAMES: &[MobFrame] = &[
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            "................", "......nn........", ".....nrrn.......",
+            "....nnrrnn......", "....nKnnKn......", "...nnKnnKnn.....",
+            "...nnnKKnnn.....", "..nnnnnnnnnn....", "..KnnnnnnnnK....",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('n', 0x585858), ('r', 0xd82800), ('K', 0x000000), ('o', 0xfc7460)],
+    },
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            ".....o..o.......", "....o.oo.o......", ".....nrrn.......",
+            "....nnrrnn......", "....nKnnKn......", "...nnKnnKnn.....",
+            "...nnnKKnnn.....", "..nnnnnnnnnn....", "..KnnnnnnnnK....",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('n', 0x585858), ('r', 0xd82800), ('K', 0x000000), ('o', 0xfc7460)],
+    },
+];
+
+/// Blind beetle (deepcrawler): a wide gray shell with black eye-spots + shifting violet legs.
+pub static DEEPCRAWLER_FRAMES: &[MobFrame] = &[
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            "................", "..v..v..v..v....", "...vvvvvvvv.....",
+            "..vAAAAAAAAv....", "..vAKAAAAKAv....", "...vAAAAAAv.....",
+            "..v.vvvvvv.v....", "...v..vv..v.....", "................",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('v', 0xb388ff), ('A', 0xbcbcbc), ('K', 0x000000)],
+    },
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            "................", "...v..v..v..v...", "...vvvvvvvv.....",
+            "..vAAAAAAAAv....", "..vAKAAAAKAv....", "...vAAAAAAv.....",
+            ".v.vvvvvv.v.....", "..v..vv..v......", "................",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('v', 0xb388ff), ('A', 0xbcbcbc), ('K', 0x000000)],
+    },
+];
+
+/// Walking bomb (emberling): a small lump of smoldering coal (idle body; it swells + blows).
+pub static EMBERLING_FRAMES: &[MobFrame] = &[MobFrame {
+    grid: &[
+        "................", "................", "................",
+        "................", "................", ".....KKKK.......",
+        "....KnrnrK......", "....KrnrnK......", "....KnrnrK......",
+        ".....KKKK.......", "....K.KK.K......", "................",
+        "................", "................", "................", "................",
+    ],
+    pal: &[('K', 0x000000), ('n', 0x585858), ('r', 0xd82800)],
+}];
+
 /// Every simple-frame kind -> its animation strip (wolf is per-facing, above).
 pub static ALL_FRAMES: &[(&str, &[MobFrame])] = &[
+    ("prismshard", PRISMSHARD_FRAMES),
+    ("ashgeyser", ASHGEYSER_FRAMES),
+    ("deepcrawler", DEEPCRAWLER_FRAMES),
+    ("emberling", EMBERLING_FRAMES),
     ("boar", BOAR_FRAMES),
     ("wasp", WASP_FRAMES),
     ("thornling", THORNLING_FRAMES),
@@ -135,6 +227,10 @@ pub static BESTIARY_INFO: &[(&str, &str, &str)] = &[
     ("vulture", "CARRION VULTURE", "Circles, then dives from above."),
     ("golem", "STONE GOLEM", "Immovable tank; crits stagger it."),
     ("bat", "CAVE BAT", "Erratic swarms of the dark."),
+    ("prismshard", "PRISM SHARD", "Rooted crystal; fires a turning cross of light."),
+    ("ashgeyser", "ASH GEYSER", "Rooted vent; lobs a spread of arcing rocks."),
+    ("deepcrawler", "DEEP CRAWLER", "Blind; hunts by the sound of your footfalls."),
+    ("emberling", "EMBERLING", "Walking bomb; swells, then detonates."),
     ("hurler", "CRAG HURLER", "Lobs rocks in an arc - dodge it."),
     ("zombie", "ZOMBIE", "Slow, relentless, hard to repel."),
     ("skeleton", "SKELETON", "Bones that chase and lunge."),

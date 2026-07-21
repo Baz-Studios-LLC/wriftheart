@@ -29,6 +29,7 @@ pub fn smash_stats(kind: &str) -> Option<(u32, i32, bool)> {
         "urn" => (0xb08060, 3, false),
         "bonepile" => (0xd8d4c4, 3, false),
         "cobweb" => (0xe4e4ea, 1, true), // cut in one swing; hangs in the air (never solid)
+        "crystal" => (0x6fe6e0, 3, false), // pick-gated ore node (dungeon.rs adds GatherTool)
         _ => return None,
     })
 }
@@ -58,7 +59,8 @@ pub static PROPS: &[PropMeta] = &[
     solid("brokenpillar", 1),
     solid("block", 1),
     solid("stalagmite", 1),
-    PropMeta { kind: "crystal", w: 1, solid: true, detail: false, destructible: false, lit: true },
+    // MINABLE (Baz): it wears the overworld ore-node sprite now, so a pick really mines it.
+    PropMeta { kind: "crystal", w: 1, solid: true, detail: false, destructible: true, lit: true },
     PropMeta { kind: "armorstand", w: 1, solid: true, detail: false, destructible: true, lit: false },
     breakable("weaponrack", 2),
     PropMeta { kind: "altar", w: 2, solid: true, detail: false, destructible: false, lit: true },

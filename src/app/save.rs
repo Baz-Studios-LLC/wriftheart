@@ -111,6 +111,8 @@ pub struct SaveData {
     #[serde(default)]
     pub house: Option<super::home::HouseRec>, // the one placed home (js playerHouse)
     #[serde(default)]
+    pub respawn: Option<super::home::RespawnRec>, // SET SPAWN point (bed / inn)
+    #[serde(default)]
     pub loot_gob: Option<super::lootgoblin::LootGobRec>, // the roaming loot goblin (js lootGob)
     #[serde(default)]
     pub loot_gob_cleared: Vec<(i32, i32)>, // origins whose goblin was slain/escaped (js lootGobCleared)
@@ -313,6 +315,7 @@ pub struct SaveExtras<'w> {
     pub blueprints: ResMut<'w, super::blueprints::LearnedBlueprints>,
     pub stash: ResMut<'w, super::storage::PlayerStash>,
     pub house: ResMut<'w, super::home::PlayerHouse>,
+    pub respawn: ResMut<'w, super::home::RespawnPoint>,
     pub loot_gob: ResMut<'w, super::lootgoblin::LootGob>,
     pub loot_gob_cleared: ResMut<'w, super::lootgoblin::LootGobCleared>,
     pub caves: ResMut<'w, super::caves::CrackCaves>,
@@ -339,6 +342,7 @@ pub fn apply_to(d: &SaveData, ctx: &mut SaveCtx, extras: &mut SaveExtras) {
     extras.blueprints.0 = d.blueprints.iter().cloned().collect();
     extras.stash.0 = d.stash.clone();
     extras.house.0 = d.house.clone();
+    extras.respawn.0 = d.respawn.clone();
     extras.loot_gob.0 = d.loot_gob.clone();
     extras.loot_gob_cleared.0 = d.loot_gob_cleared.iter().copied().collect();
     extras.caves.0 = d.crack_caves.clone();
@@ -557,6 +561,7 @@ pub fn collect(ctx: &SaveCtx, extras: &SaveExtras, player: &Player, health: &Hea
         blueprints: extras.blueprints.0.iter().cloned().collect(),
         stash: extras.stash.0.clone(),
         house: extras.house.0.clone(),
+        respawn: extras.respawn.0.clone(),
         loot_gob: extras.loot_gob.0.clone(),
         loot_gob_cleared: extras.loot_gob_cleared.0.iter().copied().collect(),
         crack_caves: extras.caves.0.clone(),
@@ -723,6 +728,7 @@ mod tests {
             blueprints: Default::default(),
             stash: Default::default(),
             house: Default::default(),
+            respawn: Default::default(),
             loot_gob: Default::default(),
             loot_gob_cleared: Default::default(),
             crack_caves: Default::default(),

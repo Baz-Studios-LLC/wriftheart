@@ -23,6 +23,10 @@ pub struct StationRec {
     pub x: f32,
     pub y: f32,
     pub kind: String,
+    /// Facing 0 front / 1 right / 2 back / 3 left (js placedTables rot; default keeps
+    /// old saves front-facing).
+    #[serde(default)]
+    pub rot: u8,
 }
 
 /// Every placed station, saved (js placedTables).
@@ -109,7 +113,7 @@ pub fn station_wake(
         commands.entity(e).despawn();
     }
     for rec in stations.0.iter().filter(|r| r.room == (cur.rx, cur.ry)) {
-        spawn_fire(&mut commands, &mut images, &mut blockers, rec.x, rec.y, kind_static(&rec.kind));
+        spawn_fire(&mut commands, &mut images, &mut blockers, rec.x, rec.y, kind_static(&rec.kind), rec.rot);
     }
 }
 
@@ -119,23 +123,33 @@ fn kind_static(s: &str) -> &'static str {
     crate::items::get(s).map(|d| d.id).unwrap_or("cook")
 }
 
-fn spawn_fire(
+pub(super) fn spawn_fire(
     commands: &mut Commands,
     images: &mut Assets<Image>,
     blockers: &mut super::room_props::RoomBlockers,
     x: f32,
     y: f32,
     kind: &'static str,
+    rot: u8,
 ) {
-    let (grid, pal) = if kind == "cook" {
-        (&COOKFIRE[..], COOKFIRE_PAL)
+    // The cook fire + well keep their symmetric char grids; every table (and the forge)
+    // bakes per-facing through the JS-ported vector renderer (station_art::station_image).
+    let (img, top) = if kind == "cook" {
+        (images.add(bake(&COOKFIRE[..], COOKFIRE_PAL)), y - 8.0)
+    } else if kind == "well" {
+        (images.add(bake(&super::station_art::WELL[..], super::station_art::WELL_PAL)), y - 8.0)
     } else {
-        super::station_art::station_art(kind)
+        // Canvas row OY = the station's logical origin, which sits at world y - 8 (the old
+        // art's top row) — so the 34-tall canvas draws at y - 8 - OY.
+        (super::station_art::station_image(kind, rot, images), y - 8.0 - super::station_art::OY as f32)
     };
-    let img = images.add(bake(grid, pal));
+    let h = if kind == "cook" || kind == "well" { 22.0 } else { super::station_art::CANVAS.1 as f32 };
     commands.spawn((
         Sprite::from_image(img),
-        at(PLAY_X + x, PLAY_Y + y - 8.0, 32.0, 22.0, actor_z(y + 24.0)),
+        // Depth-sort at the VISUAL base (the legs end ~y+19), not the js baseY y+24 — the
+        // phantom 5px let the bench pop in FRONT of a hero standing at its south face for
+        // a beat mid-swing (Baz: "my player's head clips through the workbench").
+        at(PLAY_X + x, PLAY_Y + top, 32.0, h, actor_z(y + 19.0)),
         PIXEL_LAYER,
         RoomActor,
         StationSprite { x, y, kind },
@@ -146,63 +160,68 @@ fn spawn_fire(
     }
 }
 
-/// Using the kit places the fire at your feet — overworld wilds only (js tables
-/// refuse towns; interiors and dungeons have no ground to claim).
-#[allow(clippy::too_many_arguments)]
-pub fn place_station(
-    mut uses: MessageReader<PlaceStation>,
+/// The station's use zone (js craftTable useZone, kit-anchored) — shared by the prompt
+/// and the interact.
+fn use_zone(f: &StationSprite) -> (f32, f32, f32, f32) {
+    (f.x - 6.0, f.y - 8.0, 44.0, 30.0)
+}
+
+fn in_zone(hitbox: (f32, f32, f32, f32), uz: (f32, f32, f32, f32)) -> bool {
+    hitbox.0 < uz.0 + uz.2 && hitbox.0 + hitbox.2 > uz.0 && hitbox.1 < uz.1 + uz.3 && hitbox.1 + hitbox.3 > uz.1
+}
+
+#[derive(Component)]
+pub struct StationPrompt;
+
+/// The "CRAFT" prompt while you stand at a station (js 'A CRAFT' — Baz: "the workbench
+/// should have a prompt"). Wells stay quiet (they only refill the can).
+fn station_prompt(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
-    cur: Res<CurRoom>,
-    world: Res<super::play::GameWorld>,
-    in_dungeon: Res<super::dungeon::InDungeon>,
-    inside: Res<super::interior::Inside>,
-    grid: Res<super::play::CurGrid>,
-    mut stations: ResMut<PlacedStations>,
-    mut blockers: ResMut<super::room_props::RoomBlockers>,
-    mut inv: ResMut<crate::inventory::PlayerInv>,
-    mut log: ResMut<super::rewards::LootLog>,
-    mut saves: MessageWriter<super::save::SaveRequest>,
-    mut sfx: MessageWriter<super::sfx::Sfx>,
+    bindings: Res<crate::input::Bindings>,
+    input: Res<ActionState>,
     players: Query<&Player>,
+    fires: Query<&StationSprite>,
+    old: Query<Entity, With<StationPrompt>>,
 ) {
-    for PlaceStation(kind) in uses.read() {
-        let Ok(p) = players.single() else { continue };
-        if in_dungeon.0.is_some()
-            || inside.0.is_some()
-            || crate::worldgen::towns::town_role(world.0.seed, cur.rx, cur.ry).is_some()
-        {
-            log.add("cook", "NO PLACE FOR A CAMP HERE", 1, 0xfc8868, false, true);
-            sfx.write(super::sfx::Sfx("tink"));
-            continue;
+    let Ok(p) = players.single() else { return };
+    let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
+    let near = fires.iter().any(|f| f.kind != "well" && in_zone(hitbox, use_zone(f)));
+    if near != old.is_empty() {
+        return;
+    }
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    if near {
+        // The framed prompt bar (the interior-counter style, prompts.rs layer — it sits
+        // above the night darkness so it reads at any hour).
+        use crate::room::{PX_H, PX_W};
+        let text = format!("{}  CRAFT", bindings.prompt(Action::Interact, input.pad_present));
+        let w = crate::gfx::font::measure(&text) as f32 + 8.0;
+        let (x, y) = (PLAY_X + ((PX_W as f32 - w) / 2.0).round(), PLAY_Y + PX_H as f32 - 26.0);
+        commands.spawn((
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.8), Vec2::new(w, 11.0)),
+            at(x, y, w, 11.0, crate::gfx::layers::PROMPT),
+            PIXEL_LAYER,
+            StationPrompt,
+        ));
+        for (sx, sy, sw, sh) in crate::ui::border_strips(x, y, w, 11.0, 1.0) {
+            commands.spawn((
+                Sprite::from_color(Color::srgb_u8(0xfc, 0xe0, 0xa8), Vec2::new(sw, sh)),
+                at(sx, sy, sw, sh, crate::gfx::layers::PROMPT + 0.02),
+                PIXEL_LAYER,
+                StationPrompt,
+            ));
         }
-        // Snap the 2x1 base to the tile under the hero's feet (the coop idiom).
-        let c = ((p.x + 8.0) / 16.0).round() as i32 - 1;
-        let r = ((p.y + 20.0) / 16.0).floor() as i32;
-        let (x, y) = ((c * 16) as f32, (r * 16) as f32);
-        let clear = (0..2).all(|i| !grid.0.box_hits_solid(x + 1.0 + i as f32 * 16.0, y + 1.0, 14.0, 14.0))
-            && !blockers.0.iter().any(|b| x < b.0 + b.2 && x + 32.0 > b.0 && y < b.1 + b.3 && y + 16.0 > b.1);
-        if !clear {
-            log.add("cook", "NO ROOM TO SET THE FIRE", 1, 0xfc8868, false, true);
-            sfx.write(super::sfx::Sfx("tink"));
-            continue;
-        }
-        inv.remove_one(kind);
-        stations.0.push(StationRec { room: (cur.rx, cur.ry), x, y, kind: kind.to_string() });
-        spawn_fire(&mut commands, &mut images, &mut blockers, x, y, kind);
-        let (line, col) = if *kind == "cook" {
-            ("THE COOKING FIRE CRACKLES", 0xd0822a)
-        } else {
-            super::station_art::place_msg(kind)
-        };
-        log.add("cook", line, 1, col, false, true);
-        sfx.write(super::sfx::Sfx("craft"));
-        saves.write(super::save::SaveRequest);
+        crate::ui::label(&mut commands, &mut images, &text, x + 4.0, y + 2.0, 0xfce0a8, crate::gfx::layers::PROMPT_TEXT, StationPrompt);
     }
 }
 
 /// PRESS beside a fire -> the CRAFT page opens in station mode (js craftStation).
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 pub fn station_interact(
+    mut commands: Commands,
     mut input: ResMut<ActionState>,
     mut craft: ResMut<super::slideout::craft_tab::CraftState>,
     mut so: ResMut<super::slideout::SlideOut>,
@@ -210,6 +229,7 @@ pub fn station_interact(
     mut sfx: MessageWriter<super::sfx::Sfx>,
     players: Query<&Player>,
     fires: Query<&StationSprite>,
+    prompts: Query<Entity, With<StationPrompt>>,
 ) {
     if !input.pressed(Action::Interact) {
         return;
@@ -220,10 +240,14 @@ pub fn station_interact(
         if f.kind == "well" {
             continue; // a well has no craft menu — it just refills the can (farm.rs)
         }
-        let uz = (f.x - 6.0, f.y - 8.0, 44.0, 30.0); // the js useZone, kit-anchored
-        if hitbox.0 < uz.0 + uz.2 && hitbox.0 + hitbox.2 > uz.0 && hitbox.1 < uz.1 + uz.3 && hitbox.1 + hitbox.3 > uz.1 {
+        if in_zone(hitbox, use_zone(f)) {
             input.consume(Action::Interact);
+            for e in &prompts {
+                commands.entity(e).despawn(); // the window replaces the prompt
+            }
             craft.station = Some(f.kind);
+            craft.station_at = Some((f.x, f.y));
+            craft.remove_requested = false;
             craft.cursor = 0;
             craft.scroll = 0;
             so.tab = 1; // the CRAFT page
@@ -234,14 +258,65 @@ pub fn station_interact(
     }
 }
 
+/// REMOVE TABLE (js removeTable): the craft window's Slot4 flagged it — tear the placed
+/// station down, refund HALF each material (floor, js Math.floor(q/2)), and close back
+/// to play. Runs under Screen::SlideOut (the window is open when the flag trips).
+#[allow(clippy::too_many_arguments)]
+fn station_remove(
+    mut commands: Commands,
+    mut craft: ResMut<super::slideout::craft_tab::CraftState>,
+    cur: Res<CurRoom>,
+    mut stations: ResMut<PlacedStations>,
+    mut blockers: ResMut<super::room_props::RoomBlockers>,
+    mut inv: ResMut<crate::inventory::PlayerInv>,
+    mut log: ResMut<super::rewards::LootLog>,
+    mut saves: MessageWriter<super::save::SaveRequest>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    mut next: ResMut<NextState<super::screen::Screen>>,
+    fires: Query<(Entity, &StationSprite)>,
+) {
+    if !craft.remove_requested {
+        return;
+    }
+    craft.remove_requested = false;
+    let (Some(kind), Some((x, y))) = (craft.station, craft.station_at) else { return };
+    // Half the build cost comes back (the station's own recipe, wherever it's crafted).
+    if let Some(r) = crate::recipes_data::RECIPES.iter().find(|r| r.out == kind) {
+        for (id, q) in r.cost {
+            if q / 2 > 0 {
+                inv.add_item(id, q / 2);
+            }
+        }
+    }
+    stations.0.retain(|s| !(s.room == (cur.rx, cur.ry) && s.x == x && s.y == y));
+    for (e, f) in &fires {
+        if f.x == x && f.y == y {
+            commands.entity(e).despawn();
+        }
+    }
+    blockers.0.retain(|b| *b != (x + 2.0, y + 6.0, 28.0, 9.0));
+    craft.station = None;
+    craft.station_at = None;
+    log.add("cook", "REMOVED (HALF MATS BACK)", 1, 0xd0d0d0, false, true);
+    sfx.write(super::sfx::Sfx("stone"));
+    saves.write(super::save::SaveRequest);
+    next.set(super::screen::Screen::Play);
+}
+
 pub struct CookingPlugin;
 
 impl Plugin for CookingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PlacedStations>().add_message::<PlaceStation>().add_systems(
             bevy::app::FixedUpdate,
-            (station_wake, place_station.after(station_wake), station_interact.before(super::talk::talk_tick))
+            (station_wake, station_prompt, station_interact.before(super::talk::talk_tick))
                 .run_if(super::screen::playing),
+        )
+        .add_systems(
+            bevy::app::FixedUpdate,
+            station_remove
+                .before(super::play::EndTick)
+                .run_if(bevy::state::condition::in_state(super::screen::Screen::SlideOut)),
         );
     }
 }

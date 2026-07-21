@@ -127,6 +127,75 @@ pub struct DungeonEntrance {
 #[derive(Resource, Default)]
 pub struct InDungeon(pub Option<DungeonRun>);
 
+/// Dungeon keys are a per-dungeon COUNT shown in the HUD, NOT bag items (Baz). Zeroed the
+/// moment you leave a dungeon (`clear_keys_outside`), so keys can't exist in the overworld;
+/// persists across floors (only reset outside). `small` opens small locks, `ornate` the boss
+/// door.
+#[derive(Resource, Default)]
+pub struct DungeonKeys {
+    pub small: u32,
+    pub ornate: u32,
+}
+
+/// The in-view key counter (bottom-right of the play area).
+#[derive(Component)]
+struct KeyHud;
+
+/// Keys don't exist in the overworld (Baz): zero the count the moment you're out of a dungeon.
+/// Inside, they persist across floors (the run stays live, so this never fires there).
+fn clear_keys_outside(in_dungeon: Res<InDungeon>, mut keys: ResMut<DungeonKeys>) {
+    if in_dungeon.0.is_none() && (keys.small != 0 || keys.ornate != 0) {
+        keys.small = 0;
+        keys.ornate = 0;
+    }
+}
+
+/// The in-view key counter — a small key icon + `xN` per kind at the bottom-right of the play
+/// area (Baz), shown only inside a dungeon; rebuilt only when a count changes.
+fn key_hud(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    in_dungeon: Res<InDungeon>,
+    keys: Res<DungeonKeys>,
+    old: Query<Entity, With<KeyHud>>,
+    mut last: Local<(u32, u32)>,
+) {
+    let cur = if in_dungeon.0.is_some() { (keys.small, keys.ornate) } else { (0, 0) };
+    if *last == cur {
+        return;
+    }
+    *last = cur;
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    if cur == (0, 0) {
+        return;
+    }
+    use crate::room::{PX_H, PX_W};
+    use super::room_render::{PLAY_X, PLAY_Y};
+    let right = PLAY_X + PX_W as f32;
+    let z = crate::gfx::layers::PROMPT_TEXT;
+    let key_img = images.add(crate::gfx::bake(crate::actors::items_art::KEY_ICON, &[]));
+    let okey_img = images.add(crate::gfx::bake(crate::actors::items_art::OKEY_ICON, &[('m', 0xc878ff)]));
+    let mut y = PLAY_Y + PX_H as f32 - 11.0; // bottom row, stacking upward
+    for (n, img) in [(cur.0, key_img), (cur.1, okey_img)] {
+        if n == 0 {
+            continue;
+        }
+        let txt = format!("x{n}");
+        let tw = crate::gfx::font::measure(&txt) as f32;
+        let icx = right - 3.0 - tw - 1.0 - 8.0;
+        commands.spawn((
+            Sprite::from_image(img),
+            crate::gfx::at(icx, y, 8.0, 8.0, z),
+            crate::gfx::PIXEL_LAYER,
+            KeyHud,
+        ));
+        crate::ui::label(&mut commands, &mut images, &txt, icx + 9.0, y + 1.0, 0xfce0a8, z, KeyHud);
+        y -= 10.0;
+    }
+}
+
 /// Banked dungeon progress per entrance (js dungeonState, in-memory like RoomCache —
 /// the save-file layer is a flagged follow-up; a slot load clears it). Dungeons
 /// REGENERATE deterministically, so the ledger stores only what play changed.
@@ -539,7 +608,7 @@ pub struct DungeonPlugin;
 
 impl Plugin for DungeonPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (dress_castle, victory_tick, pit_anim, descent_overlay)).init_resource::<InDungeon>().init_resource::<DungeonLights>().init_resource::<DungeonLedger>().init_resource::<Relics>().init_resource::<Victory>().init_resource::<PitFalling>().init_resource::<Descending>().add_systems(Update, breathe).add_systems(
+        app.add_systems(Update, (dress_castle, victory_tick, pit_anim, descent_overlay)).init_resource::<InDungeon>().init_resource::<DungeonLights>().init_resource::<DungeonLedger>().init_resource::<Relics>().init_resource::<Victory>().init_resource::<PitFalling>().init_resource::<Descending>().init_resource::<DungeonKeys>().add_systems(Update, (breathe, clear_keys_outside, key_hud)).add_systems(
             bevy::app::FixedUpdate,
             (
                 enter_dungeon.after(super::interior::door_enter),
@@ -613,6 +682,7 @@ pub struct DungeonFoe(pub &'static str);
 /// broken for the run. Cobwebs hang in the air (never solid, one swing).
 #[derive(Component)]
 pub struct DProp {
+    pub kind: &'static str,
     pub c: i32,
     pub r: i32,
     pub blocker: Option<(f32, f32, f32, f32)>,
@@ -700,8 +770,8 @@ pub(crate) fn spawn_room_dprops(
         if let Some(b) = blocker {
             blockers.0.push(b);
         }
-        commands.spawn((
-            DProp { c: d.c, r: d.r, blocker, debris },
+        let mut e = commands.spawn((
+            DProp { kind: d.kind, c: d.c, r: d.r, blocker, debris },
             crate::combat::Combatant { team: crate::combat::Team::Object, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
             crate::combat::Health { hp, max: hp, defense: 0, invuln: 0, flash: 0 },
             crate::combat::HurtProfile { invuln: 0, flash: 6, kb_base: 0.0, kb_frames: 0 },
@@ -712,17 +782,24 @@ pub(crate) fn spawn_room_dprops(
             crate::gfx::PIXEL_LAYER,
             RoomActor,
         ));
+        if d.kind == "crystal" {
+            // It wears the ore-node sprite, so it MINES like one: only a pick works
+            // (a sword tinks off), any pick tier (Baz: "are they minable?" — now yes).
+            e.insert(crate::combat::GatherTool(crate::combat::Tool::Pick, 0));
+        }
     }
 }
 
 /// Smashed furniture: debris burst, half the time a little coin, rarely real gear;
 /// the tile is recorded broken for the run (js makeDungeonProp deathEffect/onDeath).
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 pub(crate) fn dprop_deaths(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut rng: ResMut<super::battle::GameRng>,
     mut in_dungeon: ResMut<InDungeon>,
     mut blockers: ResMut<super::room_props::RoomBlockers>,
+    mut dlights: ResMut<DungeonLights>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
     q: Query<(Entity, &DProp, &crate::combat::Health)>,
 ) {
@@ -733,14 +810,24 @@ pub(crate) fn dprop_deaths(
         }
         let (px, py) = ((prop.c * 16) as f32, (prop.r * 16) as f32);
         super::battle::spawn_burst(&mut commands, &mut rng, bevy::math::Vec2::new(px + 8.0, py + 8.0), prop.debris, 8);
-        if rng.0.next_f64() < 0.5 {
-            let coins = 2 + (rng.0.next_f64() * 6.0) as i32;
-            super::gather::spawn_coin(&mut commands, &mut images, coins, px + 4.0, py + 4.0);
-        }
-        if rng.0.next_f64() < 0.02 {
-            // Smashed furniture rarely hides real gear.
-            let (id, qty) = crate::items::roll_loot(0.2, 0.0, || rng.0.next_f64());
-            super::gather::spawn_pickup(&mut commands, &mut images, id, qty, px + 4.0, py + 2.0, true);
+        if prop.kind == "cobweb" {
+            // A cut web always yields its thread (Baz) — no coin/gear, just 1 string.
+            super::gather::spawn_pickup(&mut commands, &mut images, "string", 1, px + 4.0, py + 2.0, true);
+        } else if prop.kind == "crystal" {
+            // A mined crystal yields a gemstone, and its glow dies with it (the decor light
+            // was collected at room spawn — pull this tile's entry so darkness closes in).
+            super::gather::spawn_pickup(&mut commands, &mut images, "gem", 1, px + 4.0, py + 2.0, true);
+            dlights.0.retain(|&(lx, ly, _)| !(lx == prop.c * 16 + 8 && ly == prop.r * 16 + 8));
+        } else {
+            if rng.0.next_f64() < 0.5 {
+                let coins = 2 + (rng.0.next_f64() * 6.0) as i32;
+                super::gather::spawn_coin(&mut commands, &mut images, coins, px + 4.0, py + 4.0);
+            }
+            if rng.0.next_f64() < 0.02 {
+                // Smashed furniture rarely hides real gear.
+                let (id, qty) = crate::items::roll_loot(0.2, 0.0, || rng.0.next_f64());
+                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, px + 4.0, py + 2.0, true);
+            }
         }
         if let Some(b) = prop.blocker {
             blockers.0.retain(|r| *r != b);
@@ -932,6 +1019,9 @@ pub(crate) fn spawn_droom(
     }
     if let Some(room) = d.cur().room(drx, dry) {
         for dc in &room.decor {
+            if room.broken.contains(&(dc.c, dc.r)) {
+                continue; // a mined crystal's glow died with it — stay dark on re-entry
+            }
             if let Some(r) = crate::dungeon::decor::light_radius(dc.kind) {
                 let w = crate::dungeon::decor::prop(dc.kind).w;
                 swap.dungeon_lights.0.push((dc.c * 16 + w * 8, dc.r * 16 + 8, r));
@@ -1207,6 +1297,7 @@ fn chest_touch(
     mut images: ResMut<Assets<Image>>,
     mut in_dungeon: ResMut<InDungeon>,
     mut inv: ResMut<crate::inventory::PlayerInv>,
+    mut keys: ResMut<DungeonKeys>,
     mut log: ResMut<super::rewards::LootLog>,
     discovered: Res<super::codex::items_tab::Discovered>,
     mut fanfare: ResMut<super::fanfare::Fanfare>,
@@ -1226,20 +1317,28 @@ fn chest_touch(
         let Some(room) = run.dungeon.cur_mut().rooms.get_mut(&(run.drx, run.dry)) else { continue };
         match chest.hold {
             Some(id) => {
-                // The key homes to you on open (js hold contents never drop loose). This
-                // path adds it DIRECTLY (it never becomes a ground pickup), so the "got
-                // it!" fanfare — which pickups_tick fires — has to be triggered here too
-                // (Baz: "no fanfare when I got the key from the chest").
-                inv.add_item(id, 1);
+                // The hold contents home to you on open (js: they never drop loose), so the
+                // "got it!" fanfare — which pickups_tick fires — is triggered here too (Baz:
+                // "no fanfare when I got the key from the chest").
                 let def = crate::items::get(id);
                 log.add(id, &def.map(|d| d.name.to_uppercase()).unwrap_or_default(), 1, super::rewards::toast_color(id), false, false);
                 if super::fanfare::should_play(id, &discovered) {
                     super::fanfare::begin(&mut fanfare, id);
                 }
-                if id == "key" {
-                    room.key_taken = true;
-                } else {
-                    room.bosskey_taken = true;
+                // Keys are a per-dungeon COUNT (HUD), never bag items (Baz); anything else homes
+                // to the bag as before.
+                match id {
+                    "key" => {
+                        keys.small += 1;
+                        room.key_taken = true;
+                    }
+                    "ornatekey" => {
+                        keys.ornate += 1;
+                        room.bosskey_taken = true;
+                    }
+                    _ => {
+                        inv.add_item(id, 1);
+                    }
                 }
             }
             None => {
@@ -1882,6 +1981,8 @@ fn navigate(
         MessageReader<super::sidescroll::ExitSide>,
         ResMut<Descending>,
         MessageWriter<super::sfx::Sfx>,
+        ResMut<DungeonKeys>,
+        Res<super::home::PlayerHouse>,
     ),
 ) {
     if swap.in_dungeon.0.is_none() {
@@ -1897,7 +1998,7 @@ fn navigate(
     };
     let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
     // Capture the room's facts up front (the arena/stairs branches need &mut run).
-    let (bosses, shards, runes, gates, mut mirror_step, mut side, side_looted, mut side_exits, mut descend, mut sfx) = hunt;
+    let (bosses, shards, runes, gates, mut mirror_step, mut side, side_looted, mut side_exits, mut descend, mut sfx, mut keys, house) = hunt;
     // --- A stair descent in flight (js updateDescent): fade out while the hero keeps
     //     stepping into the steps, swap the floor at full black, fade back in. Control
     //     is locked (play::tick early-returns on Descending, like a pit fall). ---
@@ -1989,7 +2090,7 @@ fn navigate(
                 if run.rift == 0 {
                     serialize_run(&run, &mut ctx.social.dungeon_ledger);
                 }
-                super::title::loader::swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, orx, ory);
+                super::title::loader::swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, orx, ory, house.0.as_ref().map(|h| h.room));
                 p.x = opx;
                 p.y = opy + 4.0;
                 p.facing = crate::actors::hero::Facing::Down;
@@ -2149,7 +2250,7 @@ fn navigate(
         }
         // swap_world_room despawns the dungeon root (it IS the active root), stands the
         // overworld back up, and clears InDungeon (the run stays taken = dropped).
-        super::title::loader::swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, rx, ry);
+        super::title::loader::swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, rx, ry, house.0.as_ref().map(|h| h.room));
         p.x = px;
         p.y = py + 4.0; // a step off the mouth (js placeAfterExit lands on the doorstep)
         p.facing = crate::actors::hero::Facing::Down;
@@ -2270,9 +2371,14 @@ fn navigate(
             }
             let Some(grand) = run.dungeon.lock(run.drx, run.dry, d) else { continue };
             if cooldown.0 == 0 {
-                let need = if grand { "ornatekey" } else { "key" };
-                if ctx.inv.has_item(need) {
-                    ctx.inv.remove_one(need);
+                // Keys are the per-dungeon COUNT now, not bag items (Baz).
+                let have = if grand { keys.ornate > 0 } else { keys.small > 0 };
+                if have {
+                    if grand {
+                        keys.ornate -= 1;
+                    } else {
+                        keys.small -= 1;
+                    }
                     // Open THIS door only (both faces), forever (js dungeon.opened).
                     let (dx2, dy2) = d.vec();
                     let both = [((run.drx, run.dry), d), ((run.drx + dx2, run.dry + dy2), d.opp())];

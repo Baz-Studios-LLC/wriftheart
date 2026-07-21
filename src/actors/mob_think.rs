@@ -413,7 +413,9 @@ pub fn mob_think(
             if dist > 44.0 && dist < *beam_r && m.t <= 0 {
                 m.t = *beam_cd;
                 m.st = 36; // hold still through the shimmer + flash
-                return Some(MobAct::Beam { x: m.x, y: m.y, tx: ppos.x, ty: ppos.y });
+                // Aim at the player CENTRE (+8,+9), not the top-left corner — the beam's
+                // hit-test uses the centre, so a corner target drew it ~8px off (Baz).
+                return Some(MobAct::Beam { x: m.x, y: m.y, tx: ppos.x + 8.0, ty: ppos.y + 9.0 });
             }
             if m.t > 0 {
                 m.t -= 1;

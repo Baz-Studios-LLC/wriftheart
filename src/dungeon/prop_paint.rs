@@ -159,15 +159,25 @@ pub fn paint_prop(c: &mut Px, kind: &str, x: i32, y: i32, th: &Theme, r: &mut Mu
             }
         }
         "crystal" => {
-            let cols: [u32; 3] = if r.next_f64() < 0.5 { [0x7028a8, 0xb060f0, 0xe0c0ff] } else { [0x1a6a8a, 0x3aa8d0, 0xbff0ff] };
-            for (cx, top) in [(8, -2), (5, 4), (11, 5)] {
-                for yy in top..14 {
-                    let t = (yy - top) as f32 / (14 - top) as f32;
-                    let hw = (((1.0 - t) * 3.0 + 1.0).round() as i32).max(1);
-                    c.rect(cols[0], x + cx - hw, y + yy, hw * 2, 1);
-                    c.rect(cols[1], x + cx, y + yy, 1, 1);
+            // The SAME boulder sprite as the overworld mining nodes, with crystal-colour
+            // veins — violet or teal (Baz: "use the mining-node sprite with the colour
+            // variations"). Replaces the old hand-drawn shard cluster; the grid's rock body
+            // (K/A/a/n) resolves through the shared palette, only the veins recolour.
+            let (vein, gleam) = if r.next_f64() < 0.5 { (0xb060f0, 0xe0c0ff) } else { (0x3aa8d0, 0xbff0ff) };
+            let grids = crate::actors::props_art::ORE_NODES[0].2;
+            let g = grids[ri(r, grids.len() as f64) as usize];
+            for (yy, row) in g.iter().enumerate() {
+                for (xx, ch) in row.chars().enumerate() {
+                    let col = match ch {
+                        'v' => vein,
+                        'V' => gleam,
+                        ch => match crate::gfx::palette::palette(ch) {
+                            Some(body) => body,
+                            None => continue, // '.' and friends stay transparent
+                        },
+                    };
+                    c.rect(col, x + xx as i32, y + yy as i32, 1, 1);
                 }
-                c.rect(cols[2], x + cx, y + top, 1, 2);
             }
         }
         "armorstand" => {

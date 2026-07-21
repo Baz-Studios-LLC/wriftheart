@@ -38,7 +38,7 @@ pub struct Inside(pub Option<InsideState>);
 
 pub struct InsideState {
     pub def: &'static InteriorDef,
-    return_pos: (f32, f32),
+    pub(crate) return_pos: (f32, f32),
     /// The building's identity seed (js iseed, door-salted) — vendor stock rolls from it.
     pub iseed: u32,
     /// Sold-out ledger key for this vendor (js currentShopKey: "rx,ry,stockKind,bsalt").
@@ -53,7 +53,11 @@ pub struct DoorCooldown(pub u32);
 
 /// Rasterized interior scenes, baked from the display lists on first entry.
 #[derive(Resource, Default)]
-pub struct InteriorArt(HashMap<&'static str, Handle<Image>>);
+pub struct InteriorArt {
+    scenes: HashMap<&'static str, Handle<Image>>,
+    /// The hearth's 48 looping flame frames (js drawFire), baked on first use.
+    flames: Vec<Handle<Image>>,
+}
 
 pub struct InteriorPlugin;
 
@@ -65,7 +69,8 @@ impl Plugin for InteriorPlugin {
             .add_systems(
                 bevy::app::FixedUpdate,
                 (door_enter, door_exit).before(super::play::EndTick).run_if(playing),
-            );
+            )
+            .add_systems(Update, hearth_flicker);
     }
 }
 
@@ -162,6 +167,23 @@ pub(crate) fn door_enter(
             Sprite::from_image(img.clone()),
             at(PLAY_X, PLAY_Y, PX_W as f32, PX_H as f32, 1.0),
         );
+        // The hearth's LIVE flame (js drawFire, redrawn every frame there): the room bake
+        // froze the fire — this overlay burns over the firebox (Baz: "the fireplace
+        // doesn't animate like the JS").
+        if let Some(hx) = hearth_x(def) {
+            if art.flames.is_empty() {
+                art.flames = bake_flame_frames(&mut images);
+            }
+            let e = commands
+                .spawn((
+                    Sprite::from_image(art.flames[0].clone()),
+                    at(PLAY_X + hx as f32, PLAY_Y, 48.0, 32.0, 1.05),
+                    crate::gfx::PIXEL_LAYER,
+                    HearthFlame,
+                ))
+                .id();
+            commands.entity(new_root).add_child(e);
+        }
         // The bottom (front) wall redrawn OVER the actors, minus the door gap, so the
         // player tucks behind it on the way out (js drawForeground).
         let wy = (PX_H - TILE) as f32;
@@ -265,6 +287,7 @@ fn door_exit(
     caves: Res<super::caves::CrackCaves>,
     songs_opened: Res<super::caves::OpenedSongstones>,
     actors: Query<Entity, With<RoomActor>>,
+    house: Res<super::home::PlayerHouse>,
     mut players: Query<&mut Player>,
 ) {
     // (Inside rides in SwapCtx — swap_world_room clears it for every outdoor stand-up.)
@@ -278,21 +301,106 @@ fn door_exit(
     let (rx, ry) = (ctx.cur.rx, ctx.cur.ry);
     let back = state.return_pos;
     // The interior root despawns inside swap_world_room (it IS the active root).
-    swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, rx, ry);
+    swap_world_room(&mut commands, &mut images, &mut swap, &mut ctx, &caves, &songs_opened, &actors, rx, ry, house.0.as_ref().map(|h| h.room));
     p.x = back.0;
     p.y = back.1;
     p.facing = crate::actors::hero::Facing::Down;
     cooldown.0 = 45;
 }
 
+/// The animated hearth flame overlay (child of the interior root).
+#[derive(Component)]
+struct HearthFlame;
+
+/// The hearth's x in a scene, via its firebox arch rects (colour 0x0e0a07): the arch's
+/// left edge sits 12px into the 48px hearth (js fx = x + 12).
+fn hearth_x(def: &'static InteriorDef) -> Option<i16> {
+    def.rects.iter().filter(|r| r.4 == 0x0e0a07ff).map(|r| r.0).min().map(|fx| fx - 12)
+}
+
+/// Bake the 48-frame looping fire (port of js drawFire, hearth-local coords): layered
+/// sin waves wobble the tongue heights, sway them, pulse the white-hot core and twinkle
+/// the embers. The js frequencies (0.13/0.19/0.27) are snapped to divisors of 48 frames
+/// so the loop closes seamlessly.
+fn bake_flame_frames(images: &mut Assets<Image>) -> Vec<Handle<Image>> {
+    use std::f32::consts::TAU;
+    let mut out = Vec::with_capacity(48);
+    for t in 0..48u32 {
+        let tf = t as f32;
+        let a = (TAU * tf / 48.0).sin();
+        let b = (TAU * tf / 24.0 + 1.7).sin();
+        let d = (TAU * tf / 16.0 + 3.4).sin();
+        let mut buf = vec![0u8; 48 * 32 * 4];
+        let (cx, by, sc) = (24.0f32, 27.0f32, 0.8f32);
+        let r = |v: f32| v.round();
+        let mut rr = |px: f32, py: f32, w: f32, h: f32, col: u32| {
+            // ~20% smaller, scaled toward the log line so the base stays anchored (js).
+            let sx = (cx + ((px - cx) * sc).round()) as i32;
+            let sy = (by + ((py - by) * sc).round()) as i32;
+            let (w2, h2) = (((w * sc).round()).max(1.0) as i32, ((h * sc).round()).max(1.0) as i32);
+            for yy in sy.max(0)..(sy + h2).min(32) {
+                for xx in sx.max(0)..(sx + w2).min(48) {
+                    let i = ((yy * 48 + xx) * 4) as usize;
+                    buf[i..i + 4].copy_from_slice(&[(col >> 16) as u8, (col >> 8) as u8, col as u8, 255]);
+                }
+            }
+        };
+        let y = 0.0f32;
+        rr(cx - 9.0, y + 18.0, 18.0, 9.0, 0xb81e12); // red body
+        rr(cx - 7.0, y + 14.0 - r(a), 14.0, 5.0, 0xc8281a);
+        rr(cx - 5.0, y + 11.0 - r(b), 10.0, 4.0, 0xc8281a);
+        rr(cx - 6.0, y + 17.0, 12.0, 9.0, 0xf0501c); // orange
+        rr(cx - 5.0, y + 13.0 - r(a), 10.0, 5.0, 0xfc6020);
+        rr(cx - 3.0, y + 10.0 - r(b), 6.0, 4.0, 0xfc6020);
+        let ty1 = y + 14.0 - r(b * 2.0); // yellow tongues
+        rr(cx - 3.0 + r(a), ty1, 3.0, (y + 23.0) - ty1, 0xffb024);
+        let ty2 = y + 11.0 - r(a * 2.0 + 1.0);
+        rr(cx + 1.0 + r(d), ty2, 3.0, (y + 24.0) - ty2, 0xffc830);
+        rr(cx - 1.0, y + 16.0 - r(b), 2.0, 6.0, 0xffd848);
+        rr(cx - 1.0, y + 18.0 - r(a + 1.0), 3.0, 6.0, 0xfff0b8); // white-hot core
+        rr(cx, y + 15.0 - r(b), 1.0, 5.0, 0xfff8e0);
+        rr(cx + r(d), ty2 - 2.0, 1.0, 2.0, 0xffd040); // flicker tips
+        rr(cx - 4.0 + r(a * 2.0), y + 12.0 - r(b), 1.0, 2.0, 0xffae40);
+        rr(cx + 3.0 + r(b), y + 13.0 - r(d), 1.0, 2.0, 0xff8a30);
+        rr(cx - 7.0, y + 25.0, 1.0, 1.0, if a > 0.0 { 0xffae40 } else { 0x7a3010 }); // embers
+        rr(cx + 6.0, y + 25.0, 1.0, 1.0, if b > 0.0 { 0xff8a30 } else { 0x7a3010 });
+        rr(cx - 2.0, y + 27.0, 1.0, 1.0, if d > 0.0 { 0xffd060 } else { 0x9a4010 });
+        rr(cx + 3.0, y + 27.0, 1.0, 1.0, if a < 0.0 { 0xffae40 } else { 0x7a3010 });
+        out.push(images.add(Image::new(
+            Extent3d { width: 48, height: 32, depth_or_array_layers: 1 },
+            TextureDimension::D2,
+            buf,
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        )));
+    }
+    out
+}
+
+/// Cycle the hearth's flame frames (the js redrew per frame; we swap baked handles).
+fn hearth_flicker(time: Res<Time>, art: Res<InteriorArt>, mut q: Query<&mut Sprite, With<HearthFlame>>) {
+    if art.flames.is_empty() {
+        return;
+    }
+    let idx = ((time.elapsed_secs() * 60.0) as usize) % art.flames.len();
+    for mut spr in &mut q {
+        if spr.image != art.flames[idx] {
+            spr.image = art.flames[idx].clone();
+        }
+    }
+}
+
 /// Bake a scene's display list into its image (cached per kind).
 fn scene_image(art: &mut InteriorArt, def: &'static InteriorDef, images: &mut Assets<Image>) -> Handle<Image> {
-    if let Some(h) = art.0.get(def.kind) {
+    if let Some(h) = art.scenes.get(def.kind) {
         return h.clone();
     }
     let (w, h) = (PX_W as usize, PX_H as usize);
     let mut buf = vec![0u8; w * h * 4];
     for (x, y, rw, rh, rgba) in def.rects {
+        if *rgba == 0xfc6020ff || *rgba == 0xffd040ff {
+            continue; // stray frozen flame pixels — the LIVE overlay burns instead
+        }
         let (sr, sg, sb, sa) = (
             (rgba >> 24) as u8,
             (rgba >> 16) as u8,
@@ -322,7 +430,7 @@ fn scene_image(art: &mut InteriorArt, def: &'static InteriorDef, images: &mut As
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
     ));
-    art.0.insert(def.kind, img.clone());
+    art.scenes.insert(def.kind, img.clone());
     img
 }
 

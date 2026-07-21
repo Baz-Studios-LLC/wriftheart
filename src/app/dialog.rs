@@ -33,6 +33,13 @@ pub enum ChoiceAct {
     Talk,
     Gift,
     Quest,
+    /// The home bed: sleep to morning (services.rs start_sleep).
+    Rest,
+    /// The home bed: death respawns at the home doorstep from now on.
+    SetSpawn,
+    /// An inn stay (cost precomputed by services.rs — keeper discount + tier + the
+    /// Provisioners' free-inn perk). `spawn` also sets the respawn to the inn's door.
+    InnRest { cost: i64, spawn: bool, room: (i32, i32), x: f32, y: f32 },
 }
 
 pub enum DialogState {
@@ -155,6 +162,40 @@ fn dialog_tick(
                 let act = opts[*cur].1;
                 let target = *target;
                 match act {
+                    ChoiceAct::Rest => {
+                        super::services::start_sleep(&mut cx.sleeping, 1.0);
+                        next.set(Screen::Play);
+                        return;
+                    }
+                    ChoiceAct::SetSpawn => {
+                        if let Some(h) = &cx.house.0 {
+                            cx.respawn.0 = Some(super::home::RespawnRec { room: h.room, x: h.x, y: h.y + 18.0 });
+                            cx.log.add("home", "SPAWN SET - YOU WILL WAKE AT HOME", 1, 0xcfe0ff, false, true);
+                            cx.saves.write(super::save::SaveRequest);
+                        }
+                        next.set(Screen::Play);
+                        return;
+                    }
+                    ChoiceAct::InnRest { cost, spawn, room, x, y } => {
+                        if inv.money < cost {
+                            cx.log.add("inn", &format!("NEED {} TO REST", super::shop::coin_str(cost)), 1, 0xfc6868, false, true);
+                        } else {
+                            inv.money -= cost;
+                            super::services::start_sleep(&mut cx.sleeping, 1.0);
+                            if cost == 0 {
+                                cx.log.add("inn", "THE PROVISIONERS COVER YOUR BED", 1, 0xffd34d, false, true);
+                            } else {
+                                cx.log.add("inn", &format!("RESTED (-{})", super::shop::coin_str(cost)), 1, 0xa8e0ff, false, true);
+                            }
+                            if spawn {
+                                cx.respawn.0 = Some(super::home::RespawnRec { room, x, y });
+                                cx.log.add("inn", "SPAWN SET - YOU WILL WAKE AT THIS INN", 1, 0xcfe0ff, false, true);
+                            }
+                            cx.saves.write(super::save::SaveRequest);
+                        }
+                        next.set(Screen::Play);
+                        return;
+                    }
                     ChoiceAct::Talk => {
                         if let Ok(mut v) = villagers.get_mut(target) {
                             chat_with(&mut cx, &mut commands, &mut images, &mut v, &world.0, cur_room.rx, cur_room.ry, today);

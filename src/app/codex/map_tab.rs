@@ -20,7 +20,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 const GAP: f32 = 2.0; // px between room cells (MAP_G)
 const AX: f32 = 6.0;
 const AY: f32 = TOP_H + 1.0;
-const PAN_SPEED: f32 = 0.014; // fraction of the full map per held tick
+const PAN_PX: f32 = 2.0; // canvas px per held tick — constant on-screen pan speed
 
 /// Zoom (integer px per tile) + camera centre as a fraction of the full map.
 #[derive(Resource)]
@@ -128,18 +128,26 @@ pub fn run(
         view.ts -= 1;
         rebuild = true;
     }
-    // Pan: held directions (the stick already feeds the dpad actions).
-    if state.held(Action::Left) {
-        view.cx -= PAN_SPEED;
-    }
-    if state.held(Action::Right) {
-        view.cx += PAN_SPEED;
-    }
-    if state.held(Action::Up) {
-        view.cy -= PAN_SPEED;
-    }
-    if state.held(Action::Down) {
-        view.cy += PAN_SPEED;
+    // Pan: held directions (the stick already feeds the dpad actions). The step is a
+    // CONSTANT on-screen speed — cx/cy are fractions of the FULL map, so a flat fraction
+    // per tick panned faster the more you'd explored (Baz: "too fast and hard to control").
+    {
+        let b = bounds(&visited, cur.rx, cur.ry, &pins);
+        let (cell_w, cell_h) = cell_size(view.ts);
+        let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
+        let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
+        if state.held(Action::Left) {
+            view.cx -= PAN_PX / full_w;
+        }
+        if state.held(Action::Right) {
+            view.cx += PAN_PX / full_w;
+        }
+        if state.held(Action::Up) {
+            view.cy -= PAN_PX / full_h;
+        }
+        if state.held(Action::Down) {
+            view.cy += PAN_PX / full_h;
+        }
     }
     view.cx = view.cx.clamp(0.0, 1.0);
     view.cy = view.cy.clamp(0.0, 1.0);
@@ -211,7 +219,13 @@ fn root_transform(visited: &Visited, cur: &CurRoom, view: &MapView, pins: &[(i32
     let off = |full: f32, v: f32, c: f32| {
         if full <= v { -((v - full) / 2.0) } else { (c * full - v / 2.0).clamp(0.0, full - v) }
     };
-    at(AX - off(full_w, vw, view.cx), AY - off(full_h, vh, view.cy), 0.0, 0.0, CONTENT_Z)
+    let mut t = at(AX - off(full_w, vw, view.cx), AY - off(full_h, vh, view.cy), 0.0, 0.0, CONTENT_Z);
+    // WHOLE-PIXEL LAW: the camera fraction lands the root on half-pixels, which shears every
+    // baked child at the integer upscale — the town names read garbled until a pan happened
+    // to re-round them (Baz). Snap the root; the children sit at integer local offsets.
+    t.translation.x = t.translation.x.round();
+    t.translation.y = t.translation.y.round();
+    t
 }
 
 /// Build the whole map as children of one root — panning is just moving the root.
@@ -301,7 +315,10 @@ fn spawn_map(
         };
         // A name plate under a marker (town names / HOME), only when it fits the tile.
         let plate = |commands: &mut Commands, images: &mut Assets<Image>, text: &str, col: u32| {
-            let w = crate::gfx::font::measure(text) as f32;
+            let tw = crate::gfx::font::measure(text);
+            // Even-pad to match bake_text's image width — an odd width centres the sprite on a
+            // half-pixel and the integer upscale shears the glyphs (the WINDVALE garble, Baz).
+            let w = (tw + (tw & 1)) as f32;
             if w + 2.0 > rw {
                 return; // hidden when zoomed out, like the js
             }
@@ -335,16 +352,16 @@ fn spawn_map(
         if has("shop") {
             mark(commands, images, COIN_MARK, &[('P', 0xfcd000), ('Y', 0x7a5a00)]);
         }
-        if let Some(site) = world.0.town_site_of(x, y) {
-            if (site.tx, site.ty) == (x, y) {
-                // The market square gets the big house icon + the town's NAME.
-                mark(commands, images, TOWN_MARK, &[('b', 0x1a1208), ('r', 0xc83828), ('w', 0xe8d8a0), ('d', 0x6a4a1c)]);
-                if let Some(nm) = names.0.get(&format!("{x},{y}")) {
-                    let nm = nm.to_uppercase();
-                    plate(commands, images, &nm, 0xfce0a8);
-                }
-            } else {
-                mark(commands, images, DISTRICT_MARK, &[('b', 0x1a1208), ('w', 0xe8d8a0)]); // a quiet district dot
+        // Only the town CENTRE (market square) gets a marker — the house icon + the town's
+        // NAME, which reads at a glance. The old per-district hollow-square dots peppered the
+        // map with mystery boxes on every town-region room (Baz: "not sure why some tiles have
+        // this square") and weren't in the JS marker set, so they're gone.
+        if let Some(site) = world.0.town_site_of(x, y)
+            && (site.tx, site.ty) == (x, y)
+        {
+            mark(commands, images, TOWN_MARK, &[('b', 0x1a1208), ('r', 0xc83828), ('w', 0xe8d8a0), ('d', 0x6a4a1c)]);
+            if let Some(nm) = names.0.get(&format!("{x},{y}")) {
+                plate(commands, images, &nm.to_uppercase(), 0xfce0a8);
             }
         }
         if house.0.as_ref().map(|h| h.room) == Some((x, y)) {
@@ -593,9 +610,6 @@ const TOWN_MARK: &[&str] = &[
     "bwwwddwwwwb",
     "bbbbbbbbbbb",
 ];
-
-/// A town DISTRICT: a quiet dot (js codex 224-225).
-const DISTRICT_MARK: &[&str] = &["bbbbb", "bwwwb", "bwwwb", "bwwwb", "bbbbb"];
 
 /// YOUR home: the cottage with the gold star (js codex 241-245).
 const HOME_MARK: &[&str] = &[

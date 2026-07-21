@@ -248,7 +248,7 @@ fn cure_status(mut cures: MessageReader<CureStatus>, mut statuses: ResMut<Status
     for _ in cures.read() {
         statuses.remove("poison");
         statuses.remove("slow");
-        sfx.write(super::sfx::Sfx("potion"));
+        sfx.write(super::sfx::Sfx("pickup")); // "potion" isn't in the synth bank — was silent
     }
 }
 
@@ -261,7 +261,7 @@ fn eat_dish(mut eats: MessageReader<EatDish>, mut statuses: ResMut<Statuses>, mu
         for (buff, frames) in *buffs {
             statuses.add(buff, *frames);
         }
-        sfx.write(super::sfx::Sfx("potion"));
+        sfx.write(super::sfx::Sfx("pickup")); // "potion" isn't in the synth bank — was silent
     }
 }
 

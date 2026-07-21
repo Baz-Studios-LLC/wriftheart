@@ -108,6 +108,10 @@ pub struct FluteState {
     pub seq: String,
     pub glow: [i32; 4],
     pub song: Option<&'static SongDef>,
+    /// A learned song whose notes are all played but whose LAST note is still held — it
+    /// casts on the RELEASE of that note, not its press (Baz), so a phrase resolves when you
+    /// let the final note ring out.
+    pub armed: Option<&'static SongDef>,
     pub ri: usize,
     pub rt: i32,
     pub flash: i32,
@@ -281,6 +285,7 @@ fn flute_tick(
                         seq: String::new(),
                         glow: [0; 4],
                         song: None,
+                        armed: None,
                         ri: 0,
                         rt: 0,
                         flash: 0,
@@ -397,34 +402,13 @@ fn flute_tick(
                     ltr: n.ltr,
                     col: n.col,
                 });
+                f.armed = None; // a fresh note re-opens the phrase (steals any prior arm)
                 if let Some(hit) = songs::match_tail(&f.seq) {
                     if learned.0.contains(hit.id) {
-                        // The melody catches: it sings itself back, then casts.
-                        f.phase = Phase::Replay;
-                        f.song = Some(hit);
-                        f.ri = 0;
-                        f.rt = 24;
-                        f.seq.clear();
-                        f.flash = 22;
-                        f.held = [false; 4]; // the replay's voice takes over — release
-
-                        // The catch ERUPTS: a slow ring of all four note colours + white
-                        // blooming off the rose (it rides into the replay banner).
-                        for j in 0..26usize {
-                            let ang = j as f32 / 26.0 * std::f32::consts::TAU;
-                            let sp = 1.2 + ((j * 7) % 5) as f32 * 0.25;
-                            let col = if j % 5 == 4 { 0xffffff } else { songs::NOTES[j % 4].col };
-                            f.sparks.push(Spark {
-                                x: rcx,
-                                y: rcy,
-                                vx: ang.cos() * sp,
-                                vy: ang.sin() * sp,
-                                t: 0,
-                                life: 26,
-                                col,
-                            });
-                        }
-                        ctx.sfx.write(super::sfx::Sfx("songmatch"));
+                        // Every note is played — but the melody only CATCHES on the RELEASE of
+                        // this final note (Baz: cast on the up, not the down). Arm it and let
+                        // it ring; the release pass below fires the catch when you let go.
+                        f.armed = Some(hit);
                     } else {
                         // A real melody you were never taught — it won't take.
                         f.seq.clear();
@@ -484,6 +468,29 @@ fn flute_tick(
                         });
                     }
                 }
+            }
+            // The armed melody CATCHES on RELEASE: once every note key is up — you let the
+            // final note ring out and let go — it sings itself back + casts (Baz: cast on the
+            // up of the last note, not the down).
+            if !closed
+                && !NOTE_ACTS.iter().any(|&a| input.held(a))
+                && let Some(hit) = f.armed.take()
+            {
+                f.phase = Phase::Replay;
+                f.song = Some(hit);
+                f.ri = 0;
+                f.rt = 24;
+                f.seq.clear();
+                f.flash = 22;
+                f.held = [false; 4]; // the replay's voice takes over
+                // The catch ERUPTS: a slow ring of all four note colours + white off the rose.
+                for j in 0..26usize {
+                    let ang = j as f32 / 26.0 * std::f32::consts::TAU;
+                    let sp = 1.2 + ((j * 7) % 5) as f32 * 0.25;
+                    let col = if j % 5 == 4 { 0xffffff } else { songs::NOTES[j % 4].col };
+                    f.sparks.push(Spark { x: rcx, y: rcy, vx: ang.cos() * sp, vy: ang.sin() * sp, t: 0, life: 26, col });
+                }
+                ctx.sfx.write(super::sfx::Sfx("songmatch"));
             }
         }
         Phase::Replay => {

@@ -294,11 +294,14 @@ fn sync_shadows(
     // The sun's strength IS the shadow's: full-dark at noon, long and fading through
     // dusk to nothing, then a faint moon shadow rising for the small hours, and back
     // with the dawn. powf(0.6) keeps daytime shadows solid until the sun is low.
-    let sun_a = 0.38 * elev.max(0.0).powf(0.6);
-    let moon_a = 0.10 * (-elev).max(0.0).powf(0.6);
+    // Darker than before (Baz: shadows were too faint to read) — sun 0.38 -> 0.55, moon
+    // 0.10 -> 0.18, and clouds soften a little less (0.65 -> 0.5) so overcast doesn't wash
+    // them out entirely.
+    let sun_a = 0.55 * elev.max(0.0).powf(0.6);
+    let moon_a = 0.18 * (-elev).max(0.0).powf(0.6);
     // Clouds hide the sun (PORT-ORIGINAL tie-in): overcast/storm skies soften every
     // shadow toward nothing — one multiply, priced in by the shader stack.
-    let day_a = (sun_a + moon_a) * (1.0 - 0.65 * weather.cloud());
+    let day_a = (sun_a + moon_a) * (1.0 - 0.5 * weather.cloud());
     let rtime = clock.0 as f32 / 60.0;
 
     // --- Shadows: follow + reap. ---

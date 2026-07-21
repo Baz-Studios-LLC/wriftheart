@@ -65,6 +65,7 @@ pub(crate) fn prompt_tick(
     old: Query<Entity, With<PromptUi>>,
     mut last: Local<LastPrompt>,
     mut doors: Local<DoorCache>,
+    house: Res<super::home::PlayerHouse>,
 ) {
     let Ok(p) = players.single() else { return };
     let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
@@ -94,7 +95,12 @@ pub(crate) fn prompt_tick(
                 .collect();
             *doors = Some(((cur.rx, cur.ry), zones));
         }
+        // The PLAYER'S OWN house door too (its zone lives outside the worldgen entity
+        // layout, so the cache never sees it — Baz: "the house should have an ENTER prompt").
         doors.as_ref().is_some_and(|(_, zones)| zones.iter().any(|z| overlap(hitbox, *z)))
+            || house.0.as_ref().is_some_and(|h| {
+                h.room == (cur.rx, cur.ry) && overlap(hitbox, super::home::door_zone(h.x, h.y))
+            })
     };
 
     // A lore tome at your feet (any mode) — its generous js zone reaches the floor
