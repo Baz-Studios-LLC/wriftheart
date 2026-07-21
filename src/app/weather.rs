@@ -298,6 +298,7 @@ fn tick(
     screen: Res<State<super::screen::Screen>>,
     settings: Res<crate::settings::Settings>,
     time: Res<Time>,
+    mut was_outdoors: Local<bool>,
 ) {
     let outdoors = *screen.get() == super::screen::Screen::Play
         && inside.0.is_none()
@@ -333,10 +334,16 @@ fn tick(
     }
     if !outdoors {
         // Under a roof the sky ENDS, it doesn't fade — the crossfade briefly rained
-        // INSIDE houses, caves and dungeons (Baz). Stepping back out fades in as usual.
+        // INSIDE houses, caves and dungeons (Baz).
+        state.prev_vis = 0.0;
+        state.vis = 1.0;
+    } else if !*was_outdoors {
+        // ...and stepping back OUT the sky is simply THERE (Baz): the storm didn't
+        // pause for you — no fade-in from clear on the doorstep.
         state.prev_vis = 0.0;
         state.vis = 1.0;
     }
+    *was_outdoors = outdoors;
     state.vis = (state.vis + EASE).min(1.0);
     state.prev_vis = (state.prev_vis - EASE).max(0.0);
     if state.prev == state.cur {

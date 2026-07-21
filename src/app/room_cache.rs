@@ -49,10 +49,20 @@ pub enum DropKind {
     Coin(i32),
 }
 
+/// One meadow critter, position and coat included — re-entering a room finds the
+/// rabbit WHERE IT HOPPED TO, like the mobs (Baz). A flown-off bird stays gone.
+pub struct CritterSnap {
+    pub kind: crate::actors::critters::CritterKind,
+    pub x: f32,
+    pub y: f32,
+    pub frame_bank: usize,
+}
+
 pub struct RoomSnap {
     pub day: i64,
     pub mobs: Vec<MobSnap>,
     pub drops: Vec<DropSnap>,
+    pub critters: Vec<CritterSnap>,
 }
 
 /// "rx,ry" -> the room's live layer as of the last settled tick there (js roomCache).
@@ -86,13 +96,14 @@ fn snapshot_room(
     mobs: Query<(&Mob, &Health), Without<crate::app::quests::BountyTag>>,
     goblins: Query<(&Goblin, &Health, Option<&crate::actors::goblin::HumanSkin>), Without<crate::app::quests::BountyTag>>,
     drops: Query<&Pickup>,
+    critters: Query<&crate::actors::critters::Critter>,
 ) {
     if inside.0.is_some() || in_dungeon.0.is_some() {
         return; // an interior/dungeon floor is not the overworld room (js mode check)
     }
     let today = farm_day(clock.0); // rooms reset at DAWN (Baz) — one refresh with trees + crops
     cache.0.retain(|_, s| s.day == today);
-    let mut snap = RoomSnap { day: today, mobs: Vec::new(), drops: Vec::new() };
+    let mut snap = RoomSnap { day: today, mobs: Vec::new(), drops: Vec::new(), critters: Vec::new() };
     for (m, h) in &mobs {
         if h.hp > 0 {
             snap.mobs.push(MobSnap::Mob { def: m.def, x: m.x, y: m.y, hp: h.hp, max: h.max });
@@ -120,6 +131,9 @@ fn snapshot_room(
             PickupKind::Book(_) => continue, // tomes respawn from their own records
         };
         snap.drops.push(DropSnap { kind, x: p.x, y: p.y, life: p.life });
+    }
+    for c in &critters {
+        snap.critters.push(CritterSnap { kind: c.kind, x: c.x, y: c.y, frame_bank: c.frame_bank });
     }
     cache.0.insert((cur.rx, cur.ry), snap);
 }

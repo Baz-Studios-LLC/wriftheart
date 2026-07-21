@@ -367,6 +367,9 @@ pub fn generate(ctx: &GenCtx, giver_seed: u32, done: i32) -> Quest {
     build_type("fetch", ctx, &mut rng).expect("fetch always builds")
 }
 
+/// A giver's live glyph row: (glyph, glyph entity, plate entity, texture draw width, ink width).
+type GlyphRow = (char, Entity, Entity, f32, f32);
+
 /// The glyph over a giver, decided live (js giverGlyph): '!' new offer (log has room),
 /// '-' in progress, GOLD '?' ready to hand in — the WoW read (Baz). ('-' stands in for
 /// the js '·' — no font glyph.)
@@ -407,7 +410,7 @@ fn giver_glyph_tick(
     villagers: Query<(Entity, &Villager)>,
     mut sprites: Query<(&mut Transform, &mut Visibility), With<GlyphSprite>>,
     // (char, glyph entity, plate entity, glyph width at 2x)
-    mut live: Local<HashMap<Entity, (char, Entity, Entity, f32)>>,
+    mut live: Local<HashMap<Entity, GlyphRow>>,
 ) {
     // Mid-slide the villagers ride their room root but these are FREE sprites — they'd
     // hang at settled coords over nothing (the torch-light bug's cousin). Hide till land.
@@ -424,21 +427,22 @@ fn giver_glyph_tick(
         }
         let key = giver_key(cur.rx, cur.ry, v.seed);
         let want = giver_glyph(world.0.seed, v, &key, &log, &inv);
-        let have = live.get(&ve).map(|(c, g, p, w)| (*c, *g, *p, *w));
+        let have = live.get(&ve).map(|(c, g, p, w, i)| (*c, *g, *p, *w, *i));
         match (want, have) {
             (Some((ch, col)), have) if have.map(|(c, ..)| c) != Some(ch) => {
-                if let Some((_, og, op, _)) = have {
+                if let Some((_, og, op, ..)) = have {
                     commands.entity(og).despawn();
                     commands.entity(op).despawn();
                 }
                 // A SCALE-2 glyph on a dark plate (js drawQuestMarkers) — the WoW-style
                 // overhead read. The scale-1 plateless glyph read as a stray speck.
                 let (img, w) = font::bake_text(&ch.to_string(), col, &mut images);
-                let iw2 = ((w + (w & 1)) * 2) as f32;
+                let iw2 = ((w + (w & 1)) * 2) as f32; // texture width (odd bakes pad a blank RIGHT column)
+                let ink2 = (w * 2) as f32; // the visible glyph — centring uses THIS (Baz: '!' sat off-centre)
                 let plate = commands
                     .spawn((
-                        Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(iw2 + 2.0, 12.0)),
-                        crate::gfx::at(0.0, -40.0, iw2 + 2.0, 12.0, crate::gfx::layers::PROMPT + 0.005),
+                        Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(ink2 + 4.0, 12.0)),
+                        crate::gfx::at(0.0, -40.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.005),
                         PIXEL_LAYER,
                         GlyphSprite,
                     ))
@@ -453,33 +457,35 @@ fn giver_glyph_tick(
                         GlyphSprite,
                     ))
                     .id();
-                live.insert(ve, (ch, ge, plate, iw2));
+                live.insert(ve, (ch, ge, plate, iw2, ink2));
             }
-            (None, Some((_, og, op, _))) => {
+            (None, Some((_, og, op, ..))) => {
                 commands.entity(og).despawn();
                 commands.entity(op).despawn();
                 live.remove(&ve);
             }
             _ => {}
         }
-        if let Some((_, ge, plate, iw2)) = live.get(&ve).copied() {
+        if let Some((_, ge, plate, iw2, ink2)) = live.get(&ve).copied() {
             // Centred over their head, bobbing as they wander (js: sin(t/14 + x), -11 up).
+            // The glyph centres by its INK; the texture's blank pad column hangs
+            // invisibly off the right.
             let bob = (clock.0 as f32 / 14.0 + v.x).sin().round() - 11.0;
-            let gx = (super::room_render::PLAY_X + v.x + 8.0 - iw2 / 2.0).round();
+            let gx = (super::room_render::PLAY_X + v.x + 8.0 - ink2 / 2.0).round();
             let gy = (super::room_render::PLAY_Y + v.y.round() + bob).round();
             if let Ok((mut tf, mut vis)) = sprites.get_mut(ge) {
                 *tf = crate::gfx::at(gx, gy, iw2, 12.0, crate::gfx::layers::PROMPT + 0.02);
                 *vis = Visibility::Inherited;
             }
             if let Ok((mut tf, mut vis)) = sprites.get_mut(plate) {
-                *tf = crate::gfx::at(gx - 1.0, gy - 1.0, iw2 + 2.0, 12.0, crate::gfx::layers::PROMPT + 0.005);
+                *tf = crate::gfx::at(gx - 2.0, gy - 1.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.005);
                 *vis = Visibility::Inherited;
             }
         }
         seen.push(ve);
     }
     // Villagers that left (room change, despawn) take their glyph + plate along.
-    live.retain(|ve, (_, ge, plate, _)| {
+    live.retain(|ve, (_, ge, plate, ..)| {
         if seen.contains(ve) {
             true
         } else {

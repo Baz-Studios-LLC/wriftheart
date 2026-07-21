@@ -65,7 +65,7 @@ const CRITTER_BIOMES: [&str; 6] = ["grassland", "forest", "honeyglade", "bluebel
 
 #[derive(Component)]
 pub struct Critter {
-    kind: CritterKind,
+    pub(crate) kind: CritterKind,
     pub(crate) x: f32,
     pub(crate) y: f32,
     dirx: f32,
@@ -80,7 +80,7 @@ pub struct Critter {
     seed: f32, // wobble phase (js (x*7 + y*13) % 628)
     t: i32,
     aim: Option<Vec2>, // a bird's way home: the nearest town's direction
-    frame_bank: usize, // index into CritterArt (kind + bird colour)
+    pub(crate) frame_bank: usize, // index into CritterArt (kind + bird colour)
 }
 
 /// Each kind's NATIVE sprite size (its baked image) — the draw box must match, or
@@ -242,6 +242,7 @@ fn spawn_on_room_change(
     clock: Res<FrameClock>,
     inside: Res<crate::app::interior::Inside>,
     in_dungeon: Res<crate::app::dungeon::InDungeon>,
+    cache: Res<crate::app::room_cache::RoomCache>,
     mut last_root: Local<Option<Entity>>,
 ) {
     if *last_root == Some(root.0) {
@@ -287,12 +288,21 @@ fn spawn_on_room_change(
             }
         }
     }
-    let n = if night { if rnd() < 0.5 { 1 } else { 0 } } else { 2 + (rnd() * 3.0) as i32 };
-    let flowery = matches!(biome, "honeyglade" | "bluebell" | "petalwood");
     // The compass: startled birds break toward the nearest town.
     let town_dir = crate::worldgen::towns::nearest_town(world.0.seed, cur.rx, cur.ry)
         .filter(|&(tx, ty)| (tx, ty) != (cur.rx, cur.ry))
         .map(|(tx, ty)| Vec2::new((tx - cur.rx) as f32, (ty - cur.ry) as f32).normalize_or_zero());
+    // SAME-DAY RESTORE (Baz: critters sync like mobs): the room cache holds where
+    // every rabbit hopped to when you left — re-seat those instead of a fresh
+    // roll. A flown-off bird stays flown. (Fireflies re-rolled above: ambience.)
+    if let Some(snap) = cache.0.get(&(cur.rx, cur.ry)).filter(|sn| sn.day == day) {
+        for c in &snap.critters {
+            spawn_critter(&mut commands, c.kind, c.x, c.y, c.frame_bank, town_dir);
+        }
+        return;
+    }
+    let n = if night { if rnd() < 0.5 { 1 } else { 0 } } else { 2 + (rnd() * 3.0) as i32 };
+    let flowery = matches!(biome, "honeyglade" | "bluebell" | "petalwood");
     for i in 0..n {
         let Some((c, r)) = clear_spot(&mut rnd, &grid.0, 12) else { continue };
         let roll = rnd();
@@ -315,32 +325,45 @@ fn spawn_on_room_change(
             CritterKind::Butterfly => BANK_BUTTERFLY,
             CritterKind::Bird => BANK_BIRD0 + (rnd() * BIRD_COLORS.len() as f32) as usize % BIRD_COLORS.len(),
         };
-        commands.spawn((
-            Critter {
-                kind,
-                x,
-                y,
-                dirx: 0.0,
-                diry: 0.0,
-                move_t: 0,
-                flee_t: 0,
-                hop: 0.0,
-                fleeing: false,
-                committed: false,
-                seed: ((x * 7.0 + y * 13.0) as i32 % 628) as f32,
-                t: 0,
-                aim: if kind == CritterKind::Bird { town_dir } else { None },
-                frame_bank,
-            },
-            Sprite::default(),
-            {
-                let (iw, ih) = sprite_size(kind);
-                crate::gfx::at(PLAY_X + x, PLAY_Y + y, iw, ih, actor_z(y + 8.0))
-            },
-            PIXEL_LAYER,
-            RoomActor,
-        ));
+        spawn_critter(&mut commands, kind, x, y, frame_bank, town_dir);
     }
+}
+
+/// One critter, standing at (x, y) in its coat — shared by the fresh roll and the
+/// same-day room-cache restore.
+pub(crate) fn spawn_critter(
+    commands: &mut Commands,
+    kind: CritterKind,
+    x: f32,
+    y: f32,
+    frame_bank: usize,
+    town_dir: Option<Vec2>,
+) {
+    commands.spawn((
+        Critter {
+            kind,
+            x,
+            y,
+            dirx: 0.0,
+            diry: 0.0,
+            move_t: 0,
+            flee_t: 0,
+            hop: 0.0,
+            fleeing: false,
+            committed: false,
+            seed: ((x * 7.0 + y * 13.0) as i32 % 628) as f32,
+            t: 0,
+            aim: if kind == CritterKind::Bird { town_dir } else { None },
+            frame_bank,
+        },
+        Sprite::default(),
+        {
+            let (iw, ih) = sprite_size(kind);
+            crate::gfx::at(PLAY_X + x, PLAY_Y + y, iw, ih, actor_z(y + 8.0))
+        },
+        PIXEL_LAYER,
+        RoomActor,
+    ));
 }
 
 fn spawn_firefly(commands: &mut Commands, images: &mut Assets<Image>, x: f32, y: f32) {
