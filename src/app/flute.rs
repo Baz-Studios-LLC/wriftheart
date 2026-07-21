@@ -583,6 +583,10 @@ pub(crate) fn flute_tick(
                 f.di = (f.di + 1) % n;
                 ctx.sfx.write(super::sfx::Sfx("menuMove"));
             }
+            if !closed && ptr.wheel_steps != 0 {
+                // Wheel walks the destinations (Baz: any scrollable list).
+                f.di = (f.di as i32 - ptr.wheel_steps).clamp(0, n as i32 - 1) as usize;
+            }
             // Mouse: the list SCROLLS, so hover does nothing — a click selects a
             // destination, clicking the selection warps there.
             let mut dest_click = false;
@@ -1254,32 +1258,6 @@ fn flute_overlay(
 #[derive(Component)]
 struct WarpFxUi;
 
-/// Bake the js radial-gradient glow once: a 64px disc whose alpha falls off with
-/// the square of distance (reads like the 'lighter' gradient the js painted).
-fn radial_glow(images: &mut Assets<Image>) -> Handle<Image> {
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-    const S: usize = 64;
-    let mut data = vec![0u8; S * S * 4];
-    for y in 0..S {
-        for x in 0..S {
-            let (dx, dy) = (x as f32 - 31.5, y as f32 - 31.5);
-            let a = (1.0 - (dx * dx + dy * dy).sqrt() / 32.0).clamp(0.0, 1.0);
-            let i = (y * S + x) * 4;
-            data[i] = 255;
-            data[i + 1] = 255;
-            data[i + 2] = 255;
-            data[i + 3] = (a * a * 255.0) as u8;
-        }
-    }
-    images.add(Image::new(
-        Extent3d { width: S as u32, height: S as u32, depth_or_array_layers: 1 },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-    ))
-}
 
 /// The js drawWarpFx, sprite by sprite: CHARGE = rising radial glow + two
 /// counter-rotating rings of squares tightening in (cyan + arcane purple, squashed
@@ -1304,7 +1282,7 @@ fn warp_fx(
     let z = 9.6;
     if let Some(f) = fluting.0.as_ref().filter(|f| f.phase == Phase::Warp) {
         let prog = (f.wt as f32 / WARP_CHARGE as f32).min(1.0);
-        let img = glow.get_or_insert_with(|| radial_glow(&mut images)).clone();
+        let img = glow.get_or_insert_with(|| crate::gfx::radial_glow_tex(&mut images, 64)).clone();
         let gr = 20.0 + prog * 30.0;
         let mut g = Sprite::from_image(img);
         g.custom_size = Some(Vec2::splat(gr * 2.0));

@@ -91,12 +91,31 @@ impl Plugin for SettingsPlugin {
 /// Load settings.json (defaults on a fresh install or under WRIFT_SHOT) and overlay any
 /// saved custom bindings onto the defaults.
 fn load_settings(mut commands: Commands, mut bindings: ResMut<Bindings>) {
-    let settings = persist::enabled()
+    let mut settings = persist::enabled()
         .then(|| persist::data_file("settings.json"))
         .flatten()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str::<Settings>(&s).ok())
         .unwrap_or_default();
+    // MIGRATION (Baz: slots default to LMB/RMB/Q/E): a settings file saved before
+    // the mouse era still carries the OLD keyboard slot layout (E+SPACE / X / C / V)
+    // and would override the new defaults forever. If the saved rows are EXACTLY
+    // that legacy set — untouched by the player — swap them for the new defaults
+    // (LMB/RMB live in the mouse table). Anything customized stays customized.
+    let legacy: [(&str, &[&str]); 4] =
+        [("slot1", &["E", "SPACE"]), ("slot2", &["X"]), ("slot3", &["C"]), ("slot4", &["V"])];
+    let is_legacy = legacy.iter().all(|(slug, keys)| {
+        settings.keys.iter().any(|(s, k)| s == slug && k.iter().map(String::as_str).eq(keys.iter().copied()))
+    });
+    if is_legacy {
+        for (slug, new_keys) in
+            [("slot1", vec![]), ("slot2", vec![]), ("slot3", vec!["Q".to_string()]), ("slot4", vec!["E".to_string()])]
+        {
+            if let Some(row) = settings.keys.iter_mut().find(|(s, _)| s == slug) {
+                row.1 = new_keys;
+            }
+        }
+    }
     if !settings.keys.is_empty() || !settings.pads.is_empty() || !settings.mouse.is_empty() {
         bindings.import(&settings.keys, &settings.pads, &settings.mouse);
     }

@@ -8,8 +8,10 @@
 
 use super::super::play::{CurRoom, GameWorld, Visited};
 use super::{hint_scaffold, CodexUi, CodexState, TabContent, CONTENT_Z, FOOT_H, TOP_H};
-use crate::gfx::{at, PIXEL_LAYER};
+use crate::gfx::{at, font, PIXEL_LAYER};
 use crate::input::{Action, ActionState, Bindings};
+use crate::ui::{frame_rect, label};
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use crate::room::{COLS, ROWS};
 use crate::{CANVAS_H, CANVAS_W};
 use bevy::asset::RenderAssetUsages;
@@ -42,6 +44,18 @@ pub struct ThumbCache(HashMap<(i32, i32), Handle<Image>>);
 
 #[derive(Component)]
 pub struct MapRoot;
+
+/// The RECENTER chip (bottom-right of the view) — snaps the camera back onto the
+/// room you stand in. NOT a child of the map root (it must not pan).
+#[derive(Component, Clone)]
+pub struct RecenterBtn;
+
+/// One geometry source for the chip's draw + click test (the tab_chips rule).
+fn recenter_rect() -> (f32, f32, f32, f32) {
+    let (vw, vh) = view_size();
+    let w = font::measure("RECENTER") as f32 + 8.0;
+    (AX + vw - w - 3.0, AY + vh - 14.0, w, 11.0)
+}
 
 pub fn hint(bindings: &Bindings, pad: bool) -> String {
     let zoom = format!(
@@ -81,19 +95,34 @@ pub fn run(
         Query<&crate::app::play::Player>,
         Res<crate::app::dungeon::InDungeon>,
         Res<crate::app::saltmaze::ChantClock>,
+        // The MOUSE gear (Baz: drag pans, wheel zooms, RECENTER snaps home):
+        // pointer, buttons, wheel, the drag anchor, the wheel accumulator, the chip.
+        (
+            Res<crate::input::Pointer>,
+            Res<ButtonInput<MouseButton>>,
+            MessageReader<MouseWheel>,
+            Local<Option<Vec2>>,
+            Local<f32>,
+            Query<Entity, With<RecenterBtn>>,
+        ),
     ),
     mut dmap_key: Local<Option<(i32, i32, i32, u32, i32)>>,
 ) {
+    let (towns, phouse, relics_res, players_q, in_dungeon, chant, mouse) = marks;
+    let (ptr, mbtn, mut wheels, mut drag, mut wacc, btns) = mouse;
     // UNDERGROUND: the DUNGEON FLOOR MAP replaces the world map (js drawDungeonMap) —
     // auto-fit, no zoom/pan, rebuilt when the room/floor moves (or the chant meter ticks).
-    if let Some(drun) = &marks.4.0 {
-        let key = (drun.drx, drun.dry, drun.dungeon.floor as i32, cx_state.generation, marks.5.0 / 30);
+    if let Some(drun) = &in_dungeon.0 {
+        for e in &btns {
+            commands.entity(e).despawn(); // no recentering a fixed floor map
+        }
+        let key = (drun.drx, drun.dry, drun.dungeon.floor as i32, cx_state.generation, chant.0 / 30);
         if *dmap_key != Some(key) {
             *dmap_key = Some(key);
             for (e, _) in &root {
                 commands.entity(e).despawn();
             }
-            spawn_dungeon_map(&mut commands, &mut images, drun, marks.5.0);
+            spawn_dungeon_map(&mut commands, &mut images, drun, chant.0);
         }
         return;
     }
@@ -149,6 +178,72 @@ pub fn run(
             view.cy += PAN_PX / full_h;
         }
     }
+    // MOUSE (Baz): hold-and-drag pans the map under the cursor, the wheel zooms,
+    // and the RECENTER chip snaps the camera back onto the room you stand in.
+    {
+        let b = bounds(&visited, cur.rx, cur.ry, &pins);
+        let (cell_w, cell_h) = cell_size(view.ts);
+        let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
+        let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
+        let (vw, vh) = view_size();
+        let (bx, by, bw, bh) = recenter_rect();
+        for m in wheels.read() {
+            *wacc += match m.unit {
+                MouseScrollUnit::Line => m.y,
+                MouseScrollUnit::Pixel => m.y / 24.0,
+            };
+        }
+        while *wacc >= 1.0 {
+            *wacc -= 1.0;
+            if view.ts < 16 {
+                view.ts += 1;
+                rebuild = true;
+            }
+        }
+        while *wacc <= -1.0 {
+            *wacc += 1.0;
+            if view.ts > 1 {
+                view.ts -= 1;
+                rebuild = true;
+            }
+        }
+        if mbtn.pressed(MouseButton::Left) {
+            if let Some(p) = ptr.pos {
+                if let Some(last) = *drag {
+                    // The map rides WITH the cursor: camera moves opposite the drag.
+                    view.cx -= (p.x - last.x) / full_w;
+                    view.cy -= (p.y - last.y) / full_h;
+                    *drag = Some(p);
+                } else if mbtn.just_pressed(MouseButton::Left)
+                    && p.x >= AX
+                    && p.x <= AX + vw
+                    && p.y >= AY
+                    && p.y <= AY + vh
+                    && !ptr.over(bx, by, bw, bh)
+                {
+                    *drag = Some(p);
+                }
+            }
+        } else {
+            *drag = None;
+        }
+        if ptr.click && ptr.over(bx, by, bw, bh) {
+            view.cx = ((cur.rx - b.min_x) as f32 * cell_w + COLS as f32 * view.ts as f32 / 2.0) / full_w;
+            view.cy = ((cur.ry - b.min_y) as f32 * cell_h + ROWS as f32 * view.ts as f32 / 2.0) / full_h;
+        }
+        // Stand the chip up once (swept with the tab; rebuilt here if missing).
+        if btns.is_empty() {
+            let tag = (CodexUi, TabContent, RecenterBtn);
+            commands.spawn((
+                Sprite::from_color(Color::srgb_u8(0x14, 0x14, 0x1c), Vec2::new(bw, bh)),
+                at(bx, by, bw, bh, CONTENT_Z + 0.55),
+                PIXEL_LAYER,
+                tag.clone(),
+            ));
+            frame_rect(&mut commands, bx, by, bw, bh, 0x4a4a58, CONTENT_Z + 0.56, tag.clone());
+            label(&mut commands, &mut images, "RECENTER", bx + 4.0, by + 3.0, 0xcfd8e4, CONTENT_Z + 0.57, tag);
+        }
+    }
     view.cx = view.cx.clamp(0.0, 1.0);
     view.cy = view.cy.clamp(0.0, 1.0);
 
@@ -156,11 +251,11 @@ pub fn run(
         for (e, _) in &root {
             commands.entity(e).despawn();
         }
-        let relics_whole = marks.2.0.len() >= world.0.shard_biomes().len();
-        let ppos = marks.3.single().map(|p| (p.x, p.y)).unwrap_or((0.0, 0.0));
+        let relics_whole = relics_res.0.len() >= world.0.shard_biomes().len();
+        let ppos = players_q.single().map(|p| (p.x, p.y)).unwrap_or((0.0, 0.0));
         spawn_map(
             &mut commands, &world, &visited, cur.as_ref(), &view, &mut cache, &mut images, &quests, &tmaps, &inv,
-            &marks.0, &marks.1, relics_whole, ppos,
+            &towns, &phouse, relics_whole, ppos,
         );
     } else if let Ok((_, mut tf)) = root.single_mut() {
         *tf = root_transform(&visited, cur.as_ref(), &view, &pins);

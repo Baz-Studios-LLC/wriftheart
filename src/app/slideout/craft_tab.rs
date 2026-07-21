@@ -172,6 +172,11 @@ pub fn actions(
         cs.cursor = (cs.cursor + 1) % recipes.len();
         dirty = true;
     }
+    if ptr.wheel_steps != 0 {
+        // Wheel walks the list, clamped — no wrap surprise mid-scroll (Baz).
+        cs.cursor = (cs.cursor as i32 - ptr.wheel_steps).clamp(0, recipes.len() as i32 - 1) as usize;
+        dirty = true;
+    }
     // Slot3 = PIN/unpin the cursor's recipe (js): the cursor FOLLOWS it as the list
     // re-sorts, so pinning doesn't teleport your selection.
     if state.pressed(Action::Slot3) {

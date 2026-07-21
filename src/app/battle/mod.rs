@@ -42,6 +42,7 @@ impl Plugin for BattlePlugin {
             .add_systems(
                 FixedUpdate,
                 (
+                    water_mob_wake,
                     ai::goblin_ai,
                     ai::mobs_ai,
                     projectiles::attacks_tick,
@@ -166,5 +167,78 @@ pub fn spawn_room_mobs(
 pub fn despawn_room_actors(commands: &mut Commands, actors: &Query<Entity, With<RoomActor>>) {
     for e in actors {
         commands.entity(e).despawn();
+    }
+}
+
+/// THE WATERS' rare lurkers (Baz, past-js): at most ONE water mob per room, seeded
+/// deterministically (~1 watery room in 8 — the same rooms every time, so they read
+/// as authored haunts, never a chore). spitgill takes open water; tidewhip wants a
+/// shore tile so its whip can reach a walking hero. The station_wake idiom: keyed
+/// on the room, swept by the room's own RoomActor teardown.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn water_mob_wake(
+    mut commands: Commands,
+    cur: Res<super::play::CurRoom>,
+    sliding: Res<super::play::SlideActive>,
+    inside: Res<super::interior::Inside>,
+    in_dungeon: Res<super::dungeon::InDungeon>,
+    world: Res<super::play::GameWorld>,
+    grid: Res<super::play::CurGrid>,
+    mut woke: Local<Option<(i32, i32)>>,
+) {
+    if sliding.0 || inside.0.is_some() || in_dungeon.0.is_some() {
+        *woke = None;
+        return;
+    }
+    let room = (cur.rx, cur.ry);
+    if *woke == Some(room) {
+        return;
+    }
+    *woke = Some(room);
+    if room == (0, 0) || room == super::room_props::HOME_VILLAGE || world.0.is_town(room.0, room.1) {
+        return;
+    }
+    let h = (room.0 as u32).wrapping_mul(2654435761) ^ (room.1 as u32).wrapping_mul(97) ^ world.0.seed;
+    if !h.is_multiple_of(8) {
+        return;
+    }
+    use crate::room::{COLS, ROWS};
+    let mut water: Vec<(i32, i32, bool)> = Vec::new(); // (c, r, has land neighbour)
+    for r in 1..ROWS - 1 {
+        for c in 1..COLS - 1 {
+            if grid.0.code_at(c, r) == '~' {
+                let shore = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                    .iter()
+                    .any(|(dc, dr)| grid.0.code_at(c + dc, r + dr) != '~' && !grid.0.box_hits_solid((c + dc) as f32 * 16.0 + 8.0, (r + dr) as f32 * 16.0 + 8.0, 1.0, 1.0));
+                water.push((c, r, shore));
+            }
+        }
+    }
+    if water.len() < 8 {
+        return; // a puddle earns no lurker
+    }
+    // The pair is the BIOME's (Baz: kin biomes share, strangers differ): the murk
+    // partition (water_style) hosts the bog pair, the arctic its frost sniper,
+    // everywhere temperate the originals.
+    let biome = world.0.biome_key_at(room.0, room.1);
+    let murk = world.0.water_style(room.0 * crate::room::COLS, room.1 * crate::room::ROWS) == "murk";
+    let (spit_kind, whip_kind) = if murk {
+        ("bogmaw", "mirelash")
+    } else if biome == "arctic" {
+        ("frostgill", "tidewhip")
+    } else {
+        ("spitgill", "tidewhip")
+    };
+    let whip = (h >> 9) & 1 == 0;
+    let pool: Vec<&(i32, i32, bool)> = if whip {
+        let shore: Vec<&(i32, i32, bool)> = water.iter().filter(|(_, _, s)| *s).collect();
+        if shore.is_empty() { water.iter().collect() } else { shore }
+    } else {
+        water.iter().collect()
+    };
+    let &&(c, r, _) = &pool[(h >> 3) as usize % pool.len()];
+    let kind = if whip { whip_kind } else { spit_kind };
+    if let Some(idx) = crate::actors::mobs::def_index(kind) {
+        commands.spawn((crate::actors::mobs::mob_bundle(idx, (c * 16) as f32, (r * 16) as f32), RoomActor, crate::gfx::PIXEL_LAYER));
     }
 }

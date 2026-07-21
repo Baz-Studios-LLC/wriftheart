@@ -50,6 +50,7 @@ pub fn run(
     names: Res<TownNames>,
     mut state: ResMut<ActionState>,
     mut sfx: MessageWriter<crate::app::sfx::Sfx>,
+    ptr: Res<crate::input::Pointer>,
     old: Query<Entity, With<GuildsUi>>,
     mut cur: Local<usize>,
     mut seen_gen: Local<Option<u32>>,
@@ -67,6 +68,11 @@ pub fn run(
         if state.pressed(Action::Down) {
             *cur = (*cur + 1) % rows.len();
             state.consume(Action::Down);
+            moved = true;
+        }
+        if ptr.wheel_steps != 0 {
+            // Wheel walks the halls, clamped (Baz: any scrollable list).
+            *cur = (*cur as i32 - ptr.wheel_steps).clamp(0, rows.len() as i32 - 1) as usize;
             moved = true;
         }
         if moved {

@@ -155,7 +155,37 @@ pub static EMBERLING_FRAMES: &[MobFrame] = &[MobFrame {
 }];
 
 /// Every simple-frame kind -> its animation strip (wolf is per-facing, above).
+// HAND-AUTHORED (past-js): the two water lurkers. spitgill frame 0 = the ripple
+// (submerged), frame 1 = the surfaced head (fx.rs picks by m.st); tidewhip sways
+// on the default anim clock.
+pub static SPITGILL_FRAMES: &[MobFrame] = &[
+    MobFrame { grid: &["................", "................", "................", "................", "................", "...b........b...", "..b.bb....bb.b..", "....b.bbbb.b....", "......bbbb......", "................"], pal: &[('b', 0xa8d8ec)] },
+    MobFrame { grid: &["................", ".....ttttt......", "....tTTTTTt.....", "....TKTTTKT.....", "....TTTTTTT.....", "....TToooTT.....", ".....TTTTT......", "...b..ttt..b....", "..b.bb...bb.b...", "................"], pal: &[('t', 0x2f6a8a), ('T', 0x58a0c0), ('K', 0x0e2230), ('o', 0xd06a3a), ('b', 0xa8d8ec)] },
+];
+pub static TIDEWHIP_FRAMES: &[MobFrame] = &[
+    MobFrame { grid: &["................", ".....qqqqq......", "....qQQQQQq.....", "....QKQQQKQ.....", "....QQQQQQQ.....", ".....QQQQQ......", "....q.q.q.q.....", "...q..q.q..q....", "...q.q...q.q....", "................"], pal: &[('q', 0x4a2f66), ('Q', 0x8a5aa8), ('K', 0x120a20)] },
+    MobFrame { grid: &["................", ".....qqqqq......", "....qQQQQQq.....", "....QKQQQKQ.....", "....QQQQQQQ.....", ".....QQQQQ......", "....q.q.q.q.....", "....q.q.q.q.....", "....q..q..q.....", "................"], pal: &[('q', 0x4a2f66), ('Q', 0x8a5aa8), ('K', 0x120a20)] },
+];
+
+pub static BOGMAW_FRAMES: &[MobFrame] = &[
+    MobFrame { grid: &["................", "................", "................", "................", "................", "...b........b...", "..b.bb....bb.b..", "....b.bbbb.b....", "......bbbb......", "................"], pal: &[('b', 0x9ab868)] },
+    MobFrame { grid: &["................", ".....ttttt......", "....tTTTTTt.....", "....TKTTTKT.....", "....TTTTTTT.....", "....TToooTT.....", ".....TTTTT......", "...b..ttt..b....", "..b.bb...bb.b...", "................"], pal: &[('t', 0x4a6a2a), ('T', 0x7a9a48), ('K', 0x141c08), ('o', 0xc8d060), ('b', 0x9ab868)] },
+];
+pub static FROSTGILL_FRAMES: &[MobFrame] = &[
+    MobFrame { grid: &["................", "................", "................", "................", "................", "...b........b...", "..b.bb....bb.b..", "....b.bbbb.b....", "......bbbb......", "................"], pal: &[('b', 0xd8f0ff)] },
+    MobFrame { grid: &["................", ".....ttttt......", "....tTTTTTt.....", "....TKTTTKT.....", "....TTTTTTT.....", "....TToooTT.....", ".....TTTTT......", "...b..ttt..b....", "..b.bb...bb.b...", "................"], pal: &[('t', 0x5a88b0), ('T', 0xa0d0e8), ('K', 0x102840), ('o', 0x486a90), ('b', 0xd8f0ff)] },
+];
+pub static MIRELASH_FRAMES: &[MobFrame] = &[
+    MobFrame { grid: &["................", ".....qqqqq......", "....qQQQQQq.....", "....QKQQQKQ.....", "....QQQQQQQ.....", ".....QQQQQ......", "....q.q.q.q.....", "...q..q.q..q....", "...q.q...q.q....", "................"], pal: &[('q', 0x3a5a24), ('Q', 0x6a8a3c), ('K', 0x101806)] },
+    MobFrame { grid: &["................", ".....qqqqq......", "....qQQQQQq.....", "....QKQQQKQ.....", "....QQQQQQQ.....", ".....QQQQQ......", "....q.q.q.q.....", "....q.q.q.q.....", "....q..q..q.....", "................"], pal: &[('q', 0x3a5a24), ('Q', 0x6a8a3c), ('K', 0x101806)] },
+];
+
 pub static ALL_FRAMES: &[(&str, &[MobFrame])] = &[
+    ("spitgill", SPITGILL_FRAMES),
+    ("tidewhip", TIDEWHIP_FRAMES),
+    ("bogmaw", BOGMAW_FRAMES),
+    ("frostgill", FROSTGILL_FRAMES),
+    ("mirelash", MIRELASH_FRAMES),
     ("prismshard", PRISMSHARD_FRAMES),
     ("ashgeyser", ASHGEYSER_FRAMES),
     ("deepcrawler", DEEPCRAWLER_FRAMES),
@@ -275,4 +305,9 @@ pub static BESTIARY_INFO: &[(&str, &str, &str)] = &[
     ("toxicslime", "ACID SLIME", "A caustic bog-ooze; its venom clings. Splits when slain."),
     ("frog", "BOG FROG", "Leaps in arcs; snaps when close."),
     ("wolf", "DIRE WOLF", "Packs that circle and lunge."),
+    ("spitgill", "SPITGILL", "A river sniper: it surfaces, spits, and sinks beyond reach."),
+    ("tidewhip", "TIDEWHIP", "A shore squid; stray near its water and the tentacles answer."),
+    ("bogmaw", "BOGMAW", "The murk's sniper — its spit carries the rot."),
+    ("mirelash", "MIRELASH", "A swamp squid; its tentacles leave poison behind."),
+    ("frostgill", "FROSTGILL", "An arctic sniper; its spit chills the blood."),
 ];

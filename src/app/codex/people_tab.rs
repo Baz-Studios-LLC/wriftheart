@@ -108,6 +108,7 @@ fn tier_of(h: i32) -> (&'static str, u32) {
 pub fn run(
     mut commands: Commands,
     state: Res<ActionState>,
+    ptr: Res<crate::input::Pointer>,
     cx_state: Res<CodexState>,
     ledger: Res<PeopleLedger>,
     clock: Res<crate::app::room_render::FrameClock>,
@@ -128,6 +129,11 @@ pub fn run(
         }
         if state.pressed(Action::Down) {
             px.cur = (px.cur + 1) % list.len();
+            dirty = true;
+        }
+        if ptr.wheel_steps != 0 {
+            // Wheel walks the roster, clamped (Baz: any scrollable list).
+            px.cur = (px.cur as i32 - ptr.wheel_steps).clamp(0, list.len() as i32 - 1) as usize;
             dirty = true;
         }
         if state.pressed(Action::Slot1)

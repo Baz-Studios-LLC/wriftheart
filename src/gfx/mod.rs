@@ -14,5 +14,5 @@ pub mod tile_textures;
 pub mod tiles_art;
 
 pub use bake::{bake, flip_h};
-pub use canvas::{at, PixelCanvasPlugin, PIXEL_LAYER};
+pub use canvas::{at, radial_glow_tex, PixelCanvasPlugin, PIXEL_LAYER};
 pub use tile_textures::TileTextures;

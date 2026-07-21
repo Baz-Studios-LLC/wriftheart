@@ -40,6 +40,31 @@ impl Plugin for PixelCanvasPlugin {
 /// DOWN, drawing sprites from their top-left corner. Bevy 2D has its origin at the CENTRE with
 /// +Y pointing UP, anchoring sprites at their CENTRE. Every ported coordinate goes through here
 /// — pass the JS x/y and the sprite size, get a Bevy transform back.
+/// A soft radial disc (alpha falls off with distance squared), baked once and
+/// TINTED at the sprite — THE one copy of the glow texture the warp charge, the
+/// dungeon rune, and every future 'lighter'-gradient stand-in shares.
+pub fn radial_glow_tex(images: &mut bevy::asset::Assets<bevy::image::Image>, size: usize) -> bevy::asset::Handle<bevy::image::Image> {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    let half = size as f32 / 2.0 - 0.5;
+    let mut data = vec![0u8; size * size * 4];
+    for y in 0..size {
+        for x in 0..size {
+            let (dx, dy) = (x as f32 - half, y as f32 - half);
+            let a = (1.0 - (dx * dx + dy * dy).sqrt() / (size as f32 / 2.0)).clamp(0.0, 1.0);
+            let i = (y * size + x) * 4;
+            data[i..i + 4].copy_from_slice(&[255, 255, 255, (a * a * 255.0) as u8]);
+        }
+    }
+    images.add(bevy::image::Image::new(
+        Extent3d { width: size as u32, height: size as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    ))
+}
+
 pub fn at(x: f32, y: f32, w: f32, h: f32, z: f32) -> Transform {
     Transform::from_xyz(
         x - CANVAS_W as f32 / 2.0 + w / 2.0,

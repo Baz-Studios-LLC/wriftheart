@@ -111,6 +111,7 @@ fn lootgoblin_tick(
     mut lootgob: ResMut<LootGob>,
     cur: Res<CurRoom>,
     clock: Res<FrameClock>,
+    grid: Res<super::play::CurGrid>,
     players: Query<&Player>,
     mut gobs: Query<(Entity, &mut LootGoblin, &mut Transform, &mut Hitbox, &Health, &mut Sprite)>,
 ) {
@@ -162,8 +163,16 @@ fn lootgoblin_tick(
             }
             let sp = 1.7;
             let wob = (g.anim as f32 * 0.3).sin() * 0.35;
-            g.x = (g.x + vx * sp + wob).clamp(0.0, w - 16.0);
-            g.y = (g.y + vy * sp - wob).clamp(0.0, h - 16.0);
+            // Per-axis collision (the mob_step rule): it JUKES, it doesn't GHOST —
+            // no more sprinting across lakes or through boulders (Baz, laughing).
+            let try_x = (g.x + vx * sp + wob).clamp(0.0, w - 16.0);
+            if !grid.0.box_hits_solid(try_x + 3.0, g.y + 5.0, 10.0, 9.0) {
+                g.x = try_x;
+            }
+            let try_y = (g.y + vy * sp - wob).clamp(0.0, h - 16.0);
+            if !grid.0.box_hits_solid(g.x + 3.0, try_y + 5.0, 10.0, 9.0) {
+                g.y = try_y;
+            }
             g.facing = face_from(vx, vy);
             // Only AFTER the grace does it slip out an edge — it RELOCATES to the neighbour
             // room ON THE RUN (js relocate): follow it before the deadline or it's gone.

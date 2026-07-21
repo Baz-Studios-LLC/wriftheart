@@ -42,7 +42,8 @@ pub struct PlayPlugin;
 
 impl Plugin for PlayPlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<super::screen::Screen>()
+        app.add_systems(bevy::state::state::OnEnter(super::screen::Screen::Play), latch_face_buttons)
+            .init_state::<super::screen::Screen>()
             .init_resource::<Bindings>()
             .init_resource::<ActionState>()
             .init_resource::<FrameClock>()
@@ -274,6 +275,16 @@ pub struct ModeCtx<'w> {
     pub side: Res<'w, super::sidescroll::SideScroll>,
     /// Read-only: the opening cinematic owns the whole frame (ModeCtx is AT the cap).
     pub cutscene: Res<'w, super::cinematic::Cutscene>,
+}
+
+/// Entering free roam LATCHES the face buttons: whatever press confirmed the way in
+/// (the title's CONTINUE click, a menu close) can't fire as a sword swing on arrival
+/// (Baz: "hit continue and the character swings his sword"). Latch only bites HELD
+/// buttons — a fresh press after arrival works instantly.
+fn latch_face_buttons(mut state: ResMut<ActionState>) {
+    for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
+        state.latch(a);
+    }
 }
 
 /// The hero, HEXED (the Unmaker's rule-theft): held directions are MIRRORED while

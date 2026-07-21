@@ -622,7 +622,7 @@ fn rune_tick(
     let tint = |c: u32, a: f32| {
         Color::srgba((c >> 16 & 255) as f32 / 255.0, (c >> 8 & 255) as f32 / 255.0, (c & 255) as f32 / 255.0, a)
     };
-    let (glow, ring) = tex.get_or_insert_with(|| (rune_glow_tex(&mut images), rune_ring_tex(&mut images))).clone();
+    let (glow, ring) = tex.get_or_insert_with(|| (crate::gfx::radial_glow_tex(&mut images, 48), rune_ring_tex(&mut images))).clone();
     let dim = !shards.is_empty(); // the unclaimed shard outranks the ride home
     let t = clock.0 as f32;
     let pulse = ((0.55 + 0.45 * (t * 0.11).sin()) * if dim { 0.3 } else { 1.0 }).clamp(0.0, 1.0);
@@ -675,28 +675,6 @@ fn rune_tick(
     }
 }
 
-/// The js radial gradient, baked once: a soft disc whose alpha falls off squared.
-fn rune_glow_tex(images: &mut Assets<Image>) -> Handle<Image> {
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-    const S: usize = 48;
-    let mut data = vec![0u8; S * S * 4];
-    for y in 0..S {
-        for x in 0..S {
-            let (dx, dy) = (x as f32 - 23.5, y as f32 - 23.5);
-            let a = (1.0 - (dx * dx + dy * dy).sqrt() / 24.0).clamp(0.0, 1.0);
-            let i = (y * S + x) * 4;
-            data[i..i + 4].copy_from_slice(&[255, 255, 255, (a * a * 255.0) as u8]);
-        }
-    }
-    images.add(Image::new(
-        Extent3d { width: S as u32, height: S as u32, depth_or_array_layers: 1 },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-    ))
-}
 
 /// The js ctx.arc(r6) stroke as a crisp pixel circle, baked once (13x13, white).
 fn rune_ring_tex(images: &mut Assets<Image>) -> Handle<Image> {

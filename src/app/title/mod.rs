@@ -90,8 +90,8 @@ fn opts(metas: &SlotMetas) -> Vec<Opt> {
     let mut v = Vec::new();
     if saved > 0 {
         v.push(Opt::Continue);
-    }
-    if saved >= 2 {
+        // LOAD earns its row with ANY save (it was 2+): it's also where a save
+        // gets DELETED, and that path must always exist (Baz).
         v.push(Opt::Load);
     }
     v.extend([Opt::New, Opt::Options, Opt::Exit]);

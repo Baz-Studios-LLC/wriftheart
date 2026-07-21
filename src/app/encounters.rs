@@ -886,17 +886,11 @@ pub fn shout_labels(
                 if let Some((_, old, _)) = have {
                     commands.entity(old).despawn();
                 }
-                let (img, w) = crate::gfx::font::bake_text(text, 0xfce0a8, images);
-                let iw = (w + (w & 1)) as f32;
-                let e = commands
-                    .spawn((
-                        Sprite::from_image(img),
-                        at(0.0, -40.0, iw, 6.0, crate::gfx::layers::PROMPT),
-                        PIXEL_LAYER,
-                        ShoutLabel,
-                    ))
-                    .id();
-                live.insert(owner, (text.to_string(), e, iw));
+                // ONE speech-bubble look for every talker (Baz) — the shared
+                // ui::speech_bubble recipe the town chat uses too.
+                let (e, bw) = crate::ui::speech_bubble(commands, images, text, 0.0, -40.0, crate::gfx::layers::CHAT);
+                commands.entity(e).insert(ShoutLabel);
+                live.insert(owner, (text.to_string(), e, bw));
             }
             (None, Some((_, old, _))) => {
                 commands.entity(old).despawn();
@@ -904,10 +898,13 @@ pub fn shout_labels(
             }
             _ => {}
         }
-        if let Some((_, e, iw)) = live.get(&owner)
+        if let Some((_, e, bw)) = live.get(&owner)
             && let Ok((mut tf, mut vis)) = labels.get_mut(*e)
         {
-            *tf = at((PLAY_X + x + 8.0 - iw / 2.0).round(), (PLAY_Y + y - 9.0).round(), *iw, 6.0, crate::gfx::layers::PROMPT);
+            // The bubble floats where the town bubbles float (talk.rs by = y - 13),
+            // clamped into the play field so a shore-side shout never clips off.
+            let bx = (PLAY_X + x + 8.0 - bw / 2.0).round().clamp(PLAY_X + 2.0, PLAY_X + crate::room::PX_W as f32 - bw - 2.0);
+            *tf = at(bx, (PLAY_Y + y - 13.0).round(), *bw, 11.0, crate::gfx::layers::CHAT);
             *vis = if sliding.0 { Visibility::Hidden } else { Visibility::Inherited };
         }
         seen.push(owner);

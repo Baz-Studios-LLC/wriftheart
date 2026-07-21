@@ -95,6 +95,7 @@ fn stat_lines(s: &Stats, progress: &Progress, clock: i64) -> Vec<Line> {
 pub fn run(
     mut commands: Commands,
     state: Res<ActionState>,
+    ptr: Res<crate::input::Pointer>,
     cx_state: Res<CodexState>,
     stats: Res<Stats>,
     progress: Res<Progress>,
@@ -118,6 +119,11 @@ pub fn run(
     }
     if state.pressed(Action::Down) && view.scroll < max_scroll {
         view.scroll = (view.scroll + 2).min(max_scroll);
+        dirty = true;
+    }
+    if ptr.wheel_steps != 0 {
+        // Wheel scrolls the ledger (Baz: any scrollable list).
+        view.scroll = (view.scroll as i32 - ptr.wheel_steps * 2).clamp(0, max_scroll as i32) as usize;
         dirty = true;
     }
     if !dirty {

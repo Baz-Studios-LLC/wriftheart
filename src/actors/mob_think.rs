@@ -471,6 +471,51 @@ pub fn mob_think(
                 hurler_dart(m, ppos, rand); // player out of range: reposition instead
             }
         }
+        Ai::WaterSpitter { period, up_at, fire_r, sp, dmg, color, core, afflict } => {
+            // Rooted on its water tile: no stepping, no water-pathing to solve.
+            m.t += 1;
+            let ph = m.t.rem_euclid(*period);
+            let (dx, dy) = ((ppos.x + 8.0) - (m.x + 8.0), (ppos.y + 9.0) - (m.y + 8.0));
+            if ph < *up_at {
+                // Submerged: a ripple — harmless and unhittable (the burrower rule).
+                m.st = 0;
+                *hittable = false;
+                *contact = None;
+            } else {
+                m.st = 1;
+                *contact = Some(1); // surfaced: brushing it nips
+                m.facing = if dx < 0.0 { 3 } else { 0 };
+                let dist = dx.hypot(dy);
+                if ph == *up_at + 14 && dist < *fire_r {
+                    m.anim += 1;
+                    return Some(MobAct::Bolts {
+                        x: m.x,
+                        y: m.y,
+                        angs: vec![dy.atan2(dx)],
+                        sp: *sp,
+                        dmg: *dmg,
+                        color: *color,
+                        core: *core,
+                        life: 90,
+                        afflict: *afflict,
+                    });
+                }
+            }
+            return None;
+        }
+        Ai::WaterWhip { lash_r, cd } => {
+            m.t += 1;
+            let (dx, dy) = ((ppos.x + 8.0) - (m.x + 8.0), (ppos.y + 9.0) - (m.y + 8.0));
+            let dist = dx.hypot(dy);
+            m.facing = if dx < 0.0 { 3 } else { 0 };
+            m.anim += 1; // the idle tentacle sway never rests
+            if dist < *lash_r && m.t >= *cd {
+                m.t = 0;
+                let inv = 1.0 / dist.max(1.0);
+                return Some(MobAct::Tongue { ax: m.x + 8.0, ay: m.y + 6.0, ux: dx * inv, uy: dy * inv, len: dist.min(*lash_r) });
+            }
+            return None;
+        }
         // Batch-2 archetypes live in mob_think_2.
         _ => return mob_think_2(m, grid, blockers, ppos, pbox, rand),
     }

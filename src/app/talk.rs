@@ -22,7 +22,7 @@ use crate::gfx::{at, bake, font, layers, PIXEL_LAYER};
 use crate::input::{Action, ActionState};
 use crate::people;
 use crate::room::PX_W;
-use crate::ui::{border_strips, label};
+use crate::ui::label;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -312,23 +312,11 @@ pub(crate) fn talk_tick(
     if !talking {
         return; // no press yet — hold the silence
     }
+    // THE shared bubble (ui::speech_bubble — the same recipe the wilds' shouts use).
     let w = font::measure(&line) as f32 + 8.0;
     let bx = (PLAY_X + (vx + 8.0 - w / 2.0).round()).clamp(PLAY_X + 2.0, PLAY_X + PX_W as f32 - w - 2.0);
-    commands.spawn((
-        Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.85), Vec2::new(w, 11.0)),
-        at(bx, by, w, 11.0, layers::CHAT),
-        PIXEL_LAYER,
-        ChatUi,
-    ));
-    for (sx, sy, sw, sh) in border_strips(bx, by, w, 11.0, 1.0) {
-        commands.spawn((
-            Sprite::from_color(Color::srgb_u8(0x9a, 0xb8, 0xe0), Vec2::new(sw, sh)),
-            at(sx, sy, sw, sh, layers::CHAT + 0.03),
-            PIXEL_LAYER,
-            ChatUi,
-        ));
-    }
-    label(&mut commands, &mut images, &line, bx + 4.0, by + 2.0, 0xe8f0ff, layers::CHAT_TEXT, ChatUi);
+    let (bubble, _) = crate::ui::speech_bubble(&mut commands, &mut images, &line, bx, by, layers::CHAT);
+    commands.entity(bubble).insert(ChatUi);
 }
 
 /// The little heart drifts up and fades (js Entities.heartFx).

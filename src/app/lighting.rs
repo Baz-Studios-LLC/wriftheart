@@ -103,7 +103,7 @@ fn hole_cut(t: f32) -> f32 {
 }
 
 /// (ambient alpha bits, light list) — the rebuild key: skip the raster when it's unchanged.
-type OverlayKey = (u32, Vec<(i32, i32, i32)>);
+type OverlayKey = (u32, Vec<(i32, i32, i32)>, Vec<(i32, i32, i32, i32)>);
 /// Per-room encounter camp lights: (room, [(x, y, r)]).
 type CampCache = Option<((i32, i32), Vec<(i32, i32, i32)>)>;
 
@@ -262,8 +262,30 @@ fn update_overlay(
         }
     }
 
+    // The MINER'S HELMET (js coneLight): a bright cone thrown from the forehead lamp
+    // along the facing — worth casting only underground or in real dark. The beam
+    // starts at the LAMP (head height, nudged toward facing), not the body centre.
+    let mut cones: Vec<(i32, i32, i32, i32)> = Vec::new(); // (x, y, dir milli-rad, r)
+    if inv.has_gear_flag("conelight")
+        && (dungeon_amb.is_some() || alpha > 0.12)
+        && let Ok(p) = players.single()
+    {
+        use crate::actors::hero::Facing;
+        let dir: f32 = match p.facing {
+            Facing::Right => 0.0,
+            Facing::Down => std::f32::consts::FRAC_PI_2,
+            Facing::Left => std::f32::consts::PI,
+            Facing::Up => -std::f32::consts::FRAC_PI_2,
+        };
+        let horiz = matches!(p.facing, Facing::Left | Facing::Right);
+        let x = ox + p.x as i32 + 8 + (dir.cos() * 3.0).round() as i32;
+        let y = oy + p.y as i32 + if horiz { 2 } else { 4 } + (dir.sin() * 2.0).round() as i32;
+        lights.push((x, y, 24)); // the lamp's own small pool (js r 24)
+        cones.push((x, y, (dir * 1000.0) as i32, 122));
+    }
+
     // Skip the rebuild when nothing moved and the clock's alpha hasn't visibly changed.
-    let key = ((alpha * 4096.0) as u32 ^ (u32::from(tint[0]) << 16) ^ (u32::from(tint[2]) << 8), lights.clone());
+    let key = ((alpha * 4096.0) as u32 ^ (u32::from(tint[0]) << 16) ^ (u32::from(tint[2]) << 8), lights.clone(), cones.clone());
     if last.as_ref() == Some(&key) {
         return;
     }
@@ -288,6 +310,30 @@ fn update_overlay(
                 }
                 let i = ((y * w + x) * 4 + 3) as usize;
                 data[i] = (data[i] as f32 * (1.0 - hole_cut(d / rf))).round() as u8;
+            }
+        }
+    }
+    // The helmet's CONE (js cone: {dir, half 0.52, r 122}): a wedge of light along
+    // the facing, feathered at its angular edges so the beam's rim reads soft.
+    for &(cx2, cy2, dmill, r) in &cones {
+        let (dirf, rf, half) = (dmill as f32 / 1000.0, r as f32, 0.52f32);
+        for y in (cy2 - r).max(0)..(cy2 + r).min(h) {
+            for x in (cx2 - r).max(0)..(cx2 + r).min(w) {
+                let (dx, dy) = ((x - cx2) as f32, (y - cy2) as f32);
+                let d = (dx * dx + dy * dy).sqrt();
+                if d >= rf || d < 0.5 {
+                    continue;
+                }
+                let mut adiff = (dy.atan2(dx) - dirf).rem_euclid(std::f32::consts::TAU);
+                if adiff > std::f32::consts::PI {
+                    adiff = std::f32::consts::TAU - adiff;
+                }
+                if adiff >= half {
+                    continue;
+                }
+                let feather = ((half - adiff) / 0.14).clamp(0.0, 1.0);
+                let i = ((y * w + x) * 4 + 3) as usize;
+                data[i] = (data[i] as f32 * (1.0 - hole_cut(d / rf) * feather)).round() as u8;
             }
         }
     }

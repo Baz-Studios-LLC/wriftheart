@@ -556,6 +556,7 @@ pub fn poll_input(
 pub fn clear_pressed(mut state: ResMut<ActionState>, mut ptr: ResMut<Pointer>) {
     state.pressed = [false; ACTIONS.len()];
     ptr.click = false;
+    ptr.wheel_steps = 0;
 }
 
 /// The mouse cursor mapped into CANVAS space (top-left origin, +Y DOWN — the same coords as
@@ -570,6 +571,10 @@ pub struct Pointer {
     pub moved: bool,
     /// LMB pressed since the last fixed tick consumed it.
     pub click: bool,
+    /// Whole mouse-wheel notches since the last fixed tick (+up / -down; trackpad
+    /// pixel-scroll accumulates into notches). ANY scrollable list should honour it
+    /// (Baz) — read it like `click`, it clears each fixed tick.
+    pub wheel_steps: i32,
     prev: Option<Vec2>,
 }
 
@@ -591,6 +596,8 @@ pub fn track_pointer(
     windows: Query<&Window>,
     settings: Res<crate::settings::Settings>,
     mouse: Res<ButtonInput<MouseButton>>,
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    mut wheel_accum: Local<f32>,
     mut ptr: ResMut<Pointer>,
 ) {
     use crate::{CANVAS_H, CANVAS_W};
@@ -608,6 +615,18 @@ pub fn track_pointer(
     ptr.pos = pos;
     if mouse.just_pressed(MouseButton::Left) {
         ptr.click = true;
+    }
+    // Wheel: bank fractional scroll (trackpads) and hand whole notches to the tick.
+    for m in wheel.read() {
+        *wheel_accum += match m.unit {
+            bevy::input::mouse::MouseScrollUnit::Line => m.y,
+            bevy::input::mouse::MouseScrollUnit::Pixel => m.y / 24.0,
+        };
+    }
+    let whole = wheel_accum.trunc();
+    if whole != 0.0 {
+        ptr.wheel_steps += whole as i32;
+        *wheel_accum -= whole;
     }
 }
 

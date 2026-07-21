@@ -4,6 +4,7 @@
 pub mod widgets;
 
 pub use widgets::{
+    speech_bubble,
     bar, border_strips, cell, frame_rect, label, list_window, panel, set_bar, BarSpec, ListNav,
     ListWindow, Pen,
 };

@@ -292,3 +292,38 @@ pub fn list_window<M: Component + Clone>(
         marker.clone(),
     );
 }
+
+/// THE speech bubble — one recipe for every talker (town chat, wilderness shouts):
+/// dark backing, pale-blue border, light centred line, built as a PARENTED bundle
+/// so one transform moves the whole thing (despawn the parent, the bubble goes).
+/// Returns (parent, bubble width) — the caller positions + marks the parent.
+pub fn speech_bubble(
+    commands: &mut Commands,
+    images: &mut Assets<Image>,
+    text: &str,
+    x: f32,
+    y: f32,
+    z: f32,
+) -> (Entity, f32) {
+    let (img, w) = crate::gfx::font::bake_text(text, 0xe8f0ff, images);
+    let iw = (w + (w & 1)) as f32;
+    let bw = iw + 8.0;
+    let parent = commands
+        .spawn((
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.85), Vec2::new(bw, 11.0)),
+            crate::gfx::at(x, y, bw, 11.0, z),
+            crate::gfx::PIXEL_LAYER,
+        ))
+        .id();
+    let child_tf =
+        |cx: f32, cy: f32, w2: f32, h2: f32, dz: f32| Transform::from_xyz(cx + w2 / 2.0 - bw / 2.0, 11.0 / 2.0 - cy - h2 / 2.0, dz);
+    for (sx, sy, sw, sh) in border_strips(0.0, 0.0, bw, 11.0, 1.0) {
+        let c = commands
+            .spawn((Sprite::from_color(Color::srgb_u8(0x9a, 0xb8, 0xe0), Vec2::new(sw, sh)), child_tf(sx, sy, sw, sh, 0.03), crate::gfx::PIXEL_LAYER))
+            .id();
+        commands.entity(parent).add_child(c);
+    }
+    let t = commands.spawn((Sprite::from_image(img), child_tf(4.0, 2.5, iw, 6.0, 0.05), crate::gfx::PIXEL_LAYER)).id();
+    commands.entity(parent).add_child(t);
+    (parent, bw)
+}

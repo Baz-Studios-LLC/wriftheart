@@ -23,7 +23,7 @@ use crate::{CANVAS_H, CANVAS_W};
 use bevy::prelude::*;
 
 const Z: f32 = 19.4; // over the play field + HUD, under pause (19.85) + flourish
-const CATS: [&str; 5] = ["WORLD", "TRAVEL", "HERO", "ITEMS", "QUEST"];
+const CATS: [&str; 8] = ["WORLD", "TRAVEL", "HERO", "KITS", "MATS", "LEARN", "SPAWN", "QUEST"];
 
 /// The category chips as (index, x, y, w, h) — the SAME top chip-tab bar every other
 /// menu uses (Baz: the old side column was the odd one out). One geometry source for
@@ -55,14 +55,30 @@ enum Cmd {
     WarpShard, // cycle row
     Heal,
     Coins,
+    Coins1000,
     LevelUp,
+    Level5,
     FishKit,
     BowKit,
     MageKit,
+    RuneKit,
+    FarmKit,
+    TableKit,
     TravelKit,
     ShieldKit,
     KeyRing,
     Potions,
+    SongsAll,
+    BlueprintsAll,
+    LootRoll,
+    OreKit,
+    GemKit,
+    WoodKit,
+    MatsKit,
+    SpawnMob, // cycle row: left/right picks the kind, press spawns it
+    SpawnGoblin,
+    SpawnSpear,
+    ClearRoom,
     ShardNext,
     ShardAll,
     ShardClear,
@@ -78,8 +94,45 @@ fn rows(cat: usize) -> &'static [(&'static str, Cmd)] {
             ("WEATHER", Cmd::Weather),
         ],
         1 => &[("WARP HOME", Cmd::WarpHome), ("WARP TO CASTLE", Cmd::WarpCastle), ("WARP TO SHARD SITE", Cmd::WarpShard)],
-        2 => &[("FULL HEAL", Cmd::Heal), ("+100 COPPER", Cmd::Coins), ("LEVEL UP", Cmd::LevelUp), ("GOD MODE", Cmd::God)],
-        3 => &[("FISHING KIT", Cmd::FishKit), ("ARCHER KIT", Cmd::BowKit), ("MAGE KIT", Cmd::MageKit), ("TRAVEL KIT", Cmd::TravelKit), ("SHIELD", Cmd::ShieldKit), ("KEY RING", Cmd::KeyRing), ("POTION PACK", Cmd::Potions)],
+        2 => &[
+            ("FULL HEAL", Cmd::Heal),
+            ("+100 COPPER", Cmd::Coins),
+            ("+1000 COPPER", Cmd::Coins1000),
+            ("LEVEL UP", Cmd::LevelUp),
+            ("LEVEL +5", Cmd::Level5),
+            ("GOD MODE", Cmd::God),
+        ],
+        // Ten rows is the panel's comfortable max (row 13 ran into the footer, Baz) —
+        // the learn-alls + the loot dice live on their own LEARN page instead.
+        3 => &[
+            ("FISHING KIT", Cmd::FishKit),
+            ("ARCHER KIT", Cmd::BowKit),
+            ("MAGE KIT", Cmd::MageKit),
+            ("RUNE KIT", Cmd::RuneKit),
+            ("FARM KIT", Cmd::FarmKit),
+            ("TABLE KIT", Cmd::TableKit),
+            ("TRAVEL KIT", Cmd::TravelKit),
+            ("SHIELD", Cmd::ShieldKit),
+            ("KEY RING", Cmd::KeyRing),
+            ("POTION PACK", Cmd::Potions),
+        ],
+        4 => &[
+            ("ORE KIT", Cmd::OreKit),
+            ("GEM KIT", Cmd::GemKit),
+            ("WOOD KIT", Cmd::WoodKit),
+            ("MATS KIT", Cmd::MatsKit),
+        ],
+        5 => &[
+            ("LEARN ALL SONGS", Cmd::SongsAll),
+            ("LEARN ALL BLUEPRINTS", Cmd::BlueprintsAll),
+            ("LOOT ROLL", Cmd::LootRoll),
+        ],
+        6 => &[
+            ("SPAWN MOB", Cmd::SpawnMob),
+            ("SPAWN GOBLIN", Cmd::SpawnGoblin),
+            ("SPAWN SPEAR GOBLIN", Cmd::SpawnSpear),
+            ("CLEAR ROOM", Cmd::ClearRoom),
+        ],
         _ => &[("GRANT NEXT SHARD", Cmd::ShardNext), ("GRANT ALL SHARDS", Cmd::ShardAll), ("CLEAR SHARDS", Cmd::ShardClear)],
     }
 }
@@ -95,6 +148,7 @@ pub struct DevState {
     row: usize,
     weather_idx: usize,
     shard_idx: usize,
+    mob_idx: usize,
     dirty: bool,
 }
 
@@ -195,11 +249,19 @@ fn close_dev(mut commands: Commands, ui: Query<Entity, With<DevUi>>) {
     }
 }
 
-/// Where HOME is (bundled — `drive` sits at Bevy's 16-param cap).
+/// The odds and ends the dev rows reach for (bundled — `drive` sits at Bevy's
+/// 16-param cap, so new resources nest here).
+#[allow(clippy::type_complexity)] // CLEAR ROOM's Or-filter (mobs AND goblinkind) is the point
 #[derive(bevy::ecs::system::SystemParam)]
-struct HomeRefs<'w> {
+struct DevRefs<'w, 's> {
     house: Res<'w, super::home::PlayerHouse>,
     respawn: Res<'w, super::home::RespawnPoint>,
+    // NO songs / rng here — drive already reaches them via ctx.social.songs and
+    // swap.rng; a duplicate ResMut is a B0002 PANIC AT BOOT, not a compile error.
+    bps: ResMut<'w, super::blueprints::LearnedBlueprints>,
+    keys: ResMut<'w, super::dungeon::DungeonKeys>,
+    ptr: Res<'w, crate::input::Pointer>,
+    foes: Query<'w, 's, Entity, Or<(With<crate::actors::mobs::Mob>, With<crate::actors::goblin::Goblin>)>>,
 }
 
 /// Navigation + execution (the world stands frozen under us).
@@ -220,7 +282,7 @@ fn drive(
     mut next: ResMut<NextState<Screen>>,
     mut god: ResMut<GodMode>,
     badges: Query<Entity, With<GodBadge>>,
-    home: HomeRefs,
+    mut refs: DevRefs,
 ) {
     let nrows = rows(state.cat).len();
     if input.pressed(Action::Pause) || input.pressed(Action::Slot2) {
@@ -238,6 +300,11 @@ fn drive(
     if input.pressed(Action::Up) {
         input.consume(Action::Up);
         state.row = (state.row + nrows - 1) % nrows;
+        state.dirty = true;
+    }
+    if refs.ptr.wheel_steps != 0 {
+        // Wheel walks the rows, clamped (Baz: any scrollable list).
+        state.row = (state.row as i32 - refs.ptr.wheel_steps).clamp(0, nrows as i32 - 1) as usize;
         state.dirty = true;
     }
     if input.pressed(Action::TabNext) {
@@ -269,6 +336,11 @@ fn drive(
             Cmd::WarpShard => {
                 let n = swap.world.0.shard_sites().len().max(1) as i32;
                 state.shard_idx = ((state.shard_idx as i32 + dir + n) % n) as usize;
+                state.dirty = true;
+            }
+            Cmd::SpawnMob => {
+                let n = crate::actors::mobs::MOB_DEFS.len() as i32;
+                state.mob_idx = ((state.mob_idx as i32 + dir + n) % n) as usize;
                 state.dirty = true;
             }
             _ => {}
@@ -307,9 +379,9 @@ fn drive(
             // the warp doesn't suck you straight inside. Houseless: your set-spawn
             // bed/inn; failing both, the world origin (the old, useless target —
             // Baz: "warp home doesn't work").
-            let ((rx, ry), (px, py)) = if let Some(h) = home.house.0.as_ref() {
+            let ((rx, ry), (px, py)) = if let Some(h) = refs.house.0.as_ref() {
                 (h.room, (h.x + 3.0, (h.y + 28.0).min(crate::room::PX_H as f32 - 24.0)))
-            } else if let Some(r) = home.respawn.0.as_ref() {
+            } else if let Some(r) = refs.respawn.0.as_ref() {
                 (r.room, (r.x, r.y))
             } else {
                 ((0, 0), (144.0, 120.0))
@@ -369,14 +441,114 @@ fn drive(
             log.add("dev", "SHIELD", 1, 0xc8a060, false, true);
         }
         Cmd::KeyRing => {
-            ctx.inv.add_item("key", 3);
-            ctx.inv.add_item("ornatekey", 1);
+            // The keys ride the DUNGEON RING now, not the bag (the key HUD reads it).
+            refs.keys.small += 3;
+            refs.keys.ornate += 1;
             log.add("dev", "KEY RING", 1, 0xfcd000, false, true);
         }
         Cmd::Potions => {
             ctx.inv.add_item("potion", 5);
             ctx.inv.add_item("greaterpotion", 2);
             log.add("dev", "POTION PACK", 1, 0xfc6868, false, true);
+        }
+        Cmd::Coins1000 => {
+            ctx.inv.money += 1000;
+            log.add("dev", "+1000 COPPER", 1, 0xfcd000, true, true);
+        }
+        Cmd::Level5 => {
+            for _ in 0..5 {
+                let need = xp_for_level(ctx.progress.level) - ctx.progress.xp;
+                gain_xp(&mut ctx.progress, &mut ctx.alloc, need.max(1));
+            }
+            log.add("dev", "FIVE LEVELS AT A STROKE", 1, 0x5cc0fc, false, true);
+        }
+        Cmd::RuneKit => {
+            for id in ["firerune", "frostrune", "stormrune", "venomrune"] {
+                ctx.inv.add_item(id, 3);
+            }
+            log.add("dev", "RUNE KIT", 1, 0xb890ff, false, true);
+        }
+        Cmd::FarmKit => {
+            ctx.inv.add_item("hoe", 1);
+            ctx.inv.add_item("wateringcan", 1);
+            for id in ["turnipseed", "carrotseed", "potatoseed", "tomatoseed", "wheatseed", "pumpkinseed", "pepperseed", "cranberryseed"] {
+                ctx.inv.add_item(id, 5);
+            }
+            log.add("dev", "FARM KIT", 1, 0x8ac850, false, true);
+        }
+        Cmd::TableKit => {
+            for id in ["cook", "workbench", "forge", "alchemy", "enchanter", "fletcher", "jeweler", "farmtable", "well", "house"] {
+                ctx.inv.add_item(id, 1);
+            }
+            log.add("dev", "EVERY TABLE IN THE LAND", 1, 0xd0a860, false, true);
+        }
+        Cmd::SongsAll => {
+            ctx.inv.add_item("flute", 1);
+            for s in crate::songs::LIST {
+                super::flute::learn_song(&mut ctx.social.songs, &ctx.inv, &mut log, s.id, true);
+            }
+            log.add("dev", "EVERY SONG KNOWN", 1, 0xb8a0d8, false, true);
+        }
+        Cmd::BlueprintsAll => {
+            for r in crate::recipes_data::RECIPES {
+                if let Some(bp) = r.bp {
+                    refs.bps.0.insert(bp.to_string());
+                }
+            }
+            log.add("dev", "EVERY SCHEMATIC KNOWN", 1, 0x9ad0ff, false, true);
+        }
+        Cmd::LootRoll => {
+            let (id, qty) = crate::items::roll_loot(1.2, 0.5, || swap.rng.0.next_f64());
+            ctx.inv.add_item(id, qty);
+            let name = crate::items::get(id).map(|d| d.name).unwrap_or(id);
+            log.add("dev", &format!("THE DICE GIVE {}", name.to_uppercase()), 1, 0xffd34d, false, true);
+        }
+        Cmd::OreKit => {
+            for id in ["copper", "iron", "silver", "gold", "mithril", "voidsteel"] {
+                ctx.inv.add_item(id, 20);
+            }
+            log.add("dev", "ORE KIT - EVERY TIER", 1, 0xc8b088, false, true);
+        }
+        Cmd::GemKit => {
+            ctx.inv.add_item("gem", 10);
+            log.add("dev", "GEM KIT", 1, 0xb060f0, false, true);
+        }
+        Cmd::WoodKit => {
+            for id in ["wood", "hardwood", "ironbark", "voidwood"] {
+                ctx.inv.add_item(id, 20);
+            }
+            log.add("dev", "WOOD KIT - EVERY TIER", 1, 0xa07040, false, true);
+        }
+        Cmd::MatsKit => {
+            for id in ["stone", "fiber", "herb", "leather", "meat", "arrow"] {
+                ctx.inv.add_item(id, 20);
+            }
+            log.add("dev", "MATS KIT", 1, 0x9aa0aa, false, true);
+        }
+        Cmd::SpawnMob => {
+            let (fdx, fdy) = p.facing.offset();
+            let sx = (p.x + fdx * 40.0).clamp(16.0, crate::room::PX_W as f32 - 32.0);
+            let sy = (p.y + fdy * 40.0).clamp(16.0, crate::room::PX_H as f32 - 32.0);
+            let d = &crate::actors::mobs::MOB_DEFS[state.mob_idx];
+            commands.spawn((crate::actors::mobs::mob_bundle(state.mob_idx, sx, sy), super::battle::RoomActor, PIXEL_LAYER));
+            log.add("dev", &format!("A {} ANSWERS THE CALL", d.kind.to_uppercase()), 1, 0xfc8868, false, true);
+        }
+        Cmd::SpawnGoblin | Cmd::SpawnSpear => {
+            let (fdx, fdy) = p.facing.offset();
+            let sx = (p.x + fdx * 40.0).clamp(16.0, crate::room::PX_W as f32 - 32.0);
+            let sy = (p.y + fdy * 40.0).clamp(16.0, crate::room::PX_H as f32 - 32.0);
+            let gk = if cmd == Cmd::SpawnSpear { crate::actors::goblin::GoblinKind::Spear } else { crate::actors::goblin::GoblinKind::Melee };
+            let mut e = commands.spawn((crate::actors::goblin::goblin_bundle(gk, sx, sy), super::battle::RoomActor, PIXEL_LAYER));
+            e.insert(Sprite::default());
+            log.add("dev", "A GOBLIN ANSWERS THE CALL", 1, 0xfc8868, false, true);
+        }
+        Cmd::ClearRoom => {
+            let mut n = 0;
+            for e in &refs.foes {
+                commands.entity(e).despawn();
+                n += 1;
+            }
+            log.add("dev", &format!("{n} FOES SWEPT AWAY"), 1, 0x9aa0aa, false, true);
         }
         Cmd::ShardNext => {
             let next_biome = swap
@@ -517,6 +689,9 @@ fn redraw(
                 .get(state.shard_idx)
                 .map(|(b, (rx, ry))| format!("< {} {rx},{ry} >", b.to_uppercase())),
             Cmd::God => Some(if god.0 { "ON".into() } else { "OFF".into() }),
+            Cmd::SpawnMob => {
+                Some(format!("< {} >", crate::actors::mobs::MOB_DEFS[state.mob_idx].kind.to_uppercase()))
+            }
             _ => None,
         };
         if let Some(v) = value {

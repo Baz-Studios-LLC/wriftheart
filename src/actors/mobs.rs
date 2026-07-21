@@ -108,6 +108,13 @@ pub enum Ai {
     /// Only moves UNWATCHED (saltstatue): frozen + faced, it stalks fast the moment the
     /// player looks away.
     GazeStalker { spd: f32, range: f32 },
+    /// WATER lurker (spitgill — Baz's Zora-ish sniper, past-js): rooted on its water
+    /// tile, SUBMERGED (invulnerable, just a ripple) most of its clock; it surfaces
+    /// for a beat, spits a bolt at the hero, and sinks again.
+    WaterSpitter { period: i32, up_at: i32, fire_r: f32, sp: f32, dmg: i32, color: u32, core: u32, afflict: (&'static str, i32) },
+    /// Shore squid (tidewhip, past-js): rooted in the shallows; a hero who strays
+    /// near the water eats a tentacle WHIP (the frog-tongue lash, squid-inked).
+    WaterWhip { lash_r: f32, cd: i32 },
     /// Raises the dead (gravewarden): summons up to `max` `kind` minions on a cooldown,
     /// keeping its distance.
     Summoner { fire_r: f32, cd: i32, kind: &'static str, max: i32, spd: f32 },

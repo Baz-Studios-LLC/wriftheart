@@ -264,6 +264,11 @@ fn shop_tick(
         shop.cursor += 1;
         dirty = true;
     }
+    if ptr.wheel_steps != 0 {
+        // Wheel walks the list (Baz: any scrollable list honours the wheel).
+        shop.cursor = (shop.cursor as i32 - ptr.wheel_steps).clamp(0, n.max(1) as i32 - 1) as usize;
+        dirty = true;
+    }
     // Mouse: the list SCROLLS, so hover does nothing — a click selects a row, clicking
     // the selected row buys/sells it (no accidental purchases on the first click).
     let mut row_click = false;

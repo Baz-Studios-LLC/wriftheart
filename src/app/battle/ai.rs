@@ -98,27 +98,21 @@ pub(super) fn mobs_ai(
                 health.invuln = 14;
                 health.flash = 12;
             }
-            let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
-        let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
-        *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+            seat_hb(&m, d, &mut hb);
             continue;
         }
         // The Lullaby: asleep foes stand dreaming — no aggro, no thinking (flute.rs
         // wakes them the instant they're struck).
         if m.sleep > 0 {
             m.sleep -= 1;
-            let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
-        let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
-        *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+            seat_hb(&m, d, &mut hb);
             continue;
         }
         // FROZEN SOLID (the frost beam): an ice statue — no thinking, no stepping,
         // no contact bite — until it thaws (mobfx.rs paints the blue cast + mist).
         if afflictions.is_some_and(|a| a.freeze > 0) {
             cb.damage = None;
-            let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
-            let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
-            *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+            seat_hb(&m, d, &mut hb);
             continue;
         }
         // Knockback owns the body this tick (apply_mob_knockback moves it).
@@ -132,9 +126,7 @@ pub(super) fn mobs_ai(
                 let spd = 0.9 * m.speed_mul;
                 mob_step(&mut m, d, &grid.0, &blockers, pbox, ang.cos() * spd, 0.0);
                 mob_step(&mut m, d, &grid.0, &blockers, pbox, 0.0, ang.sin() * spd);
-                let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
-                let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
-                *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+                seat_hb(&m, d, &mut hb);
                 continue;
             }
             // Aggro gate: idle until the player is close; a struck foe jolts awake.
@@ -153,9 +145,7 @@ pub(super) fn mobs_ai(
                     && (aff.chill & 1) == 1
                 {
                     m.anim += 1;
-                    let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
-        let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
-        *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+                    seat_hb(&m, d, &mut hb);
                     continue;
                 }
                 let mut hittable = true;
@@ -317,9 +307,7 @@ pub(super) fn mobs_ai(
                 m.t += 1; // dormant: idle anims keep ticking (js)
             }
         }
-        let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
-        let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
-        *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
+        seat_hb(&m, d, &mut hb);
     }
     // Apply the deferred player effects now that the mob loop released &mut Player.
     if (pull.is_some() || swap_to.is_some())
@@ -392,4 +380,12 @@ pub(super) fn apply_mob_knockback(
         mob_step(&mut m, d, &grid.0, &blockers, pbox, kx, 0.0);
         mob_step(&mut m, d, &grid.0, &blockers, pbox, 0.0, ky);
     }
+}
+
+/// Seat a mob's hitbox at its body (elites grow from the feet) — THE one copy of
+/// the triple that was pasted into every stand-still AI branch.
+fn seat_hb(m: &crate::actors::mobs::Mob, d: &crate::actors::mobs::MobDef, hb: &mut Hitbox) {
+    let hs = if m.size_mul > 1.0 { 1.7 } else { 1.0 };
+    let (gw, gh) = (d.hb.2 * hs, d.hb.3 * hs);
+    *hb = Hitbox { x: m.x + d.hb.0 - (gw - d.hb.2) / 2.0, y: m.y + d.hb.1 - (gh - d.hb.3) / 2.0, w: gw, h: gh };
 }

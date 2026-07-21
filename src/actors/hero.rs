@@ -237,6 +237,19 @@ pub enum Facing {
     Left = 3,
 }
 
+impl Facing {
+    /// The unit step this facing points along (screen space, +y down) — THE one
+    /// copy of the match that used to be pasted at every "in front of the hero".
+    pub fn offset(self) -> (f32, f32) {
+        match self {
+            Facing::Up => (0.0, -1.0),
+            Facing::Down => (0.0, 1.0),
+            Facing::Left => (-1.0, 0.0),
+            Facing::Right => (1.0, 0.0),
+        }
+    }
+}
+
 /// The 4-frame gait for all four facings — port of `buildFrames`.
 /// Frame order per facing: [stand, step, stand, other step] (frames 0 and 2 share art).
 pub struct HeroFrames {

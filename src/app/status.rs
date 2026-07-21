@@ -178,6 +178,7 @@ fn hud_icons(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     statuses: Res<Statuses>,
+    layout: Res<super::hud::SidebarLayout>,
     mut cache: Local<HashMap<&'static str, Handle<Image>>>,
     mut icons: Query<(Entity, &StatusIcon, &mut Visibility)>,
 ) {
@@ -190,8 +191,10 @@ fn hud_icons(
         }
     }
     for (i, d) in want.iter().enumerate() {
-        let x = 10.0 + i as f32 * 13.0;
-        let y = 130.0;
+        // The widget STACK hands us our y (below the quest list, sliding up when
+        // it's empty) — the hand-picked 130.0 overlapped a full quest log (Baz).
+        let x = 10.0 + (i % 4) as f32 * 13.0;
+        let y = layout.buffs_y + (i / 4) as f32 * 13.0;
         let existing = icons.iter_mut().find(|(_, ic, _)| ic.0 == d.id);
         let blink = statuses
             .active

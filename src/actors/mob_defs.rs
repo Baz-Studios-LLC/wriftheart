@@ -290,4 +290,30 @@ pub static MOB_DEFS: &[MobDef] = &[
         coin: Coin::Range(8, 14), hb: (3.0, 2.0, 10.0, 12.0),
         ai: Ai::Drainer { fire_r: 190.0, cd: 170, spd: 0.6 },
         ..DEF_BASE },
+    // --- THE WATERS (Baz, past-js): rare lurkers the water spawner rolls onto a
+    //     room's own water tiles — never in the biome rosters (land rolls can't
+    //     seat them). Both are rooted, so no water-pathing exists to go wrong. ---
+    MobDef { kind: "spitgill", hp: 4, damage: 1, xp: 10, blood: 0x4a8ab0, knock_resist: 1.0,
+        coin: Coin::Range(2, 4), potion: 0.2, hb: (3.0, 3.0, 10.0, 10.0),
+        ai: Ai::WaterSpitter { period: 260, up_at: 170, fire_r: 175.0, sp: 2.4, dmg: 2, color: 0x6fb8e0, core: 0xd8f0ff, afflict: ("", 0) },
+        ..DEF_BASE },
+    MobDef { kind: "tidewhip", hp: 6, damage: 1, xp: 12, blood: 0x6a4a8a, knock_resist: 1.0,
+        coin: Coin::Range(3, 5), drops: Some(("fiber", 0.5, 1, 2)), hb: (2.0, 3.0, 12.0, 11.0),
+        ai: Ai::WaterWhip { lash_r: 46.0, cd: 130 },
+        ..DEF_BASE },
+    // MURK water (the grim biomes — water_style's own partition): the bog pair.
+    MobDef { kind: "bogmaw", hp: 5, damage: 1, xp: 12, blood: 0x5a7a3a, knock_resist: 1.0,
+        coin: Coin::Range(2, 4), potion: 0.2, hb: (3.0, 3.0, 10.0, 10.0),
+        ai: Ai::WaterSpitter { period: 240, up_at: 155, fire_r: 165.0, sp: 2.2, dmg: 2, color: 0x8ab040, core: 0xd8e890, afflict: ("poison", 160) },
+        ..DEF_BASE },
+    MobDef { kind: "mirelash", hp: 8, damage: 1, xp: 15, blood: 0x4a6a30, knock_resist: 1.0,
+        afflicts: ("poison", 150),
+        coin: Coin::Range(3, 6), drops: Some(("herb", 0.5, 1, 2)), hb: (2.0, 3.0, 12.0, 11.0),
+        ai: Ai::WaterWhip { lash_r: 50.0, cd: 120 },
+        ..DEF_BASE },
+    // ARCTIC water: the frost sniper (its spit chills to a crawl).
+    MobDef { kind: "frostgill", hp: 5, damage: 1, xp: 13, blood: 0x7fc8e8, knock_resist: 1.0,
+        coin: Coin::Range(2, 5), potion: 0.2, hb: (3.0, 3.0, 10.0, 10.0),
+        ai: Ai::WaterSpitter { period: 250, up_at: 165, fire_r: 175.0, sp: 2.6, dmg: 2, color: 0xbff0ff, core: 0xffffff, afflict: ("slow", 140) },
+        ..DEF_BASE },
 ];

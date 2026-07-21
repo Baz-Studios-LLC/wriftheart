@@ -51,6 +51,10 @@ pub struct CreatorState {
     rng: Mulberry32,
     frames: Option<HeroFrames>,
     frame_off: [f32; 4], // per-facing head-centering x offset (sprite px)
+    /// Set by the Update-side systems (backspace, physical typing) — the fixed-tick
+    /// redraw consumes it. Without this a deleted letter stayed ON SCREEN until the
+    /// next input (Baz: "the delete key should work as expected").
+    needs_redraw: bool,
 }
 
 impl Default for CreatorState {
@@ -59,6 +63,7 @@ impl Default for CreatorState {
             slot: 1,
             cursor: 0,
             editing: false,
+            needs_redraw: false,
             kb_row: 0,
             kb_col: 0,
             gender_m: true,
@@ -105,7 +110,7 @@ impl Plugin for CreatorPlugin {
                 bevy::app::FixedUpdate,
                 creator_tick.before(super::play::EndTick).run_if(in_state(Screen::Creator)),
             )
-            .add_systems(Update, (spin_preview, backspace).run_if(in_state(Screen::Creator)));
+            .add_systems(Update, (spin_preview, backspace, typing).run_if(in_state(Screen::Creator)));
     }
 }
 
@@ -212,9 +217,10 @@ fn creator_tick(
     ui: Query<Entity, With<CreatorUi>>,
     mut next: ResMut<NextState<Screen>>,
     mut loads: MessageWriter<LoadSlot>,
+    ptr: Res<crate::input::Pointer>,
 ) {
     st.spin += 1;
-    let confirm = input.pressed(Action::Slot1);
+    let mut confirm = input.pressed(Action::Slot1);
     let cancel = input.pressed(Action::Slot2) || input.pressed(Action::Pause);
     let mut dirty = false;
 
@@ -240,6 +246,27 @@ fn creator_tick(
                 st.kb_col = (st.kb_col + 1) % KB[st.kb_row].len();
                 dirty = true;
             }
+            // Mouse on the on-screen keys: hover picks, a click types (Baz: the
+            // character screens must respect the mouse). Same geometry as redraw.
+            let (kw, kh) = (18.0, 15.0);
+            let kbx = ((CANVAS_W as f32 - KB[0].len() as f32 * kw) / 2.0).round();
+            let kby = 112.0;
+            for (r, row) in KB.iter().enumerate() {
+                for c in 0..row.len() {
+                    if ptr.over(kbx + c as f32 * kw, kby + r as f32 * kh, kw - 2.0, kh - 2.0) {
+                        if ptr.moved && (st.kb_row, st.kb_col) != (r, c) {
+                            st.kb_row = r;
+                            st.kb_col = c;
+                            dirty = true;
+                        }
+                        if ptr.click {
+                            st.kb_row = r;
+                            st.kb_col = c;
+                            confirm = true;
+                        }
+                    }
+                }
+            }
             st.kb_col = st.kb_col.min(KB[st.kb_row].len() - 1);
             if confirm {
                 match KB[st.kb_row][st.kb_col] {
@@ -253,7 +280,8 @@ fn creator_tick(
                 dirty = true;
             }
         }
-        if dirty {
+        if dirty || st.needs_redraw {
+            st.needs_redraw = false;
             redraw(&mut commands, &ui, &mut images, &st, &bindings, &input);
         }
         return;
@@ -273,7 +301,30 @@ fn creator_tick(
     }
 
     // Left/right cycles the value on a pick row (js dx).
-    let dx = input.pressed(Action::Right) as i32 - input.pressed(Action::Left) as i32;
+    let mut dx = input.pressed(Action::Right) as i32 - input.pressed(Action::Left) as i32;
+    // Mouse: hover a row to select it (a flat menu); a click ACTS on it — value rows
+    // cycle to the next pick, NAME opens the keyboard, REROLL/START fire (Baz).
+    for i in 0..N_FIELDS {
+        let (ry, rh2) = match i {
+            7 => (170.0, 13.0),
+            8 => (184.0, 13.0),
+            _ => (24.0 + i as f32 * 13.0, 13.0),
+        };
+        if ptr.over(6.0, ry - 2.0, 200.0, rh2) {
+            if ptr.moved && st.cursor != i {
+                st.cursor = i;
+                dirty = true;
+            }
+            if ptr.click {
+                st.cursor = i;
+                if (2..=6).contains(&i) {
+                    dx = 1;
+                } else {
+                    confirm = true;
+                }
+            }
+        }
+    }
     if dx != 0 {
         let step = |i: usize, n: usize| (i as i32 + dx).rem_euclid(n as i32) as usize;
         let mut changed = true;
@@ -333,18 +384,52 @@ fn creator_tick(
             _ => {}
         }
     }
-    if dirty {
+    if dirty || st.needs_redraw {
+        st.needs_redraw = false;
         redraw(&mut commands, &ui, &mut images, &st, &bindings, &input);
     }
 }
 
-/// Physical-keyboard convenience while naming: Backspace deletes (js keydown listener).
-fn backspace(keys: Res<ButtonInput<KeyCode>>, mut st: ResMut<CreatorState>, mut bump: Local<bool>) {
-    // Route through a Local so the fixed-tick redraw notices (a pop alone won't).
-    if st.editing && keys.just_pressed(KeyCode::Backspace) {
+/// Physical-keyboard convenience while naming: Backspace/Delete erases — and the
+/// redraw flag makes the letter VANISH on the press, not on the next input.
+fn backspace(keys: Res<ButtonInput<KeyCode>>, mut st: ResMut<CreatorState>) {
+    if st.editing && (keys.just_pressed(KeyCode::Backspace) || keys.just_pressed(KeyCode::Delete)) {
         st.name.pop();
-        *bump = !*bump;
-        st.kb_col = st.kb_col.min(KB[st.kb_row].len() - 1); // touch st -> change detection
+        st.needs_redraw = true;
+    }
+}
+
+/// PHYSICAL TYPING while naming (Baz: naming should work like a text field):
+/// letters/digits/space append (uppercased — the font's range), ENTER sets the name
+/// down. Update-side — key events are frame-cadenced; the fixed tick redraws.
+fn typing(mut msgs: MessageReader<bevy::input::keyboard::KeyboardInput>, mut st: ResMut<CreatorState>) {
+    use bevy::input::keyboard::Key;
+    for m in msgs.read() {
+        if !st.editing || !m.state.is_pressed() {
+            continue;
+        }
+        match &m.logical_key {
+            Key::Character(s) => {
+                for ch in s.chars() {
+                    let up = ch.to_ascii_uppercase();
+                    if up.is_ascii_alphanumeric() && st.name.len() < 12 {
+                        st.name.push(up);
+                        st.needs_redraw = true;
+                    }
+                }
+            }
+            Key::Space => {
+                if st.name.len() < 12 {
+                    st.name.push(' ');
+                    st.needs_redraw = true;
+                }
+            }
+            Key::Enter => {
+                st.editing = false;
+                st.needs_redraw = true;
+            }
+            _ => {}
+        }
     }
 }
 

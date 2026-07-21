@@ -173,6 +173,7 @@ pub fn run(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     input: Res<ActionState>,
+    ptr: Res<crate::input::Pointer>,
     mut sfx: MessageWriter<crate::app::sfx::Sfx>,
     cx_state: Res<CodexState>,
     ctx: AchCtx,
@@ -191,6 +192,10 @@ pub fn run(
     if input.pressed(Action::Down) {
         dex.cur = (dex.cur + 1) % n;
         sfx.write(crate::app::sfx::Sfx("menuMove"));
+    }
+    if ptr.wheel_steps != 0 {
+        // Wheel walks the ledger, clamped (Baz: any scrollable list).
+        dex.cur = (dex.cur as i32 - ptr.wheel_steps).clamp(0, n as i32 - 1) as usize;
     }
     if input.pressed(Action::Left) || input.pressed(Action::Right) {
         let dir: i32 = if input.pressed(Action::Right) { 1 } else { -1 };

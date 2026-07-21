@@ -159,6 +159,11 @@ fn storage_tick(
         st.cursor[side] += 1;
         dirty = true;
     }
+    if ptr.wheel_steps != 0 {
+        // Wheel walks the active pane (Baz: any scrollable list honours the wheel).
+        st.cursor[side] = (st.cursor[side] as i32 - ptr.wheel_steps).clamp(0, n.max(1) as i32 - 1) as usize;
+        dirty = true;
+    }
     // Mouse: the panes SCROLL, so hover does nothing — a click selects a cell (switching
     // sides if needed), clicking the selected cell transfers the stack.
     let mut cell_click = false;

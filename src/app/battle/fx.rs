@@ -41,6 +41,12 @@ pub(super) fn sync_mobs(art: Res<MobArtBank>, mut q: MobSprites) {
                 let set = &art.frames[d.kind];
                 set[0][if m.st == 1 { 0 } else { 1 }].clone()
             }
+            // The water snipers: frame 0 = the submerged ripple, frame 1 = surfaced.
+            "spitgill" | "bogmaw" | "frostgill" => {
+                let set = &art.frames[d.kind];
+                let side = if m.facing == 3 { 1 } else { 0 };
+                set[side][if m.st == 1 { 1 } else { 0 }].clone()
+            }
             "bellsnail" => {
                 // Sealed in the bell for the first 120 of its 220 clock, then out.
                 let set = &art.frames[d.kind];

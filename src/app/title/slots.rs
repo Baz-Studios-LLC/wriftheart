@@ -25,6 +25,13 @@ pub(super) fn card_rect(i: usize) -> (f32, f32, f32, f32) {
     (bx, y0 + i as f32 * rh - 3.0, bw, 17.0)
 }
 
+/// The card's DELETE chip (LOAD mode, occupied slots): a small X on the right edge —
+/// click once to arm, click again to delete (the same two-step the key uses).
+fn del_rect(i: usize) -> (f32, f32, f32, f32) {
+    let (bx, cy, bw, _) = card_rect(i);
+    (bx + bw - 14.0, cy + 3.0, 11.0, 11.0)
+}
+
 pub(super) fn tick(
     st: &mut TitleState,
     input: &ActionState,
@@ -52,6 +59,7 @@ pub(super) fn tick(
     // is folded into the confirm below. A move WITHIN the armed card must not disarm, so the
     // hover only fires when the slot index actually changes.
     let mut clicked = false;
+    let mut del_clicked = false;
     for i in 0..n_slots {
         let (rx, ry, rw, rh) = card_rect(i);
         if ptr.over(rx, ry, rw, rh) {
@@ -62,14 +70,20 @@ pub(super) fn tick(
             }
             if ptr.click {
                 st.slot_sel = i;
-                clicked = true;
+                let (dx, dy, dw, dh) = del_rect(i);
+                if st.slot_mode == SlotMode::Load && ptr.over(dx, dy, dw, dh) {
+                    del_clicked = true; // the X chip: arm, then delete (never a load)
+                } else {
+                    clicked = true;
+                }
             }
         }
     }
     let n = st.slot_sel as u32 + 1;
     let occupied = metas.0.get(st.slot_sel).is_some_and(|m| m.is_some());
-    // Delete (LOAD mode only, js slot3 'C'): armed on the first press, gone on the second.
-    if input.pressed(Action::Slot3) && st.slot_mode == SlotMode::Load && occupied {
+    // Delete (LOAD mode, js slot3 'C' or the card's X chip): armed on the first
+    // press, gone on the second.
+    if (input.pressed(Action::Slot3) || del_clicked) && st.slot_mode == SlotMode::Load && occupied {
         if st.armed == Some((ArmKind::Delete, n)) {
             delete_slot(n);
             *metas = scan_metas();
@@ -141,6 +155,12 @@ pub(super) fn draw(pen: &mut Pen, st: &TitleState, metas: &SlotMetas, bindings: 
             _ => ("- EMPTY -".into(), if on { 0xb8b8b8 } else { 0x5a5a60 }),
         };
         pen.text(&txt, bx + 40.0, y + 2.0, col, TEXT_Z);
+        // The DELETE chip (LOAD mode, occupied): a small X the mouse can reach.
+        if st.slot_mode == SlotMode::Load && m.is_some() {
+            let (dx, dy, dw, dh) = del_rect(i);
+            pen.fill_rgba(dx, dy, dw, dh, Color::srgba(0.0, 0.0, 0.0, 0.55), TEXT_Z - 0.01);
+            pen.text("X", dx + 3.0, dy + 3.0, if on { 0xfc7460 } else { 0x8a5a5a }, TEXT_Z);
+        }
     }
     let mut help = format!(
         "{} SELECT - {} BACK",

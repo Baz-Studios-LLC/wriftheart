@@ -123,6 +123,8 @@ pub struct BagWriters<'w> {
     pub blueprints: MessageWriter<'w, super::blueprints::LearnBlueprint>,
     pub stations: MessageWriter<'w, super::cooking::PlaceStation>,
     pub houses: MessageWriter<'w, super::home::PlaceHouse>,
+    /// Bag-use outcomes TOAST (the hoe lesson: a silent veto reads as a bug).
+    pub log: ResMut<'w, super::rewards::LootLog>,
 }
 
 /// Open from play, close from inside, switch tabs — on the fixed clock like every menu.

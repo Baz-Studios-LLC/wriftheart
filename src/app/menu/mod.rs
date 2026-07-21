@@ -276,6 +276,11 @@ pub fn menu_tick(
                     menu.index = (menu.index + 1) % rows;
                     dirty = true;
                 }
+                if ptr.wheel_steps != 0 {
+                    // Wheel walks the rows (the CONTROLS list scrolls; flat tabs just move).
+                    menu.index = (menu.index as i32 - ptr.wheel_steps).clamp(0, rows as i32 - 1) as usize;
+                    dirty = true;
+                }
                 // Slot1 OR Enter — Slot1 now defaults to LMB (which no longer fires in menus),
                 // so ENTER is the keyboard confirm; a bound pad/key Slot1 still works.
                 if state.pressed(Action::Slot1) || state.pressed(Action::MenuConfirm) {

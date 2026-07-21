@@ -9,7 +9,6 @@
 //! stack); T trashes; H sorts. Cells hold UIDS (per-instance ids), never item-ids.
 
 use super::{SlideOut, SlideOutUi, PANEL_W, Z};
-use crate::actors::hero::Facing;
 use crate::app::gather::spawn_pickup;
 use crate::app::play::{HeroArt, Player};
 use crate::combat::Health;
@@ -211,10 +210,23 @@ fn use_bag_at(inv: &mut PlayerInv, i: usize, health: &mut Health, bags: &mut sup
         return;
     }
     if def.kind == "UPGRADE" {
-        // Satchels (js expandBag): sew on another bag row; at the cap the stitch
-        // refuses and the satchel stays.
-        if inv.expand_bag() {
+        // Satchels, TIERED like their descriptions promise: each level sews on ITS
+        // row only (1->2, 2->3, 3->4, 4->5) so four cheap satchels can't ladder to a
+        // max bag. Every outcome toasts — a silent veto reads as a bug (the hoe lesson).
+        let from = match def.id {
+            "satchel" => 1,
+            "satchel2" => 2,
+            "satchel3" => 3,
+            _ => 4,
+        };
+        if inv.bag_rows == from && inv.expand_bag() {
             inv.remove_entry(uid);
+            let rows = inv.bag_rows;
+            bags.log.add("bag", &format!("THE BAG GROWS - {rows} ROWS"), 1, 0xd0a860, false, true);
+        } else if inv.bag_rows < from {
+            bags.log.add("bag", "TOO FINE A SATCHEL FOR THIS BAG YET", 1, 0xfc8868, false, true);
+        } else {
+            bags.log.add("bag", "THIS SATCHEL HAS NOTHING LEFT TO TEACH", 1, 0xfc8868, false, true);
         }
         return;
     }
@@ -238,12 +250,7 @@ fn use_bag_at(inv: &mut PlayerInv, i: usize, health: &mut Health, bags: &mut sup
 
 /// The drop point: one tile in front of the hero (js FACE offset arithmetic verbatim).
 fn drop_pos(player: &Player) -> (f32, f32) {
-    let f: (f32, f32) = match player.facing {
-        Facing::Up => (0.0, -1.0),
-        Facing::Down => (0.0, 1.0),
-        Facing::Left => (-1.0, 0.0),
-        Facing::Right => (1.0, 0.0),
-    };
+    let f = player.facing.offset();
     (player.x + 8.0 + f.0 * 18.0 - 8.0, player.y + 9.0 + f.1 * 18.0 - 8.0)
 }
 

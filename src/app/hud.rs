@@ -38,12 +38,38 @@ const TIME_HDR_Y: f32 = PROMPTS_Y + 8.0 + 5.0; // same section rhythm as ITEMS
 const TIME_ROW_Y: f32 = TIME_HDR_Y + 8.0;
 const QUESTS_HDR_Y: f32 = TIME_ROW_Y + 8.0 + 5.0;
 
+/// THE SIDEBAR WIDGET STACK (Baz): below the fixed rows above, every FLEXIBLE
+/// widget fills TOP-DOWN in priority order — QUESTS first, then the status
+/// buffs — and an empty widget's space collapses so the ones below slide up
+/// (the buff icons used to squat on a hand-picked y and overlap a full quest
+/// list). The one decreed exception: the compass MINIMAP, when it ports, pins
+/// to the sidebar's BOTTOM edge via `minimap_y` — never the stack. New sidebar
+/// widgets claim a slot HERE, never a hand-picked y.
+#[derive(Resource, Default)]
+pub struct SidebarLayout {
+    pub quests_y: f32,
+    pub buffs_y: f32,
+    /// Reserved bottom anchor for the future minimap (fixed, not stacked).
+    pub minimap_y: f32,
+}
+
+fn sidebar_layout(log: Res<super::quests::QuestLog>, mut layout: ResMut<SidebarLayout>) {
+    let mut y = QUESTS_HDR_Y;
+    layout.quests_y = y;
+    if !log.0.is_empty() {
+        y += 8.0 + log.0.len() as f32 * 8.0 + 5.0; // header + rows + the section gap
+    }
+    layout.buffs_y = y;
+    layout.minimap_y = crate::CANVAS_H as f32 - PAD - 40.0;
+}
+
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_hud)
-            .add_systems(Update, (hud_hp, hud_prompts, hud_slots, hud_progress, hud_name, hud_time, hud_quests, hud_mana));
+            .init_resource::<SidebarLayout>()
+            .add_systems(Update, (sidebar_layout, hud_hp, hud_prompts, hud_slots, hud_progress, hud_name, hud_time, hud_quests.after(sidebar_layout), hud_mana));
     }
 }
 
@@ -309,6 +335,7 @@ fn hud_quests(
     mut images: ResMut<Assets<Image>>,
     log: Res<super::quests::QuestLog>,
     inv: Res<PlayerInv>,
+    layout: Res<SidebarLayout>,
     old: Query<Entity, With<QuestHud>>,
     mut last: Local<Option<String>>,
 ) {
@@ -330,9 +357,9 @@ fn hud_quests(
     if log.0.is_empty() {
         return;
     }
-    label(&mut commands, &mut images, "QUESTS", PAD, QUESTS_HDR_Y, 0xfcfcfc, HUD_Z + 1.0, QuestHud);
+    label(&mut commands, &mut images, "QUESTS", PAD, layout.quests_y, 0xfcfcfc, HUD_Z + 1.0, QuestHud);
     for (i, q) in log.0.iter().enumerate() {
-        let y = QUESTS_HDR_Y + 8.0 + i as f32 * 8.0;
+        let y = layout.quests_y + 8.0 + i as f32 * 8.0;
         let ready = q.ready(&inv);
         let (mut name, suffix) = match &q.kind {
             // The short noun (e.g. WOLF) keeps the count visible (js split(' ').pop()).
