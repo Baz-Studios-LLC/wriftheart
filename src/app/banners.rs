@@ -127,12 +127,16 @@ impl Banners {
     /// slot carries it (big letters + a warning sub-line).
     pub fn threat(&mut self, name: &str) {
         self.town = Some((name.to_string(), Some("- CLEAR THEM OUT -"), 0));
+        // Crossing a region line INTO a camp raised both at once, overlapping
+        // (Baz) — the threat owns the moment; the region can introduce itself later.
+        self.biome = None;
         self.dirty = true;
     }
     /// The dungeon boss's name-splash on arena entry (js drawBossName): big letters +
     /// a warning sub-line, in the same dramatic town slot as a threat banner.
     pub fn boss(&mut self, name: &str) {
         self.town = Some((name.to_string(), Some("- IT GUARDS THE SHARD -"), 0));
+        self.biome = None; // the arena splash owns the moment (the threat rule)
         self.dirty = true;
     }
     /// Stepping into a building raises its little title plaque (js interiorBanner).

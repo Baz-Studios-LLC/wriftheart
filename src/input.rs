@@ -479,6 +479,37 @@ const DPAD: [GamepadButton; 4] =
 
 /// Poll keyboard + every connected gamepad into [`ActionState`] (runs each render frame,
 /// before the fixed ticks). The left stick maps onto the four move actions; its edge
+/// The OS cursor follows the ACTIVE device (Baz): pad input hides it, any
+/// keyboard/mouse activity brings it straight back. Both in one frame -> the
+/// hand that touched the mouse wins.
+pub fn cursor_by_device(
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse_btns: Res<ButtonInput<MouseButton>>,
+    mut motion: MessageReader<bevy::input::mouse::MouseMotion>,
+    pads: Query<&Gamepad>,
+    mut cursors: Query<&mut bevy::window::CursorOptions, With<bevy::window::PrimaryWindow>>,
+) {
+    let kbm = keys.get_just_pressed().next().is_some()
+        || mouse_btns.get_just_pressed().next().is_some()
+        || motion.read().any(|m| m.delta.length_squared() > 0.0);
+    let pad = pads
+        .iter()
+        .any(|g| g.get_pressed().next().is_some() || g.left_stick().length() > STICK_DEAD);
+    let want = if kbm {
+        Some(true)
+    } else if pad {
+        Some(false)
+    } else {
+        None
+    };
+    if let Some(v) = want
+        && let Ok(mut c) = cursors.single_mut()
+        && c.visible != v
+    {
+        c.visible = v;
+    }
+}
+
 /// crossings count as presses so menus and facing taps work from the stick too.
 pub fn poll_input(
     keys: Res<ButtonInput<KeyCode>>,

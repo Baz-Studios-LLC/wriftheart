@@ -57,7 +57,7 @@ impl Plugin for PlayPlugin {
             .add_systems(Startup, setup)
             .init_resource::<crate::input::DpadDirs>()
             .init_resource::<crate::input::Pointer>()
-            .add_systems(PreUpdate, ((set_dpad_dirs, poll_input).chain(), crate::input::track_pointer))
+            .add_systems(PreUpdate, ((set_dpad_dirs, poll_input).chain(), crate::input::track_pointer, crate::input::cursor_by_device))
             .add_systems(
                 FixedUpdate,
                 (
