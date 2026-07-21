@@ -500,7 +500,7 @@ fn ogre_deaths(
         }
         spawn_burst(&mut commands, &mut rng, Vec2::new(o.x + 8.0, o.y + 8.0), 0xa85820, 12);
         let (id, qty) = crate::items::roll_loot(1.0, 0.0, || rng.0.next_f64());
-        super::gather::spawn_pickup(&mut commands, &mut images, id, qty, o.x + 4.0, o.y + 4.0, true);
+        super::gather::spawn_pickup(&mut commands, &mut images, id, qty, o.x + 4.0, o.y + 4.0, true, None);
         commands.entity(e).despawn();
     }
 }

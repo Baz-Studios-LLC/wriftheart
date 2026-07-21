@@ -680,7 +680,7 @@ fn farm_harvest_tick(
         input.consume(Action::Interact);
         // Wild: produce drops at your feet + a leaf burst (js deathEffect; no seeds —
         // buy those from a shop).
-        spawn_pickup(&mut commands, &mut images, w.crop, 1, (w.c * 16 + 4) as f32, (w.r * 16 + 2) as f32, true);
+        spawn_pickup(&mut commands, &mut images, w.crop, 1, (w.c * 16 + 4) as f32, (w.r * 16 + 2) as f32, true, None);
         spawn_burst(&mut commands, &mut rng, Vec2::new((w.c * 16 + 8) as f32, (w.r * 16 + 8) as f32), 0x3cba4a, 6);
         stats.bump("crops", 1.0);
         // Picked -> gone for the rest of the day (the js tileTaken window).

@@ -171,6 +171,72 @@ fn weather_vis(
     }
 }
 
+/// The strike's brief HAZARD box: a few frames of bite at the impact point —
+/// resolve_combat handles i-frames and knockback like any other attack.
+#[derive(Component)]
+struct StrikeZap(i32);
+
+fn zap_tick(mut commands: Commands, mut zaps: Query<(Entity, &mut StrikeZap)>) {
+    for (e, mut z) in &mut zaps {
+        z.0 -= 1;
+        if z.0 <= 0 {
+            commands.entity(e).despawn();
+        }
+    }
+}
+
+/// A strike's GAMEPLAY (Baz): thunder cracks on every fresh flash, and the bolt
+/// that finds the ground burns and bites — flammable nodes near the impact catch
+/// fire (the fire-wand's ignite, STORMBORN so the storm's own rain can't douse
+/// it), and whoever stands under it gets hurt: the player for 2, foes for 4.
+/// Objects are spared the zap — a struck tree gets the FIRE, not a chop.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn strike_gameplay(
+    mut commands: Commands,
+    mut rng: ResMut<super::battle::GameRng>,
+    state: Res<WeatherState>,
+    sliding: Res<super::play::SlideActive>,
+    inside: Res<super::interior::Inside>,
+    in_dungeon: Res<super::dungeon::InDungeon>,
+    nodes: Query<(Entity, &super::gather::GatherNode, &crate::combat::Hitbox), Without<super::fire::Burning>>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    mut last_flash: Local<f32>,
+    mut was_strike: Local<bool>,
+) {
+    let fresh_flash = state.flash > *last_flash;
+    *last_flash = state.flash;
+    let fresh_strike = state.strike.is_some() && !*was_strike;
+    *was_strike = state.strike.is_some();
+    if sliding.0 || inside.0.is_some() || in_dungeon.0.is_some() {
+        return; // the sky can't reach you under a roof
+    }
+    if fresh_flash {
+        sfx.write(super::sfx::Sfx("thunder"));
+    }
+    if !fresh_strike {
+        return;
+    }
+    let Some((sx, sy)) = state.strike else { return };
+    for (ne, node, hb) in &nodes {
+        if !super::fire::flammable(node.kind) {
+            continue;
+        }
+        let (cx, cy) = (hb.x + hb.w / 2.0, hb.y + hb.h / 2.0);
+        if (cx - sx).hypot(cy - sy) < 22.0 {
+            super::fire::ignite(&mut commands, ne, node.kind, true);
+        }
+    }
+    for (hurt, dmg) in [(crate::combat::Team::Player, 2), (crate::combat::Team::Enemy, 4)] {
+        commands.spawn((
+            StrikeZap(4),
+            crate::combat::Combatant { team: crate::combat::Team::Hazard, hurt_team: Some(hurt), damage: Some(dmg), persistent: false, knock: 2.2 },
+            crate::combat::HitOnce::default(),
+            crate::combat::Hitbox { x: sx - 9.0, y: sy - 9.0, w: 18.0, h: 18.0 },
+        ));
+    }
+    super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(sx, sy), 0xfff3b0, 10);
+}
+
 pub struct WeatherPlugin;
 
 impl Plugin for WeatherPlugin {
@@ -181,7 +247,10 @@ impl Plugin for WeatherPlugin {
             // an Update-running tick under a frozen clock is how the lurch snuck in.
             .add_systems(Update, (tick, leaves_tick).run_if(super::screen::playing))
             .add_systems(Update, weather_vis)
-            .add_systems(bevy::app::FixedUpdate, weather_slow.run_if(super::screen::playing));
+            .add_systems(
+                bevy::app::FixedUpdate,
+                (weather_slow, strike_gameplay, zap_tick).run_if(super::screen::playing),
+            );
     }
 }
 

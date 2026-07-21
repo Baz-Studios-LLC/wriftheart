@@ -682,7 +682,7 @@ fn magic_stage(
         casts.write(super::wands::WandMsg::Cast);
         // ...and set the nearest bush alight for the burn + spread check.
         if let Some((e, n)) = nodes.iter().find(|(_, n)| n.kind == "bush") {
-            super::fire::ignite(&mut commands, e, n.kind);
+            super::fire::ignite(&mut commands, e, n.kind, false);
         }
     }
     if *step == 2 && clock.0 >= 82 {
@@ -768,6 +768,7 @@ fn procgen_stage(
 /// Spawn the loot goblin next to the hero so it's spooked + fleeing at capture.
 fn lootgob_stage(
     mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
     clock: Res<super::room_render::FrameClock>,
     mut done: Local<bool>,
 ) {
@@ -775,7 +776,7 @@ fn lootgob_stage(
         return;
     }
     *done = true;
-    super::lootgoblin::spawn_lootgoblin(&mut commands, 130.0, 90.0, 10);
+    super::lootgoblin::spawn_lootgoblin(&mut commands, &mut images, 130.0, 90.0, 10);
 }
 
 /// Line up the newly-ported roster mobs (WRIFT_MOB="a,b,c" overrides the default set).
@@ -1548,7 +1549,7 @@ fn spawn_drops(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             90.0 + col as f32 * 40.0,
             70.0 + row as f32 * 36.0,
             false,
-        );
+        None);
     }
 }
 

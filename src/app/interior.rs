@@ -230,7 +230,7 @@ pub(crate) fn door_enter(
             for (i, (sc, sr)) in [(3, 5), (6, 5), (9, 5), (12, 5)].into_iter().enumerate() {
                 let id = crate::lore_books::book_id_for("library", base.wrapping_add(i as u32 * 7));
                 if !refs.gather.tomes.contains(id) {
-                    super::gather::spawn_book(&mut commands, &mut images, id, (sc * 16) as f32, (sr * 16) as f32);
+                    super::gather::spawn_book(&mut commands, &mut images, id, (sc * 16) as f32, (sr * 16) as f32, None);
                 }
             }
         } else if !def.book_spots.is_empty() {
@@ -249,7 +249,7 @@ pub(crate) fn door_enter(
                 let (bx, by) = def.book_spots[h as usize % def.book_spots.len()];
                 let id = crate::lore_books::book_id_for(place, h >> 4);
                 if !refs.gather.tomes.contains(id) {
-                    super::gather::spawn_book(&mut commands, &mut images, id, bx as f32, by as f32);
+                    super::gather::spawn_book(&mut commands, &mut images, id, bx as f32, by as f32, None);
                 }
             }
         }

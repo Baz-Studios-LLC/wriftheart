@@ -265,7 +265,7 @@ fn drop_bag_at(
     let Some(uid) = inv.bag.get(i).copied().flatten() else { return };
     let Some(id) = inv.id_of(uid) else { return };
     let (x, y) = drop_pos(player);
-    spawn_pickup(commands, images, id, 1, x, y, false);
+    spawn_pickup(commands, images, id, 1, x, y, false, None);
     inv.remove_entry(uid);
 }
 
@@ -282,7 +282,7 @@ fn drop_stack_at(
     let (x, y) = drop_pos(player);
     let q = inv.remove_entry_all(uid);
     if q > 0 {
-        spawn_pickup(commands, images, id, q, x, y, false);
+        spawn_pickup(commands, images, id, q, x, y, false, None);
     }
 }
 

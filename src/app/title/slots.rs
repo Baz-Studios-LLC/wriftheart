@@ -20,7 +20,8 @@ pub(super) enum SlotAct {
 /// The card fill/hit rect (bx, y, bw, h) for slot index i — ONE geometry source for the draw
 /// and the mouse hit-test.
 pub(super) fn card_rect(i: usize) -> (f32, f32, f32, f32) {
-    let (y0, rh, bw) = (96.0, 21.0, 232.0);
+    // y0 clears the word-art logo (10..95) AND its heading line at 100.
+    let (y0, rh, bw) = (112.0, 21.0, 232.0);
     let bx = ((CANVAS_W as f32 - bw) / 2.0).round();
     (bx, y0 + i as f32 * rh - 3.0, bw, 17.0)
 }
@@ -122,7 +123,7 @@ pub(super) fn draw(pen: &mut Pen, st: &TitleState, metas: &SlotMetas, bindings: 
     let (w, h) = (CANVAS_W as f32, CANVAS_H as f32);
     let cx = w / 2.0;
     let hdr = if st.slot_mode == SlotMode::Load { "LOAD GAME" } else { "NEW GAME - PICK A SLOT" };
-    pen.text_center(hdr, cx, 80.0, 0xfce0a8, TEXT_Z);
+    pen.text_center(hdr, cx, 100.0, 0xfce0a8, TEXT_Z); // just under the logo's flourish
     for i in 0..SAVE_SLOTS as usize {
         let m = metas.0.get(i).and_then(|m| m.as_ref());
         let on = i == st.slot_sel;

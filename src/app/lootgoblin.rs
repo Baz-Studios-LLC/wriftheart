@@ -26,17 +26,55 @@ use crate::room::{PX_H, PX_W};
 /// The gold goblin (js GOLDPAL remaps its skin q/Q to gold).
 const GOLD_PAL: &[(char, u32)] = &[('q', 0xfcd000), ('Q', 0xc87838)];
 
-/// The four facings x two frames, gold-baked once at startup.
+/// The js LG grids: the loot goblin's OWN back/side frames wearing the stuffed
+/// BACKPACK (leather D/d, gold buckle P). The pack reads differently per facing —
+/// whole on the back (up), a bulge behind the shoulder (side) — and the front is
+/// the plain gold body: the pack hides behind him (js: straps read badly small).
+#[rustfmt::skip]
+const LG_UP: [&str; 16] = [
+    "................", "...K......K.....", "...Kq....qK.....", "...KqDDDDqK.....",
+    "...KqDDDDqK.....", "...KqDPPDqK.....", "...KqDDDDqK.....", "..KKqDDDDqKK....",
+    "..KqqDDDDqqK....", "..KqqDDDDqqK....", "...KddddddK.....", "...KDddddDK.....",
+    "...Kqq..qqK.....", "...Kq....qK.....", "...Kd....dK.....", "................",
+];
+#[rustfmt::skip]
+const LG_SIDE_A: [&str; 16] = [
+    "................", "..K.............", "..KqqqqqK.......", ".DKqqqqqqK......",
+    "dDKqqqqrqK......", "dDKqqqqqqK......", "dPKqqqqqK.......", "dDKqqqqqqK......",
+    "dDqqqqqqqqK.....", "dDqqqqqqqqK.....", "..KddddddK......", "..KDddddDK......",
+    "..Kqq..qqK......", "..Kq....qK......", "..Kd....dK......", "................",
+];
+#[rustfmt::skip]
+const LG_SIDE_B: [&str; 16] = [
+    "................", "..K.............", "..KqqqqqK.......", ".DKqqqqqqK......",
+    "dDKqqqqrqK......", "dDKqqqqqqK......", "dPKqqqqqK.......", "dDKqqqqqqK......",
+    "dDqqqqqqqqK.....", "dDqqqqqqqqK.....", "..KddddddK......", "..KDddddDK......",
+    "..Kqq..qqK......", "..Kq....qK......", "..K.d..d.K......", "................",
+];
+
+/// The four facings x two frames, gold-baked once at startup: the plain front
+/// (js GOLD_FRAMES.down), the packed back + sides, left = the side flipped.
 #[derive(Resource)]
 pub struct LootGoblinArt(pub [[Handle<Image>; 2]; 4]);
 
+fn gold(images: &mut Assets<Image>, grid: &[&str]) -> Handle<Image> {
+    images.add(bake(grid, GOLD_PAL))
+}
+
+fn gold_flipped(images: &mut Assets<Image>, grid: &[&str]) -> Handle<Image> {
+    let v = crate::gfx::flip_h(grid);
+    gold(images, &v.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+}
+
 impl LootGoblinArt {
     fn build(images: &mut Assets<Image>) -> Self {
-        LootGoblinArt(std::array::from_fn(|fi| {
-            let want = ["down", "up", "right", "left"][fi];
-            let (_, frames) = GOBLIN_FRAMES.iter().find(|(f, _)| *f == want).unwrap();
-            std::array::from_fn(|i| images.add(bake(&frames[i], GOLD_PAL)))
-        }))
+        let (_, down) = GOBLIN_FRAMES.iter().find(|(f, _)| *f == "down").unwrap();
+        LootGoblinArt([
+            [gold(images, &down[0]), gold(images, &down[1])],
+            [gold(images, &LG_UP), gold(images, &LG_UP)], // up has no leg-swap frame (js)
+            [gold(images, &LG_SIDE_A), gold(images, &LG_SIDE_B)],
+            [gold_flipped(images, &LG_SIDE_A), gold_flipped(images, &LG_SIDE_B)],
+        ])
     }
 }
 
@@ -80,8 +118,14 @@ pub struct LootGoblin {
     banished: bool,
 }
 
+/// The walking hoard's golden glint (js collectLights 'lootgoblin': glow [255,210,70],
+/// glowR 17, gi pulsing on sin(frame/10)) — a child sprite, so it rides him for free.
+#[derive(Component)]
+pub struct LootGlow;
+
 /// Spawn the goblin at `hp` (a re-entered/relocated goblin keeps its wounds; 10 = fresh).
-pub fn spawn_lootgoblin(commands: &mut Commands, x: f32, y: f32, hp: i32) -> Entity {
+pub fn spawn_lootgoblin(commands: &mut Commands, images: &mut Assets<Image>, x: f32, y: f32, hp: i32) -> Entity {
+    let glow = crate::gfx::radial_glow_tex(images, 34);
     commands
         .spawn((
             Sprite::default(), // art applied per tick from the bank
@@ -97,6 +141,14 @@ pub fn spawn_lootgoblin(commands: &mut Commands, x: f32, y: f32, hp: i32) -> Ent
             Blood(0xfcd000),
             Hitbox { x: x + 3.0, y: y + 4.0, w: 10.0, h: 11.0 },
         ))
+        .with_children(|p| {
+            p.spawn((
+                LootGlow,
+                Sprite { image: glow, color: Color::srgba(1.0, 0.82, 0.27, 0.28), custom_size: Some(Vec2::splat(34.0)), ..default() },
+                Transform::from_xyz(0.0, 0.0, -0.005), // just under the body, over the ground
+                PIXEL_LAYER,
+            ));
+        })
         .id()
 }
 
@@ -114,8 +166,13 @@ fn lootgoblin_tick(
     grid: Res<super::play::CurGrid>,
     players: Query<&Player>,
     mut gobs: Query<(Entity, &mut LootGoblin, &mut Transform, &mut Hitbox, &Health, &mut Sprite)>,
+    mut glows: Query<&mut Sprite, (With<LootGlow>, Without<LootGoblin>)>,
 ) {
     let _ = hits.read().count(); // drain the reader; coins key on the hp-drop below
+    // The hoard glints — js gi = 0.28 + 0.07 sin(frame/10), the pulsing gold halo.
+    for mut g in &mut glows {
+        g.color = g.color.with_alpha(0.28 + 0.07 * (clock.0 as f32 / 10.0).sin());
+    }
     let Ok(p) = players.single() else { return };
     let (w, h) = (PX_W as f32, PX_H as f32);
     for (e, mut g, mut tf, mut hb, health, mut spr) in &mut gobs {
@@ -130,7 +187,7 @@ fn lootgoblin_tick(
             }
             if rng.0.next_f64() < 0.12 {
                 let (id, qty) = crate::items::roll_loot(0.8, 0.0, || rng.0.next_f64());
-                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, g.x + 4.0, g.y + 6.0, true);
+                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, g.x + 4.0, g.y + 6.0, true, None);
             }
         }
         // The flee: react once you're within 150 (or already spooked).
@@ -251,7 +308,7 @@ fn lootgoblin_deaths(
             }
             if rng.0.next_f64() < 0.5 * (1.0 + tstats.luck) {
                 let (id, qty) = crate::items::roll_loot(1.6, tstats.luck, || rng.0.next_f64());
-                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, g.x + 4.0, g.y + 6.0, true);
+                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, g.x + 4.0, g.y + 6.0, true, None);
             }
             spawn_burst(&mut commands, &mut rng, Vec2::new(g.x + 8.0, g.y + 8.0), 0xfcd000, 14);
             super::rewards::gain_xp(&mut progress, &mut alloc, 20);
@@ -283,6 +340,7 @@ fn face_from(vx: f32, vy: f32) -> usize {
 #[allow(clippy::too_many_arguments)]
 fn lootgob_load(
     mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
     world: Res<GameWorld>,
     cur: Res<CurRoom>,
     clock: Res<FrameClock>,
@@ -316,7 +374,7 @@ fn lootgob_load(
         }
         let (x, y, hp) = (lg.x, lg.y, lg.hp);
         lg.deadline = None; // you're here now — it isn't "getting away" while you chase
-        spawn_lootgoblin(&mut commands, x, y, hp);
+        spawn_lootgoblin(&mut commands, &mut images, x, y, hp);
         return;
     }
     // FRESH ROLL: the worldgen seeded a super-rare one here, never cleared, none roaming yet.
@@ -325,7 +383,7 @@ fn lootgob_load(
         && let Some(e) = world.0.room_entities(cur.rx, cur.ry).iter().find(|e| e.kind == "mob" && e.sub == "lootgoblin")
     {
         let (x, y) = (e.x as f32, e.y as f32);
-        spawn_lootgoblin(&mut commands, x, y, 10);
+        spawn_lootgoblin(&mut commands, &mut images, x, y, 10);
         lootgob.0 = Some(LootGobRec { room: (cur.rx, cur.ry), x, y, hp: 10, deadline: None, origin: (cur.rx, cur.ry) });
     }
 }

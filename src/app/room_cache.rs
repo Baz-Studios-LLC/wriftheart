@@ -187,7 +187,7 @@ pub fn spawn_or_restore(
     }
     for d in &snap.drops {
         let e = match d.kind {
-            DropKind::Item { id, qty } => spawn_pickup(commands, images, id, qty, d.x, d.y, false),
+            DropKind::Item { id, qty } => spawn_pickup(commands, images, id, qty, d.x, d.y, false, None),
             DropKind::Coin(v) => spawn_coin(commands, images, v, d.x, d.y),
         };
         // Re-seat as it lay: keep its remaining life, skip the spawn-pop arc.

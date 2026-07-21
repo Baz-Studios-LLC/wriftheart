@@ -263,7 +263,7 @@ fn refund_half(kind: &str, commands: &mut Commands, images: &mut Assets<Image>, 
         for (id, q) in r.cost {
             let half = q / 2;
             if half > 0 && !ctx.inv.add_item(id, half) {
-                super::gather::spawn_pickup(commands, images, id, half, ppos.0 + 8.0, ppos.1 + 9.0, false);
+                super::gather::spawn_pickup(commands, images, id, half, ppos.0 + 8.0, ppos.1 + 9.0, false, None);
             }
         }
     }

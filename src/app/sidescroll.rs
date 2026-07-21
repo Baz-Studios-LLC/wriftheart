@@ -318,7 +318,7 @@ pub fn side_tick(
         looted.0.insert(st.room_key.clone());
         let (id, qty) = crate::items::roll_loot(0.9, tstats.luck, || rng.0.next_f64());
         if !inv.add_item(id, qty) {
-            super::gather::spawn_pickup(&mut commands, &mut images, id, qty, p.x + 4.0, p.y + 4.0, true);
+            super::gather::spawn_pickup(&mut commands, &mut images, id, qty, p.x + 4.0, p.y + 4.0, true, None);
         }
         let coins = 40 + (rng.0.next_f64() * 40.0) as i64;
         inv.money += coins;

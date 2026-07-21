@@ -109,11 +109,14 @@ type CampCache = Option<((i32, i32), Vec<(i32, i32, i32)>)>;
 
 /// The room-scene inputs (grouped under Bevy's 16-param cap).
 #[derive(bevy::ecs::system::SystemParam)]
-struct SceneCtx<'w> {
+struct SceneCtx<'w, 's> {
     cur: Res<'w, super::play::CurRoom>,
     world: Res<'w, super::play::GameWorld>,
     slide: Res<'w, super::play::SlideState>,
     fluting: Res<'w, super::flute::Fluting>,
+    /// The walking hoard's light (js collectLights 'lootgoblin') — nested here,
+    /// update_overlay sits AT the 16-param cap.
+    lootgobs: Query<'w, 's, &'static crate::combat::Hitbox, With<super::lootgoblin::LootGoblin>>,
 }
 
 /// Rebuild the darkness buffer: ambient fill, then every light multiplies the alpha down
@@ -178,6 +181,10 @@ fn update_overlay(
         .iter()
         .map(|p| (ox + (p.x + 2.0) as i32, oy + (p.y + 2.0) as i32, 16))
         .collect();
+    // A walking hoard, glinting gold (js collectLights 'lootgoblin': r 30).
+    for hb in &scene.lootgobs {
+        lights.push((ox + (hb.x + 5.0) as i32, oy + (hb.y + 4.0) as i32, 30));
+    }
     // A blaze lights the area (js collectLights' .burning arm, r36).
     for &(x, y) in &burning.0 {
         lights.push((ox + x, oy + y, 36));

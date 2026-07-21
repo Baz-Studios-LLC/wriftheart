@@ -127,6 +127,7 @@ fn check_death(
             dx.clamp(4.0, (PX_W - 20) as f32),
             dy.clamp(4.0, (PX_H - 20) as f32),
             false,
+            None,
         );
         // CORPSE RUN (Baz, 2026-07-16 — deviates from the js 20s expiry): the scattered
         // bag never blinks out. It lies where you fell — walk back and reclaim it. The

@@ -269,10 +269,10 @@ pub fn dig_tool(
             for k in 0..2 {
                 // Maps pay by tier, but purple stays a deep-map prize (js boost curve).
                 let (id, qty) = crate::items::roll_loot(0.25 + tm.tier as f64 * 0.3, 0.0, || rng.0.next_f64());
-                spawn_pickup(&mut commands, &mut images, id, qty, bx + 4.0 + k as f32 * 7.0, by + 4.0, true);
+                spawn_pickup(&mut commands, &mut images, id, qty, bx + 4.0 + k as f32 * 7.0, by + 4.0, true, None);
             }
             if rng.0.next_f64() < 0.15 {
-                spawn_pickup(&mut commands, &mut images, "treasuremap", 1, bx + 8.0, by - 4.0, true); // the trail continues...
+                spawn_pickup(&mut commands, &mut images, "treasuremap", 1, bx + 8.0, by - 4.0, true, None); // the trail continues...
             }
             ctx.log.add("dig", "TREASURE UNEARTHED", 1, 0xe8b84a, false, true);
             ctx.sfx.write(super::sfx::Sfx("itemget"));
@@ -284,7 +284,7 @@ pub fn dig_tool(
                 spawn_coin(&mut commands, &mut images, 1 + (rng.0.next_f64() * 5.0) as i32, (fc * 16 + 4) as f32, (fr * 16 + 4) as f32);
             } else {
                 let id = if roll < 0.75 { "stone" } else { "fiber" };
-                spawn_pickup(&mut commands, &mut images, id, 1, (fc * 16 + 4) as f32, (fr * 16 + 4) as f32, true);
+                spawn_pickup(&mut commands, &mut images, id, 1, (fc * 16 + 4) as f32, (fr * 16 + 4) as f32, true, None);
             }
         }
     }

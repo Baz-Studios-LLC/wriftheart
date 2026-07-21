@@ -413,7 +413,7 @@ fn turn_in(
             inv.auto_equip(def.id);
         } else if let Ok(p) = qx.players.single() {
             // Bag full — the reward waits at your feet (js drop).
-            super::gather::spawn_pickup(commands, images, def.id, *qty, p.x, p.y, true);
+            super::gather::spawn_pickup(commands, images, def.id, *qty, p.x, p.y, true, None);
         }
     }
     *qx.giver_done.0.entry(q.giver_key.clone()).or_insert(0) += 1;

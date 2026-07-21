@@ -828,7 +828,7 @@ pub fn wanderer_talk(
 }
 
 fn spawn_pickup_at(commands: &mut Commands, images: &mut Assets<Image>, id: &'static str, qty: i32, x: f32, y: f32) {
-    super::gather::spawn_pickup(commands, images, id, qty, x, y, true);
+    super::gather::spawn_pickup(commands, images, id, qty, x, y, true, None);
 }
 
 /// Dress the victims + wanderers each frame from the shared villager sprite bank

@@ -245,7 +245,7 @@ fn yard_wake(
         a.prod_day = day;
         for _ in 0..laid {
             let (ex, ey) = (a.hx + 4.0 + rng.0.next_f64() as f32 * 28.0, a.hy + 30.0 + rng.0.next_f64() as f32 * 14.0);
-            let e = super::gather::spawn_pickup(&mut commands, &mut images, "egg", 1, ex, ey, false);
+            let e = super::gather::spawn_pickup(&mut commands, &mut images, "egg", 1, ex, ey, false, None);
             // Yard eggs keep until you leave the room (js life 100000).
             commands.entity(e).entry::<super::gather::Pickup>().and_modify(|mut p| p.life = 100000);
         }

@@ -422,7 +422,7 @@ fn grant_loot(
     let (px, py) = player.map(|p| (p.x, p.y)).unwrap_or((144.0, 100.0));
     let drop = |iid: &'static str, qty: i32, commands: &mut Commands, images: &mut Assets<Image>, inv: &mut crate::inventory::PlayerInv| {
         if !inv.add_item(iid, qty) {
-            super::gather::spawn_pickup(commands, images, iid, qty, px + 4.0, py + 18.0, false);
+            super::gather::spawn_pickup(commands, images, iid, qty, px + 4.0, py + 18.0, false, None);
         }
     };
     match id {

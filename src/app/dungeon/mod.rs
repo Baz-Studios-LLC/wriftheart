@@ -659,11 +659,11 @@ pub(crate) fn dprop_deaths(
         super::battle::spawn_burst(&mut commands, &mut rng, bevy::math::Vec2::new(px + 8.0, py + 8.0), prop.debris, 8);
         if prop.kind == "cobweb" {
             // A cut web always yields its thread (Baz) — no coin/gear, just 1 string.
-            super::gather::spawn_pickup(&mut commands, &mut images, "string", 1, px + 4.0, py + 2.0, true);
+            super::gather::spawn_pickup(&mut commands, &mut images, "string", 1, px + 4.0, py + 2.0, true, None);
         } else if prop.kind == "crystal" {
             // A mined crystal yields a gemstone, and its glow dies with it (the decor light
             // was collected at room spawn — pull this tile's entry so darkness closes in).
-            super::gather::spawn_pickup(&mut commands, &mut images, "gem", 1, px + 4.0, py + 2.0, true);
+            super::gather::spawn_pickup(&mut commands, &mut images, "gem", 1, px + 4.0, py + 2.0, true, None);
             dlights.0.retain(|&(lx, ly, _)| !(lx == prop.c * 16 + 8 && ly == prop.r * 16 + 8));
         } else {
             if rng.0.next_f64() < 0.5 {
@@ -673,7 +673,7 @@ pub(crate) fn dprop_deaths(
             if rng.0.next_f64() < 0.02 {
                 // Smashed furniture rarely hides real gear.
                 let (id, qty) = crate::items::roll_loot(0.2, 0.0, || rng.0.next_f64());
-                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, px + 4.0, py + 2.0, true);
+                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, px + 4.0, py + 2.0, true, None);
             }
         }
         if let Some(b) = prop.blocker {
@@ -1205,21 +1205,21 @@ fn chest_touch(
                     let coins = 20 + (rng.next_f64() * 30.0) as i32;
                     super::gather::spawn_coin(&mut commands, &mut images, coins, chest.x + 4.0, chest.y + 2.0);
                     let (id, qty) = crate::items::roll_loot(0.9, 0.0, || rng.next_f64());
-                    super::gather::spawn_pickup(&mut commands, &mut images, id, qty, chest.x + 4.0, chest.y, true);
+                    super::gather::spawn_pickup(&mut commands, &mut images, id, qty, chest.x + 4.0, chest.y, true, None);
                 } else if chest.gilded {
                     let coins = 30 + (rng.next_f64() * 40.0) as i32;
                     super::gather::spawn_coin(&mut commands, &mut images, coins, chest.x + 4.0, chest.y + 2.0);
                     let (id, qty) = crate::items::roll_loot(1.6, 0.0, || rng.next_f64());
-                    super::gather::spawn_pickup(&mut commands, &mut images, id, qty, chest.x + 4.0, chest.y, true);
+                    super::gather::spawn_pickup(&mut commands, &mut images, id, qty, chest.x + 4.0, chest.y, true, None);
                 } else {
                     let coins = 10 + (rng.next_f64() * 24.0) as i32;
                     super::gather::spawn_coin(&mut commands, &mut images, coins, chest.x + 4.0, chest.y + 2.0);
                     let (id, qty) = crate::items::roll_loot(0.25, 0.0, || rng.next_f64());
-                    super::gather::spawn_pickup(&mut commands, &mut images, id, qty, chest.x + 4.0, chest.y, true);
+                    super::gather::spawn_pickup(&mut commands, &mut images, id, qty, chest.x + 4.0, chest.y, true, None);
                     if rng.next_f64() < 0.5 {
                         let mat = if rng.next_f64() < 0.5 { "wood" } else { "stone" };
                         let q = 1 + (rng.next_f64() * 2.0) as i32;
-                        super::gather::spawn_pickup(&mut commands, &mut images, mat, q, chest.x + 8.0, chest.y + 2.0, true);
+                        super::gather::spawn_pickup(&mut commands, &mut images, mat, q, chest.x + 8.0, chest.y + 2.0, true, None);
                     }
                 }
             }
@@ -2023,7 +2023,7 @@ fn navigate(
                 let mut roll_rng = crate::worldgen::rng::Mulberry32::new(run.rift_base ^ (depth as u32).wrapping_mul(77))
 ;
                 let (id, qty) = crate::items::roll_loot(0.3 + depth as f64 * 0.3, 0.0, || roll_rng.next_f64());
-                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, 6.0 * 16.0, 7.0 * 16.0 + 4.0, true);
+                super::gather::spawn_pickup(&mut commands, &mut images, id, qty, 6.0 * 16.0, 7.0 * 16.0 + 4.0, true, None);
                 let best = ctx.stats.0.get("riftbest").copied().unwrap_or(0.0);
                 if (depth as f64) > best {
                     ctx.stats.0.insert("riftbest".into(), depth as f64);

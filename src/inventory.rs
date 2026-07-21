@@ -47,19 +47,13 @@ impl Default for PlayerInv {
             money: 0,
             next_uid: 0,
         };
-        // Starting loadout — TEMP DEVIATION: the js hero starts with sword + shield
-        // (slots A/B). Shields (block + durability) haven't ported, and playtesting the
-        // gather loop needs the axe + pick, so the fresh hero carries all three tools.
-        for (i, id) in ["sword", "axe", "pick"].into_iter().enumerate() {
+        // Starting loadout (js + Baz): sword in the FIRST slot, shield in the SECOND,
+        // nothing else — axes and picks are earned, and the pocket watch went back to
+        // the shops (the old bootstrap deviations, retired now that shields block).
+        for (i, id) in ["sword", "shield"].into_iter().enumerate() {
             let uid = inv.new_entry(id, 1);
             inv.slots[i] = Some(uid);
         }
-        // TEMP DEVIATION (Baz, 2026-07-16): a Pocket Watch comes pre-worn in trinket 1
-        // so the sidebar clock is on from minute one (handy while the day/night feel
-        // work is hot). Pull it back to shop-only once that settles — the shops
-        // already stock it.
-        let watch = inv.new_entry("pocketwatch", 1);
-        inv.gear[3] = Some(watch);
         inv
     }
 }

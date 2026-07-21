@@ -57,22 +57,22 @@ pub(super) fn deaths(
         if !ranged && rng.0.next_f64() < 0.15 * luck {
             // The woodcutting gate: a common enough melee-goblin drop to bootstrap
             // harvesting (js: axe, NO magnet).
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, "axe", 1, gx, gy, false);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, "axe", 1, gx, gy, false, None);
         }
         if ranged && rng.0.next_f64() < 0.15 * luck {
             // Slingshot goblins scrounge stones — a small chance to drop 1-2.
             let n = 1 + (rng.0.next_f64() * 2.0) as i32;
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, "stone", n, gx, gy, true);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, "stone", n, gx, gy, true, None);
         }
         // Any foe may scatter bow ammo (js: ~5% x luck — the shared cull-loop roll).
         if rng.0.next_f64() < 0.05 * luck {
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, "arrow", 1, gx + 4.0, gy, true);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, "arrow", 1, gx + 4.0, gy, true, None);
         }
         // Loot scarcity: trash goblins cough up gear barely ever (js 0.8%; red 3% and
         // champions 20% when those variants port).
         if rng.0.next_f64() < 0.008 * luck {
             let (id, qty) = crate::items::roll_loot(0.0, luck - 1.0, || rng.0.next_f64());
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, id, qty, gx, gy, true);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, id, qty, gx, gy, true, None);
         }
         // XP for the kill (js e.xp: spear 4, melee 3; red 8 when it ports).
         crate::app::rewards::gain_xp(&mut progress, &mut alloc, if ranged { 4 } else { 3 });
@@ -128,7 +128,7 @@ pub(super) fn mob_deaths(
             let boost = if promo.elite { 0.8 } else { 0.5 };
             for i in 0..rolls {
                 let (id, qty) = crate::items::roll_loot(boost, tstats.luck, || rng.0.next_f64());
-                crate::app::gather::spawn_pickup(&mut commands, &mut images, id, qty, m.x + 2.0 + i as f32 * 8.0, m.y + 6.0, true);
+                crate::app::gather::spawn_pickup(&mut commands, &mut images, id, qty, m.x + 2.0 + i as f32 * 8.0, m.y + 6.0, true, None);
             }
         }
         // Kill procs (js cull-loop reward block): Midas coin bursts, Soul Locket mends —
@@ -171,20 +171,20 @@ pub(super) fn mob_deaths(
             && rng.0.next_f64() < chance * luck
         {
             let qty = min + if spread > 0 { (rng.0.next_f64() * spread as f64) as i32 } else { 0 };
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, mat, qty, gx, gy, true);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, mat, qty, gx, gy, true, None);
         }
         // Any foe may scatter bow ammo (js: ~5% x luck, on top of its own drops).
         if !m.small && rng.0.next_f64() < 0.05 * luck {
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, "arrow", 1, gx + 4.0, gy, true);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, "arrow", 1, gx + 4.0, gy, true, None);
         }
         // A healing drop for the bruisers (js o.potion).
         if !m.small && d.potion > 0.0 && rng.0.next_f64() < d.potion {
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, "potion", 1, gx, gy + 2.0, true);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, "potion", 1, gx, gy + 2.0, true, None);
         }
         // Loot scarcity: trash mobs cough up gear barely ever (js 0.8% * luck).
         if !m.small && rng.0.next_f64() < 0.008 * luck {
             let (id, qty) = crate::items::roll_loot(0.0, luck - 1.0, || rng.0.next_f64());
-            crate::app::gather::spawn_pickup(&mut commands, &mut images, id, qty, gx, gy, true);
+            crate::app::gather::spawn_pickup(&mut commands, &mut images, id, qty, gx, gy, true, None);
         }
         crate::app::rewards::gain_xp(&mut progress, &mut alloc, if m.small { 1 } else { d.xp });
         stats.bump("kills", 1.0);

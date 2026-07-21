@@ -475,7 +475,7 @@ pub(crate) fn deaths(
         }
         let coins = 30 + (rng.0.next_f64() * 40.0) as i32;
         crate::app::gather::spawn_coin(&mut commands, &mut images, coins, cx, cy);
-        crate::app::gather::spawn_pickup(&mut commands, &mut images, "potion", 1, cx + 6.0, cy + 4.0, true);
+        crate::app::gather::spawn_pickup(&mut commands, &mut images, "potion", 1, cx + 6.0, cy + 4.0, true, None);
         crate::app::rewards::gain_xp(&mut progress, &mut alloc, 45);
         stats.bump("kills", 1.0);
         stats.bump_kill("boss");

@@ -170,6 +170,7 @@ fn glow_image(images: &mut Assets<Image>, rgb: [u8; 3], gi: f32) -> Handle<Image
 
 /// Spawn an item drop at (x, y) — its icon, bobbing over a soft blue glow (js
 /// Entities.itemPickup + collectLights type 'item').
+#[allow(clippy::too_many_arguments)] // the drop API's full arity
 pub fn spawn_pickup(
     commands: &mut Commands,
     images: &mut Assets<Image>,
@@ -178,6 +179,7 @@ pub fn spawn_pickup(
     x: f32,
     y: f32,
     magnet: bool,
+    parent: Option<Entity>,
 ) -> Entity {
     let icon = crate::items::get(id).map(|d| (d.icon, d.icon_pal));
     let sprite = match icon {
@@ -189,32 +191,34 @@ pub fn spawn_pickup(
         ),
     };
     let s = if icon.is_some() { 8.0 } else { 4.0 };
-    spawn_drop(commands, images, PickupKind::Item { id, qty }, sprite, s, 1200, [150, 190, 255], 0.11, x, y, magnet)
+    spawn_drop(commands, images, PickupKind::Item { id, qty }, sprite, s, 1200, [150, 190, 255], 0.11, x, y, magnet, parent)
 }
 
 /// A lore tome on the ground (js Entities.bookPickup): the category-coloured spine over
 /// its own glow, a GENEROUS grab zone (books sit on furniture — the take must reach the
 /// floor beside it), bobbing gently, waiting forever. Collects into the tome ledger.
-pub fn spawn_book(commands: &mut Commands, images: &mut Assets<Image>, id: &'static str, x: f32, y: f32) {
+pub fn spawn_book(commands: &mut Commands, images: &mut Assets<Image>, id: &'static str, x: f32, y: f32, root: Option<Entity>) {
     let Some(b) = crate::lore_books::get(id) else { return };
     let icon = Sprite::from_image(images.add(crate::gfx::bake(
         crate::lore_books::BOOK_GRID,
         &[('C', b.col), ('W', 0xf4ecd0)],
     )));
     let rgb = [(b.col >> 16) as u8, (b.col >> 8) as u8, b.col as u8];
-    spawn_drop(commands, images, PickupKind::Book(id), icon, 8.0, u32::MAX, rgb, 0.14, x, y, false);
+    spawn_drop(commands, images, PickupKind::Book(id), icon, 8.0, u32::MAX, rgb, 0.14, x, y, false, root);
 }
 
 /// A hand-PLACED ground item (the Emberfall stones): sits on its tile with no spawn pop
-/// or expiry; collecting stamps the daily gather record so it regrows tomorrow.
+/// or expiry; collecting stamps the daily gather record so it regrows tomorrow. Room
+/// content — parent it to the room root so it rides edge slides (the books lesson).
 pub fn spawn_placed_item(
     commands: &mut Commands,
     images: &mut Assets<Image>,
     id: &'static str,
     x: f32,
     y: f32,
+    root: Option<Entity>,
 ) {
-    let pe = spawn_pickup(commands, images, id, 1, x, y, false);
+    let pe = spawn_pickup(commands, images, id, 1, x, y, false, root);
     commands.entity(pe).entry::<Pickup>().and_modify(move |mut p| {
         p.tile = Some(((x as i32).div_euclid(crate::room::TILE), (y as i32).div_euclid(crate::room::TILE)));
         p.t = 9; // already settled — no pop arc
@@ -226,7 +230,7 @@ pub fn spawn_placed_item(
 /// magnetised — money always fits.
 pub fn spawn_coin(commands: &mut Commands, images: &mut Assets<Image>, value: i32, x: f32, y: f32) -> Entity {
     let sprite = Sprite::from_image(images.add(crate::gfx::bake(crate::actors::items_art::COIN_ICON, &[])));
-    spawn_drop(commands, images, PickupKind::Coin(value), sprite, 8.0, 600, [255, 210, 90], 0.10, x, y, true)
+    spawn_drop(commands, images, PickupKind::Coin(value), sprite, 8.0, 600, [255, 210, 90], 0.10, x, y, true, None)
 }
 
 #[allow(clippy::too_many_arguments)] // the two public spawns above are the real API
@@ -242,6 +246,7 @@ fn spawn_drop(
     x: f32,
     y: f32,
     magnet: bool,
+    parent: Option<Entity>,
 ) -> Entity {
     let pe = commands
         .spawn((
@@ -249,16 +254,31 @@ fn spawn_drop(
             sprite,
             at(PLAY_X + x + 2.0 - s / 2.0, PLAY_Y + y + 2.0 - s / 2.0, s, s, actor_z(y + 6.0) + ICON_Z_OFF),
             PIXEL_LAYER,
-            RoomActor,
         ))
         .id();
-    commands.spawn((
-        PickupGlow(pe),
-        Sprite::from_image(glow_image(images, glow_rgb, glow_gi)),
-        at(PLAY_X + x + 2.0 - GLOW_R, PLAY_Y + y + 2.0 - GLOW_R, GLOW_R * 2.0, GLOW_R * 2.0, actor_z(y + 6.0) + GLOW_Z_OFF),
-        PIXEL_LAYER,
-        RoomActor,
-    ));
+    let ge = commands
+        .spawn((
+            PickupGlow(pe),
+            Sprite::from_image(glow_image(images, glow_rgb, glow_gi)),
+            at(PLAY_X + x + 2.0 - GLOW_R, PLAY_Y + y + 2.0 - GLOW_R, GLOW_R * 2.0, GLOW_R * 2.0, actor_z(y + 6.0) + GLOW_Z_OFF),
+            PIXEL_LAYER,
+        ))
+        .id();
+    match parent {
+        // ROOM CONTENT (the authored tomes): children of the room root, so they
+        // ride edge slides with the tiles and die with the room — a RoomActor
+        // pickup popped at slide start and hovered unscrolled on the way in
+        // (Baz: "books don't transition rooms properly").
+        Some(r) => {
+            commands.entity(r).add_child(pe);
+            commands.entity(r).add_child(ge);
+        }
+        // Loose drops (mats, coins) stay RoomActors: transient, swept with the cast.
+        None => {
+            commands.entity(pe).insert(RoomActor);
+            commands.entity(ge).insert(RoomActor);
+        }
+    }
     pe
 }
 
@@ -535,7 +555,7 @@ fn node_deaths(
         }
         for id in drops {
             let (dx, dy) = (2.0 + rng.0.next_f64() as f32 * 10.0, 2.0 + rng.0.next_f64() as f32 * 10.0);
-            spawn_pickup(&mut commands, &mut images, id, 1, x + dx, y + dy, true);
+            spawn_pickup(&mut commands, &mut images, id, 1, x + dx, y + dy, true, None);
         }
         if let Some(b) = node.blocker {
             blockers.0.retain(|r| *r != b);

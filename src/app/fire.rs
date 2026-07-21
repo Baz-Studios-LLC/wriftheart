@@ -27,6 +27,9 @@ use crate::gfx::{at, PIXEL_LAYER};
 #[derive(Component)]
 pub struct Burning {
     pub t: i32,
+    /// Lit by LIGHTNING (weather.rs): the rain that rides the storm can't douse
+    /// it — the strike's fire burns down through the downpour (spread still stops).
+    pub stormborn: bool,
 }
 
 /// One flame tongue of the overlay (jittered by flame_flicker), or its soft glow
@@ -54,7 +57,7 @@ pub struct BurningLights(pub Vec<(i32, i32)>);
 
 /// What catches (js flammable flags): grass and bushes, and the trees — never
 /// stone, crystal, cactus, cracked walls, or songstones.
-fn flammable(kind: &str) -> bool {
+pub(crate) fn flammable(kind: &str) -> bool {
     matches!(kind, "grass" | "bush") || !matches!(kind, "boulder" | "stalagmite" | "crystalspire" | "cactus" | "crackedrock" | "songstone")
 }
 
@@ -67,8 +70,8 @@ fn burn_frames(kind: &str) -> i32 {
     }
 }
 
-pub fn ignite(commands: &mut Commands, host: Entity, kind: &str) {
-    commands.entity(host).insert(Burning { t: burn_frames(kind) });
+pub fn ignite(commands: &mut Commands, host: Entity, kind: &str, stormborn: bool) {
+    commands.entity(host).insert(Burning { t: burn_frames(kind), stormborn });
     for lane in 0..4 {
         commands.spawn((
             Sprite::from_color(Color::srgb_u8(0xfc, if lane & 1 == 1 { 0xae } else { 0x60 }, if lane & 1 == 1 { 0x40 } else { 0x20 }), Vec2::new(2.0, 5.0)),
@@ -110,7 +113,7 @@ fn fire_ignition(
             if !flammable(node.kind) || !bhb.overlaps(nhb) {
                 continue;
             }
-            ignite(&mut commands, ne, node.kind);
+            ignite(&mut commands, ne, node.kind, false);
             if node.kind != "grass" {
                 // a bush or tree stops the bolt in a little explosion
                 super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(bhb.x + 4.0, bhb.y + 4.0), 0xfc7430, 8);
@@ -141,8 +144,9 @@ fn fire_tick(
     let (sx, sy) = slide.outgoing_offset().unwrap_or((0.0, 0.0));
     lights.0.clear();
     for (e, mut b, health, hb) in &mut burning {
-        if raining {
-            // rain puts it out — the target SURVIVES (js doused)
+        if raining && !b.stormborn {
+            // rain puts it out — the target SURVIVES (js doused); a lightning-lit
+            // burn shrugs the rain off
             commands.entity(e).remove::<Burning>();
             continue;
         }
@@ -213,7 +217,7 @@ fn wildfire(
                 continue;
             }
             if rng.0.next_f64() < 0.2 {
-                ignite(&mut commands, ne, node.kind);
+                ignite(&mut commands, ne, node.kind, false);
             }
         }
         for (fe, fhb, aff) in &mut foes {

@@ -415,7 +415,7 @@ fn spawn_ruined_village(
     for (sx, sy) in [(90.0, 74.0), (208.0, 64.0), (66.0, 126.0), (232.0, 98.0), (126.0, 160.0)] {
         let (c, r) = ((sx as i32).div_euclid(TILE), (sy as i32).div_euclid(TILE));
         if !gather.placed_taken(HOME_VILLAGE, c, r) {
-            super::gather::spawn_placed_item(commands, images, "stone", sx, sy);
+            super::gather::spawn_placed_item(commands, images, "stone", sx, sy, Some(root));
         }
     }
 
@@ -429,7 +429,7 @@ fn spawn_ruined_village(
         ("emberroll", 146.0, 122.0),
     ] {
         if !gather.tomes.contains(id) {
-            super::gather::spawn_book(commands, images, id, bx, by);
+            super::gather::spawn_book(commands, images, id, bx, by, Some(root));
         }
     }
 
