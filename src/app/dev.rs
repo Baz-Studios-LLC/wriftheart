@@ -347,7 +347,7 @@ fn drive(
             log.add("dev", "ARCHER KIT", 1, 0xa8e0ff, false, true);
         }
         Cmd::MageKit => {
-            for id in ["wand", "firerune", "frostrune", "stormrune"] {
+            for id in ["wand", "firerune", "frostrune", "stormrune", "venomrune"] {
                 ctx.inv.add_item(id, 1);
             }
             ctx.inv.add_item("manapotion", 5);

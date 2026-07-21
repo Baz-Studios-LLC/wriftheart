@@ -360,6 +360,7 @@ pub fn apply_to(d: &SaveData, ctx: &mut SaveCtx, extras: &mut SaveExtras) {
         "fire" => "fire",
         "frost" => "frost",
         "storm" => "storm",
+        "venom" => "venom",
         _ => "arcane",
     };
     *ctx.ident = super::identity::HeroIdent {

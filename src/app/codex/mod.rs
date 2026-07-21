@@ -152,8 +152,9 @@ fn codex_tick(
 ) {
     match screen.get() {
         Screen::Play => {
-            // Map opens the codex where you left it; every tab also has its own
-            // quick-access action (unbound by default; the CONTROLS page offers all).
+            // EVERY opener jumps to ITS page — Map included (Baz: "M should always
+            // open the map"; it used to reopen the last-viewed tab). Each tab also
+            // has its own quick-access action (unbound by default; CONTROLS offers all).
             const OPENERS: [(Action, TabId); 11] = [
                 (Action::Map, TabId::Map),
                 (Action::Calendar, TabId::Calendar),
@@ -170,7 +171,6 @@ fn codex_tick(
             for (action, tab) in OPENERS {
                 if state.pressed(action) {
                     let idx = TABS.iter().position(|t| t.id == tab);
-                    let idx = if action == Action::Map { None } else { idx };
                     open(&mut commands, &mut next, &mut cx, &chrome, &bindings, &state, &mut images, idx);
                     break;
                 }

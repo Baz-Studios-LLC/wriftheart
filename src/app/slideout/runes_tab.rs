@@ -21,6 +21,7 @@ const ROWS: &[(&str, &str, &str, &str)] = &[
     ("fire", "firerune", "EMBER RUNE", "FIREBOLT - 3 MANA - SETS ALL ALIGHT"),
     ("frost", "frostrune", "FROST RUNE", "FROST BEAM - 3 MANA - FREEZES SOLID"),
     ("storm", "stormrune", "STORM RUNE", "SPARK BOLT - 4 MANA - PIERCES THROUGH"),
+    ("venom", "venomrune", "VENOM RUNE", "VENOM SPRAY - 3 MANA - POISON PUDDLES"),
 ];
 
 /// One geometry source for draw + mouse hit-testing (the tab_chips rule).

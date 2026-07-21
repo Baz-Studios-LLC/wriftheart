@@ -1,4 +1,6 @@
-//! wands.rs — MAGIC (js items.js wands + spell bolts): ONE wand, four runes. The
+//! wands.rs — MAGIC (js items.js wands + spell bolts): ONE wand, five runes (venom
+//! is PAST-JS — Baz's fourth socketable: a droplet SPRAY that envenoms and leaves
+//! poison puddles). The
 //! wand casts its socketed rune's spell from an ability slot, spending mana — a
 //! tapped-out cast fizzles with a red bar flash and the dry click. USING a rune
 //! sockets it (the old rune pops back into the bag; plain Arcane is the default).
@@ -48,11 +50,12 @@ pub struct Spell {
     pub pierce: bool,
 }
 
-pub static SPELLS: [Spell; 4] = [
+pub static SPELLS: [Spell; 5] = [
     Spell { el: "arcane", mana: 2, dmg: 2.0, speed: 4.6, life: 64, color: 0xc8a0ff, core: 0x8050e0, fire: false, slow: 0, pierce: false },
     Spell { el: "fire", mana: 3, dmg: 2.0, speed: 4.2, life: 64, color: 0xfcae40, core: 0xfc5018, fire: true, slow: 0, pierce: false },
     Spell { el: "frost", mana: 3, dmg: 2.0, speed: 4.0, life: 64, color: 0xbff0ff, core: 0x3aa8ff, fire: false, slow: 150, pierce: false },
     Spell { el: "storm", mana: 4, dmg: 2.0, speed: 7.0, life: 42, color: 0xfff2a0, core: 0xfce64a, fire: false, slow: 0, pierce: true },
+    Spell { el: "venom", mana: 3, dmg: 1.0, speed: 2.6, life: 24, color: 0xb060f0, core: 0x7028a8, fire: false, slow: 0, pierce: false },
 ];
 
 pub fn spell_for(el: &str) -> &'static Spell {
@@ -65,6 +68,7 @@ pub fn rune_element(id: &str) -> Option<&'static str> {
         "firerune" => Some("fire"),
         "frostrune" => Some("frost"),
         "stormrune" => Some("storm"),
+        "venomrune" => Some("venom"),
         _ => None,
     }
 }
@@ -73,6 +77,7 @@ pub fn element_rune(el: &str) -> Option<&'static str> {
         "fire" => Some("firerune"),
         "frost" => Some("frostrune"),
         "storm" => Some("stormrune"),
+        "venom" => Some("venomrune"),
         _ => None, // arcane is the bare wand — nothing to eject
     }
 }
@@ -115,6 +120,34 @@ struct FrostBeamFx {
     t: i32,
     a0: f32,
 }
+
+/// One droplet of the VENOM SPRAY (Baz's fourth rune): a short-lived purple mote
+/// that poisons what it splashes; marked droplets leave a PUDDLE where they die.
+#[derive(Component)]
+struct VenomMote {
+    x: f32,
+    y: f32,
+    vx: f32,
+    vy: f32,
+    life: i32,
+    puddle: bool,
+}
+
+/// A poison puddle on the ground — foes standing in it are re-envenomed while it
+/// lasts, and it bubbles as it slowly sinks away.
+#[derive(Component)]
+pub struct PoisonPuddle {
+    pub x: f32,
+    pub y: f32,
+    pub life: i32,
+}
+
+/// One rising poison bubble off a puddle (cosmetic).
+#[derive(Component)]
+struct PuddleBubble(i32);
+
+const PUDDLE_LIFE: i32 = 360; // ~6s on the ground
+const POISON_FRAMES: i32 = 300; // ~5s of venom per splash (uniques.rs ticks it)
 
 /// The 8-way aim (shared shape with archery's — small enough to keep local).
 fn aim_vec(state: &ActionState, p: &Player) -> (f32, f32) {
@@ -239,6 +272,35 @@ fn wand_msgs(
                     sfx.write(super::sfx::Sfx("swing"));
                     continue;
                 }
+                if sp.el == "venom" {
+                    // VENOM SPRAY (Baz's fourth rune): a fan of purple droplets — each
+                    // splash envenoms (PoisonHit rides the proc pipeline), and every
+                    // third droplet leaves a POISON PUDDLE where it dies (venom_tick).
+                    let (cx, cy) = (p.x + 8.0, p.y + 9.0);
+                    for i in 0..9 {
+                        let spread = (rng.0.next_f64() as f32 - 0.5) * 0.9;
+                        let (ca, sa) = (spread.cos(), spread.sin());
+                        let (ux, uy) = (dx * ca - dy * sa, dx * sa + dy * ca);
+                        let spd = sp.speed * (0.75 + rng.0.next_f64() as f32 * 0.55);
+                        let life = sp.life + (rng.0.next_f64() * 10.0) as i32;
+                        let col: u32 = if i & 1 == 1 { 0xb060f0 } else { 0x8a48c8 };
+                        commands.spawn((
+                            Sprite::from_color(Color::srgb_u8((col >> 16) as u8, (col >> 8) as u8, col as u8), Vec2::splat(3.0)),
+                            at(PLAY_X + cx - 1.5, PLAY_Y + cy - 1.5, 3.0, 3.0, 8.6),
+                            PIXEL_LAYER,
+                            RoomActor,
+                            VenomMote { x: cx, y: cy, vx: ux * spd, vy: uy * spd, life, puddle: i % 3 == 0 },
+                            crate::combat::Combatant { team: Team::Player, hurt_team: Some(Team::Enemy), damage: Some(dmg), persistent: true, knock: 0.0 },
+                            CritChance { chance: tstats.crit, mult: 2.0 + tstats.critmult },
+                            HitOnce::default(),
+                            super::uniques::PoisonHit(POISON_FRAMES),
+                            Hitbox { x: cx - 2.0, y: cy - 2.0, w: 4.0, h: 4.0 },
+                        ));
+                    }
+                    super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(cx + dx * 8.0, cy + dy * 8.0), 0xb060f0, 4);
+                    sfx.write(super::sfx::Sfx("swing"));
+                    continue;
+                }
                 let (x, y) = (p.x + dx * 8.0, p.y + dy * 8.0);
                 let bolt = commands
                     .spawn((
@@ -354,6 +416,135 @@ fn bolt_tick(
     }
 }
 
+/// The puddle splat, hand-drawn (rim / body / gleam), baked once.
+const PUDDLE_ART: [&str; 7] = [
+    "....pppp....",
+    "..pPPPPPPp..",
+    ".pPPdPPPPPp.",
+    "pPPPPPPdPPPp",
+    ".pPPPPPPPPp.",
+    "..ppPPPPpp..",
+    "....pp.pp...",
+];
+const PUDDLE_PAL: &[(char, u32)] = &[('p', 0x5a2a80), ('P', 0x8a48c8), ('d', 0xb060f0)];
+
+/// The foes a puddle can envenom (beasts AND goblinkind — the freeze rule). The
+/// Without wall keeps this query's Hitbox READ disjoint from the motes' WRITE —
+/// Bevy's checker is archetype-conservative and panics the app at boot otherwise (B0001).
+type PuddleFoes<'w, 's> = Query<
+    'w,
+    's,
+    (Entity, &'static Hitbox, Option<&'static mut crate::app::uniques::MobAfflictions>),
+    (Or<(With<crate::actors::mobs::Mob>, With<crate::actors::goblin::Goblin>)>, Without<VenomMote>),
+>;
+
+/// Venom in flight and on the ground: droplets fly, slow, and die (marked ones
+/// splat into puddles); puddles bubble, re-envenom whoever stands in them, and
+/// sink away; bubbles rise and pop. All of it rides the outgoing slide offset
+/// (the fire-glow rule).
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+#[allow(clippy::type_complexity)] // three look-alike sprite queries need Without walls
+fn venom_tick(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    grid: Res<CurGrid>,
+    slide: Res<super::play::SlideState>,
+    clock: Res<super::room_render::FrameClock>,
+    mut rng: ResMut<super::battle::GameRng>,
+    mut motes: Query<(Entity, &mut VenomMote, &mut Transform, &mut Hitbox)>,
+    mut puddles: Query<(Entity, &mut PoisonPuddle, &mut Transform, &mut Sprite), (Without<VenomMote>, Without<PuddleBubble>)>,
+    mut bubbles: Query<(Entity, &mut PuddleBubble, &mut Transform, &mut Sprite), (Without<VenomMote>, Without<PoisonPuddle>)>,
+    mut foes: PuddleFoes,
+    mut puddle_img: Local<Option<Handle<Image>>>,
+) {
+    let (sx, sy) = slide.outgoing_offset().unwrap_or((0.0, 0.0));
+    for (e, mut m, mut tf, mut hb) in &mut motes {
+        m.vx *= 0.96;
+        m.vy *= 0.96;
+        m.x += m.vx;
+        m.y += m.vy;
+        m.life -= 1;
+        let over_water = grid.0.code_at(((m.x) / 16.0).floor() as i32, ((m.y) / 16.0).floor() as i32) == '~';
+        let dead = m.life <= 0
+            || m.x < 2.0
+            || m.y < 2.0
+            || m.x > crate::room::PX_W as f32 - 2.0
+            || m.y > crate::room::PX_H as f32 - 2.0
+            || (!over_water && grid.0.box_hits_solid(m.x - 1.0, m.y - 1.0, 2.0, 2.0));
+        if dead {
+            if m.puddle && !over_water {
+                let img = puddle_img.get_or_insert_with(|| images.add(crate::gfx::bake(&PUDDLE_ART, PUDDLE_PAL))).clone();
+                let mut spr = Sprite::from_image(img);
+                spr.color = Color::srgba(1.0, 1.0, 1.0, 0.85);
+                commands.spawn((
+                    spr,
+                    at(PLAY_X + m.x - 6.0, PLAY_Y + m.y - 3.0, 12.0, 7.0, 3.2), // under the actors
+                    PIXEL_LAYER,
+                    RoomActor,
+                    PoisonPuddle { x: m.x, y: m.y, life: PUDDLE_LIFE },
+                ));
+            }
+            super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(m.x, m.y), 0x8a48c8, 3);
+            commands.entity(e).despawn();
+            continue;
+        }
+        *hb = Hitbox { x: m.x - 2.0, y: m.y - 2.0, w: 4.0, h: 4.0 };
+        *tf = at(PLAY_X + sx + m.x - 1.5, PLAY_Y + sy + m.y - 1.5, 3.0, 3.0, 8.6);
+    }
+    for (e, mut pd, mut tf, mut spr) in &mut puddles {
+        pd.life -= 1;
+        if pd.life <= 0 {
+            commands.entity(e).despawn();
+            continue;
+        }
+        // The last stretch sinks away.
+        if pd.life < 60 {
+            spr.color = spr.color.with_alpha(pd.life as f32 / 60.0 * 0.85);
+        }
+        *tf = at(PLAY_X + sx + pd.x - 6.0, PLAY_Y + sy + pd.y - 3.0, 12.0, 7.0, 3.2);
+        // Stand in it, wear it: re-envenom overlapping foes (every 12 ticks).
+        if clock.0 % 12 == 0 {
+            let (px, py, pw, ph) = (pd.x - 7.0, pd.y - 4.0, 14.0, 8.0);
+            for (fe, fhb, aff) in &mut foes {
+                if fhb.x < px + pw && fhb.x + fhb.w > px && fhb.y < py + ph && fhb.y + fhb.h > py {
+                    match aff {
+                        Some(mut a) => {
+                            if a.poison < POISON_FRAMES {
+                                a.poison = POISON_FRAMES;
+                            }
+                        }
+                        None => {
+                            commands
+                                .entity(fe)
+                                .insert(crate::app::uniques::MobAfflictions { poison: POISON_FRAMES, ..Default::default() });
+                        }
+                    }
+                }
+            }
+        }
+        // A lazy bubble now and then.
+        if (clock.0 + e.to_bits() as i64) % 26 == 0 {
+            let bx = pd.x - 4.0 + rng.0.next_f64() as f32 * 8.0;
+            commands.spawn((
+                Sprite::from_color(Color::srgba(0.78, 0.56, 0.94, 0.7), Vec2::splat(2.0)),
+                at(PLAY_X + sx + bx, PLAY_Y + sy + pd.y - 4.0, 2.0, 2.0, 3.3),
+                PIXEL_LAYER,
+                RoomActor,
+                PuddleBubble(18),
+            ));
+        }
+    }
+    for (e, mut b, mut tf, mut spr) in &mut bubbles {
+        b.0 -= 1;
+        if b.0 <= 0 {
+            commands.entity(e).despawn();
+            continue;
+        }
+        tf.translation.y += 0.3; // rises
+        spr.color = spr.color.with_alpha(b.0 as f32 / 18.0 * 0.7);
+    }
+}
+
 /// The frost beam's afterlife: the bite lives 2 ticks, the ray fades over 12.
 fn frost_tick(
     mut commands: Commands,
@@ -386,6 +577,7 @@ impl Plugin for WandsPlugin {
                 wand_msgs.after(super::play::tick).before(crate::combat::resolve_combat),
                 bolt_tick.after(crate::combat::resolve_combat),
                 frost_tick.after(crate::combat::resolve_combat),
+                venom_tick.after(crate::combat::resolve_combat),
             )
                 .before(super::play::EndTick)
                 .run_if(super::screen::playing),

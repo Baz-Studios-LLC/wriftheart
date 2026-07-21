@@ -41,11 +41,10 @@ pub const TORCH_SPOTS: [(i32, i32, i32, i32); 8] = [
 ];
 
 fn draw_torch(c: &mut Px, fx: i32, fy: i32) {
+    // Stem + bracket only — the FLAME rides as a live two-frame sprite over the
+    // bake (app/dungeon.rs spawn_droom; Baz: dungeon torches must flicker).
     c.rect(0x5a3a1c, fx, fy - 6, 2, 6);
     c.rect(0x2a1a0e, fx - 1, fy - 8, 4, 2);
-    c.rect(0xff7a1e, fx - 1, fy - 12, 4, 4);
-    c.rect(0xffd24a, fx, fy - 14, 2, 3);
-    c.rect(0xfff0b0, fx, fy - 11, 1, 2);
 }
 
 /// A banded locked door over a (shut) gap; the boss grade is gilded + horned.

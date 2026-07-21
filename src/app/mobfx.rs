@@ -308,6 +308,18 @@ fn frozen_look(
                 FrostMote { life: 26 },
             ));
         }
+        // ENVENOMED: purple poison bubbles rise off the body (the mist idiom, sickly).
+        if a.freeze <= 0 && a.poison > 0 && (clock.0 + e.to_bits() as i64 * 5) % 9 == 0 {
+            let mx = hb.x + 1.0 + rng.0.next_f64() as f32 * (hb.w - 3.0);
+            let my = hb.y + rng.0.next_f64() as f32 * (hb.h * 0.6);
+            commands.spawn((
+                Sprite::from_color(Color::srgba(0.72, 0.42, 0.94, 0.75), Vec2::splat(2.0)),
+                at(PLAY_X + mx, PLAY_Y + my, 2.0, 2.0, 9.2),
+                PIXEL_LAYER,
+                RoomActor,
+                FrostMote { life: 26 },
+            ));
+        }
     }
     for (e, mut mo, mut tf, mut spr) in &mut motes {
         mo.life -= 1;

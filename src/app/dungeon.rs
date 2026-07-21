@@ -171,9 +171,8 @@ fn key_hud(
     if cur == (0, 0) {
         return;
     }
-    use crate::room::{PX_H, PX_W};
+    use crate::room::PX_H;
     use super::room_render::{PLAY_X, PLAY_Y};
-    let right = PLAY_X + PX_W as f32;
     let z = crate::gfx::layers::PROMPT_TEXT;
     let key_img = images.add(crate::gfx::bake(crate::actors::items_art::KEY_ICON, &[]));
     let okey_img = images.add(crate::gfx::bake(crate::actors::items_art::OKEY_ICON, &[('m', 0xc878ff)]));
@@ -183,8 +182,8 @@ fn key_hud(
             continue;
         }
         let txt = format!("x{n}");
-        let tw = crate::gfx::font::measure(&txt) as f32;
-        let icx = right - 3.0 - tw - 1.0 - 8.0;
+        // Bottom-LEFT (Baz): the notification feed owns the bottom-right corner.
+        let icx = PLAY_X + 3.0;
         commands.spawn((
             Sprite::from_image(img),
             crate::gfx::at(icx, y, 8.0, 8.0, z),
@@ -574,11 +573,153 @@ pub struct RelicShard {
     pub y: f32,
 }
 
-/// The way home after the kill — touch to warp out to the doorstep.
+/// The way home after the kill — a bare anchor; rune_tick draws the js warpRune
+/// live and turns a PRESS on it into the ride out.
 #[derive(Component)]
 pub struct WarpRune {
     pub x: f32,
     pub y: f32,
+}
+
+/// "The rune was pressed" — rune_tick writes, navigate rides home.
+#[derive(Message)]
+pub struct RuneActivate;
+
+/// Marker on the rune's live sprites (rebuilt each tick, immediate-mode).
+#[derive(Component)]
+struct RuneFxUi;
+
+/// Marker on the rune's ACTIVATE bubble.
+#[derive(Component, Clone)]
+struct RunePromptUi;
+
+/// The js warpRune, pixel for pixel: a pulsing violet radial glow, the r6 ring,
+/// the cross glyph, four motes orbiting — SEALED grey and near-still while the
+/// boss's shard sits unclaimed (Baz: it wakes when you take it). Standing on a
+/// woken rune offers ACTIVATE by the character; the press rides home.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn rune_tick(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    clock: Res<super::room_render::FrameClock>,
+    mut input: ResMut<ActionState>,
+    in_dungeon: Res<InDungeon>,
+    bindings: Res<crate::input::Bindings>,
+    mut goes: MessageWriter<RuneActivate>,
+    players: Query<&Player>,
+    runes: Query<&WarpRune>,
+    shards: Query<(), With<RelicShard>>,
+    old_fx: Query<Entity, With<RuneFxUi>>,
+    old_prompt: Query<Entity, With<RunePromptUi>>,
+    mut tex: Local<Option<(Handle<Image>, Handle<Image>)>>,
+) {
+    for e in old_fx.iter().chain(old_prompt.iter()) {
+        commands.entity(e).despawn();
+    }
+    if in_dungeon.0.is_none() || runes.is_empty() {
+        return;
+    }
+    let tint = |c: u32, a: f32| {
+        Color::srgba((c >> 16 & 255) as f32 / 255.0, (c >> 8 & 255) as f32 / 255.0, (c & 255) as f32 / 255.0, a)
+    };
+    let (glow, ring) = tex.get_or_insert_with(|| (rune_glow_tex(&mut images), rune_ring_tex(&mut images))).clone();
+    let dim = !shards.is_empty(); // the unclaimed shard outranks the ride home
+    let t = clock.0 as f32;
+    let pulse = ((0.55 + 0.45 * (t * 0.11).sin()) * if dim { 0.3 } else { 1.0 }).clamp(0.0, 1.0);
+    let gr = 10.0 + (t * 0.11).sin() * 1.5 + 6.0; // js R + the gradient's 6px skirt
+    let glow_col = if dim { 0x6e7882 } else { 0xa064f5 };
+    let ring_col = if dim { 0x8a94a0 } else { 0xc8a0ff };
+    let glyph_col = if dim { 0xaab4c0 } else { 0xede0ff };
+    for r in &runes {
+        let (cx, cy) = (PLAY_X + r.x + 8.0, PLAY_Y + r.y + 8.0);
+        let mut g = Sprite::from_image(glow.clone());
+        g.custom_size = Some(Vec2::splat(gr * 2.0));
+        g.color = tint(glow_col, 0.55 * pulse);
+        commands.spawn((g, at(cx - gr, cy - gr, gr * 2.0, gr * 2.0, 2.9), PIXEL_LAYER, RuneFxUi));
+        let mut rs = Sprite::from_image(ring.clone());
+        rs.color = tint(ring_col, pulse);
+        commands.spawn((rs, at(cx - 6.5, cy - 6.5, 13.0, 13.0, 3.0), PIXEL_LAYER, RuneFxUi));
+        for (gx, gy, gw, gh) in [(cx - 1.0, cy - 5.0, 2.0, 10.0), (cx - 5.0, cy - 1.0, 10.0, 2.0)] {
+            commands.spawn((
+                Sprite::from_color(tint(glyph_col, pulse), Vec2::new(gw, gh)),
+                at(gx, gy, gw, gh, 3.02),
+                PIXEL_LAYER,
+                RuneFxUi,
+            ));
+        }
+        if !dim {
+            for i in 0..4 {
+                let a = t * 0.05 + i as f32 * std::f32::consts::FRAC_PI_2;
+                commands.spawn((
+                    Sprite::from_color(tint(glyph_col, pulse), Vec2::splat(2.0)),
+                    at((cx + a.cos() * 7.0).round() - 1.0, (cy + a.sin() * 7.0).round() - 1.0, 2.0, 2.0, 3.05),
+                    PIXEL_LAYER,
+                    RuneFxUi,
+                ));
+            }
+        }
+    }
+    // The prompt + the press — a WOKEN rune only (the grey one just sleeps).
+    let Ok(p) = players.single() else { return };
+    let hb = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
+    let on_rune = runes
+        .iter()
+        .any(|r| hb.0 < r.x + 16.0 && hb.0 + hb.2 > r.x && hb.1 < r.y + 16.0 && hb.1 + hb.3 > r.y);
+    if on_rune && !dim {
+        let text = format!("{} ACTIVATE", bindings.prompt(Action::Interact, input.pad_present));
+        super::prompts::spawn_bubble(&mut commands, &mut images, &text, p.x + 8.0, p.y - 10.0, RunePromptUi);
+        if input.pressed(Action::Interact) {
+            input.consume(Action::Interact);
+            goes.write(RuneActivate);
+        }
+    }
+}
+
+/// The js radial gradient, baked once: a soft disc whose alpha falls off squared.
+fn rune_glow_tex(images: &mut Assets<Image>) -> Handle<Image> {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    const S: usize = 48;
+    let mut data = vec![0u8; S * S * 4];
+    for y in 0..S {
+        for x in 0..S {
+            let (dx, dy) = (x as f32 - 23.5, y as f32 - 23.5);
+            let a = (1.0 - (dx * dx + dy * dy).sqrt() / 24.0).clamp(0.0, 1.0);
+            let i = (y * S + x) * 4;
+            data[i..i + 4].copy_from_slice(&[255, 255, 255, (a * a * 255.0) as u8]);
+        }
+    }
+    images.add(Image::new(
+        Extent3d { width: S as u32, height: S as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    ))
+}
+
+/// The js ctx.arc(r6) stroke as a crisp pixel circle, baked once (13x13, white).
+fn rune_ring_tex(images: &mut Assets<Image>) -> Handle<Image> {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    const S: usize = 13;
+    let mut data = vec![0u8; S * S * 4];
+    for y in 0..S {
+        for x in 0..S {
+            let (dx, dy) = (x as f32 - 6.0, y as f32 - 6.0);
+            if ((dx * dx + dy * dy).sqrt() - 6.0).abs() < 0.55 {
+                let i = (y * S + x) * 4;
+                data[i..i + 4].copy_from_slice(&[255, 255, 255, 255]);
+            }
+        }
+    }
+    images.add(Image::new(
+        Extent3d { width: S as u32, height: S as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    ))
 }
 
 /// The Black Castle's facade — dress_castle bakes gate state from the shard count.
@@ -608,10 +749,11 @@ pub struct DungeonPlugin;
 
 impl Plugin for DungeonPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (dress_castle, victory_tick, pit_anim, descent_overlay)).init_resource::<InDungeon>().init_resource::<DungeonLights>().init_resource::<DungeonLedger>().init_resource::<Relics>().init_resource::<Victory>().init_resource::<PitFalling>().init_resource::<Descending>().init_resource::<DungeonKeys>().add_systems(Update, (breathe, clear_keys_outside, key_hud)).add_systems(
+        app.add_message::<RuneActivate>().add_systems(Update, (dress_castle, victory_tick, pit_anim, descent_overlay)).init_resource::<InDungeon>().init_resource::<DungeonLights>().init_resource::<DungeonLedger>().init_resource::<Relics>().init_resource::<Victory>().init_resource::<PitFalling>().init_resource::<Descending>().init_resource::<DungeonKeys>().add_systems(Update, (breathe, clear_keys_outside, key_hud)).add_systems(
             bevy::app::FixedUpdate,
             (
                 enter_dungeon.after(super::interior::door_enter),
+                rune_tick.before(navigate),
                 navigate,
                 mark_visited.after(navigate),
                 chest_touch,
@@ -1012,9 +1154,24 @@ pub(crate) fn spawn_droom(
     // The room's darkness holes: wall torches (skipped where a wide door opened their
     // wall) + lit decor (js torchLights + decorLights).
     swap.dungeon_lights.0.clear();
+    // The sconce FLAMES ride as live two-frame sprites over the baked stems (the
+    // town-brazier TorchAnim clock; Baz: dungeon torches must flicker). Frame 0 is
+    // the old baked flame pixel-for-pixel; frame 1 sways the lick.
+    const FLAME_PAL: &[(char, u32)] = &[('Y', 0xffd24a), ('F', 0xff7a1e), ('W', 0xfff0b0)];
+    let flames = [
+        images.add(crate::gfx::bake(&[".YY.", ".YY.", "FYYF", "FWFF", "FWFF", "FFFF"], FLAME_PAL)),
+        images.add(crate::gfx::bake(&["..YY", ".YY.", "FYYF", "FFWF", "FFFF", "FFFF"], FLAME_PAL)),
+    ];
     for &(fx, fy, wc, wr) in &crate::dungeon::render::TORCH_SPOTS {
         if view.solid[wr as usize][wc as usize] {
             swap.dungeon_lights.0.push((fx + 1, fy - 10, 28));
+            let te = child(
+                commands,
+                new_root,
+                Sprite::from_image(flames[0].clone()),
+                at(PLAY_X + (fx - 1) as f32, PLAY_Y + (fy - 14) as f32, 4.0, 6.0, 1.05),
+            );
+            commands.entity(te).insert(super::room_props::TorchAnim([flames[0].clone(), flames[1].clone()]));
         }
     }
     if let Some(room) = d.cur().room(drx, dry) {
@@ -1060,6 +1217,7 @@ pub(crate) fn spawn_room_chests(commands: &mut Commands, images: &mut Assets<Ima
     if room.rtype == crate::dungeon::RoomType::Treasure
         && let Some((cx, cy)) = room.chest
         && !room.looted
+        && (!room.bosskey || room.bosskey_taken) // the gilded chest takes the spot alone
     {
         spawn_chest(cx, cy, None, false, commands, images);
     }
@@ -1067,13 +1225,9 @@ pub(crate) fn spawn_room_chests(commands: &mut Commands, images: &mut Assets<Ima
         spawn_chest(9 * 16, 6 * 16, Some("key"), false, commands, images); // a small key, waiting in a chest
     }
     if room.bosskey && !room.bosskey_taken {
-        // The ORNATE key, in a gilded chest beside the treasure chest (or centre).
-        let (mut okx, mut oky) = (9 * 16, 6 * 16);
-        if let Some((cx, cy)) = room.chest {
-            let (cc, cr) = (cx / 16, cy / 16);
-            okx = (if cc < crate::room::COLS - 3 { cc + 1 } else { cc - 1 }) * 16;
-            oky = cr * 16;
-        }
+        // The ORNATE key's gilded chest stands ALONE (Baz: no twin beside it) — it
+        // takes the treasure spot; the plain chest returns once the key is claimed.
+        let (okx, oky) = room.chest.unwrap_or(if room.key { (11 * 16, 6 * 16) } else { (9 * 16, 6 * 16) });
         spawn_chest(okx, oky, Some("ornatekey"), true, commands, images);
     }
     // THE TRICK: a plain room's "bonus" chest may be teeth. Slain is slain (the ledger
@@ -1152,18 +1306,10 @@ pub(crate) fn spawn_room_boss(
         // (The sanctum instead: NO chest — the blade — and the way home stays sealed
         // until the Kingsplitter is taken up, js rune.sealed.)
         if theme_key != "saltmaze" || blade_taken {
-            let rune = images.add(crate::gfx::bake(
-                &["..KKKK..", ".KmmmmK.", "KmWmmWmK", "KmmWWmmK", "KmmWWmmK", "KmWmmWmK", ".KmmmmK.", "..KKKK.."],
-                &[('m', 0x7a44c8), ('W', 0xe0b8ff)],
-            ));
+            // A bare anchor — rune_tick draws the js warpRune live (pulse, ring,
+            // glyph, orbiting motes; grey while the shard sits unclaimed).
             let (rx2, ry2) = if theme_key == "saltmaze" { (5.0 * 16.0, 2.0 * 16.0) } else { (9.0 * 16.0, 2.0 * 16.0) };
-            commands.spawn((
-                Sprite::from_image(rune),
-                at(PLAY_X + rx2 + 4.0, PLAY_Y + ry2 + 4.0, 8.0, 8.0, 3.2),
-                PIXEL_LAYER,
-                RoomActor,
-                WarpRune { x: rx2, y: ry2 },
-            ));
+            commands.spawn((WarpRune { x: rx2, y: ry2 }, RoomActor));
         }
         if !room.looted && theme_key != "saltmaze" {
             spawn_chest(commands, images, 9 * 16, 7 * 16, None, true); // the reward, unclaimed
@@ -1973,7 +2119,7 @@ fn navigate(
     hunt: (
         Query<Option<&super::boss::BossName>, With<DungeonBoss>>,
         Query<(Entity, &RelicShard)>,
-        Query<(Entity, &WarpRune)>,
+        MessageReader<RuneActivate>,
         Query<&RiftGate>,
         ResMut<super::saltmaze::MirrorStep>,
         ResMut<super::sidescroll::SideScroll>,
@@ -1998,7 +2144,7 @@ fn navigate(
     };
     let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
     // Capture the room's facts up front (the arena/stairs branches need &mut run).
-    let (bosses, shards, runes, gates, mut mirror_step, mut side, side_looted, mut side_exits, mut descend, mut sfx, mut keys, house) = hunt;
+    let (bosses, shards, mut rune_go, gates, mut mirror_step, mut side, side_looted, mut side_exits, mut descend, mut sfx, mut keys, house) = hunt;
     // --- A stair descent in flight (js updateDescent): fade out while the hero keeps
     //     stepping into the steps, swap the floor at full black, fade back in. Control
     //     is locked (play::tick early-returns on Descending, like a pit fall). ---
@@ -2160,17 +2306,7 @@ fn navigate(
                 // DEEPER, and a free depth-tiered roll — THE endgame fountain.
                 let depth = run.rift;
                 spawn_chest(&mut commands, &mut images, 8 * 16, 7 * 16, None, true);
-                let rune = images.add(crate::gfx::bake(
-                    &["..KKKK..", ".KmmmmK.", "KmWmmWmK", "KmmWWmmK", "KmmWWmmK", "KmWmmWmK", ".KmmmmK.", "..KKKK.."],
-                    &[('m', 0x7a44c8), ('W', 0xe0b8ff)],
-                ));
-                commands.spawn((
-                    Sprite::from_image(rune),
-                    at(PLAY_X + 9.0 * 16.0 + 4.0, PLAY_Y + 2.0 * 16.0 + 4.0, 8.0, 8.0, 3.2),
-                    PIXEL_LAYER,
-                    RoomActor,
-                    WarpRune { x: 9.0 * 16.0, y: 2.0 * 16.0 },
-                ));
+                commands.spawn((WarpRune { x: 9.0 * 16.0, y: 2.0 * 16.0 }, RoomActor)); // rune_tick draws it live
                 let gate = images.add(crate::gfx::bake(&RIFT_GATE_ART, RIFT_GATE_PAL));
                 commands.spawn((
                     Sprite::from_image(gate),
@@ -2238,8 +2374,9 @@ fn navigate(
         return;
     }
 
-    // --- The warp rune: the ride home after the kill. ---
-    let mut go_home = runes.iter().any(|(_, r)| overlap(hitbox, (r.x, r.y, 16.0, 16.0)));
+    // --- The warp rune: the ride home after the kill — ACTIVATED by a press now
+    //     (rune_tick owns the look, the prompt, and the press). ---
+    let mut go_home = rune_go.read().next().is_some();
 
     // --- The ornate way out: the dungeonExit pad in the start room's south gap. ---
     go_home |= rtype == RoomType::Start && overlap(hitbox, (9.0 * 16.0, 12.0 * 16.0, 16.0, 16.0));

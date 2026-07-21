@@ -8,4 +8,11 @@
 cd "$(dirname "$0")"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 export PATH="$HOME/.cargo/bin:$PATH"
-exec cargo run --release
+cargo run --release
+status=$?
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "WriftHeart exited with an error (code $status) - the message above says why."
+  echo "Press RETURN to close this window."
+  read -r
+fi

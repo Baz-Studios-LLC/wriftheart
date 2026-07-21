@@ -32,6 +32,11 @@ pub struct ScorchHit(pub i32);
 #[derive(Component)]
 pub struct FreezeHit(pub i32);
 
+/// The venom spray's bite (frames) — a landed splash ENVENOMS the foe: a purple
+/// cast, poison motes, and a slow DoT that never lands the killing blow.
+#[derive(Component)]
+pub struct PoisonHit(pub i32);
+
 /// Generated-weapon / gear extras a swing carries: bonus knockback shove + a lifesteal
 /// chance (js atk.knock / atk.leech). Read on the swing's landed hits.
 #[derive(Component)]
@@ -48,6 +53,9 @@ pub struct MobAfflictions {
     pub(crate) burn_clock: i32,
     /// Frozen solid (the frost beam) — battle/ai.rs stops the body while it runs.
     pub freeze: i32,
+    /// Envenomed (the venom spray / its puddles) — a purple cast + a slow DoT.
+    pub poison: i32,
+    pub(crate) poison_clock: i32,
 }
 
 /// Enemy bolts the wisp can swat (a type alias keeps the query readable).
@@ -139,22 +147,33 @@ fn proc_hits(
     chills: Query<&ChillHit>,
     scorches: Query<&ScorchHit>,
     freezes: Query<&FreezeHit>,
+    poisons: Query<&PoisonHit>,
     mut mobs: Query<(Entity, Option<&mut MobAfflictions>), Or<(With<Mob>, With<crate::actors::goblin::Goblin>)>>,
 ) {
     for hit in hits.read() {
-        let (chill, scorch, freeze) =
-            (chills.get(hit.attacker).ok(), scorches.get(hit.attacker).ok(), freezes.get(hit.attacker).ok());
-        if chill.is_none() && scorch.is_none() && freeze.is_none() {
+        let (chill, scorch, freeze, poison) = (
+            chills.get(hit.attacker).ok(),
+            scorches.get(hit.attacker).ok(),
+            freezes.get(hit.attacker).ok(),
+            poisons.get(hit.attacker).ok(),
+        );
+        if chill.is_none() && scorch.is_none() && freeze.is_none() && poison.is_none() {
             continue;
         }
         let Ok((me, aff)) = mobs.get_mut(hit.target) else { continue };
-        let (c, b, f) = (chill.map_or(0, |c| c.0), scorch.map_or(0, |s| s.0), freeze.map_or(0, |f| f.0));
+        let (c, b, f, v) = (
+            chill.map_or(0, |c| c.0),
+            scorch.map_or(0, |s| s.0),
+            freeze.map_or(0, |f| f.0),
+            poison.map_or(0, |p| p.0),
+        );
         if let Some(mut a) = aff {
             a.chill = a.chill.max(c);
             a.burn = a.burn.max(b);
             a.freeze = a.freeze.max(f);
+            a.poison = a.poison.max(v);
         } else {
-            commands.entity(me).insert(MobAfflictions { chill: c, burn: b, burn_clock: 0, freeze: f });
+            commands.entity(me).insert(MobAfflictions { chill: c, burn: b, freeze: f, poison: v, ..Default::default() });
         }
     }
 }
@@ -178,6 +197,19 @@ fn affliction_tick(
             a.burn_clock += 1;
             if a.burn_clock >= 30 {
                 a.burn_clock = 0;
+                if h.hp > 1 {
+                    h.hp -= 1;
+                    h.flash = h.flash.max(4);
+                }
+            }
+        }
+        // Venom: slower than fire (1 every 45), and like every DoT it never lands
+        // the killing blow on its own.
+        if a.poison > 0 {
+            a.poison -= 1;
+            a.poison_clock += 1;
+            if a.poison_clock >= 45 {
+                a.poison_clock = 0;
                 if h.hp > 1 {
                     h.hp -= 1;
                     h.flash = h.flash.max(4);

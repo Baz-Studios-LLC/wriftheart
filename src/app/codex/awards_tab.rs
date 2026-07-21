@@ -153,7 +153,7 @@ pub fn award_ticker(
 const LX: f32 = 8.0;
 const RX: f32 = 214.0; // js DEX_RX = 8 + 9*22 + 8
 const LW: f32 = RX - LX - 8.0;
-const GY: f32 = 24.0;
+const GY: f32 = 27.0;
 const RH: f32 = 11.0;
 
 /// Trophy badge (js STAR_ART) — gold earned, gray locked.
@@ -218,13 +218,13 @@ pub fn run(
     let s = snapshot(&ctx);
 
     // Header: title, earned tally, hall-wide progress bar.
-    label(&mut commands, &mut images, "THE HALL OF DEEDS", LX, 13.0, 0xe8c860, CONTENT_Z + 0.1, tag());
+    label(&mut commands, &mut images, "THE HALL OF DEEDS", LX, 16.0, 0xe8c860, CONTENT_Z + 0.1, tag());
     let tally = format!("{}/{}", unlocked.0.len(), n);
     let tw = font::measure(&tally) as f32;
-    label(&mut commands, &mut images, &tally, LX + LW - tw, 13.0, 0x8a8a92, CONTENT_Z + 0.1, tag());
+    label(&mut commands, &mut images, &tally, LX + LW - tw, 16.0, 0x8a8a92, CONTENT_Z + 0.1, tag());
     commands.spawn((
         Sprite::from_color(Color::srgba(1.0, 1.0, 1.0, 0.08), Vec2::new(LW, 2.0)),
-        at(LX, 20.0, LW, 2.0, CONTENT_Z + 0.1),
+        at(LX, 23.0, LW, 2.0, CONTENT_Z + 0.1),
         PIXEL_LAYER,
         tag(),
     ));
@@ -232,7 +232,7 @@ pub fn run(
     if frac > 0.0 {
         commands.spawn((
             Sprite::from_color(Color::srgb_u8(0xe8, 0xc8, 0x60), Vec2::new((LW * frac).round(), 2.0)),
-            at(LX, 20.0, (LW * frac).round(), 2.0, CONTENT_Z + 0.11),
+            at(LX, 23.0, (LW * frac).round(), 2.0, CONTENT_Z + 0.11),
             PIXEL_LAYER,
             tag(),
         ));

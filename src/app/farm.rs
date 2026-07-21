@@ -206,28 +206,22 @@ struct ReticlePart;
 type VegQuery = (Entity, Option<&'static GatherNode>, Option<&'static GroundVeg>);
 type VegFilter = Or<(With<GatherNode>, With<GroundVeg>)>;
 
-/// SOFT EARTH — every biome's growing ground takes the blade (js TILLABLE).
-const TILLABLE: &[&str] = &[
-    "grass", "dirt", "meadow", "bluemeadow", "jungle", "spore", "mud", "deadgrass", "rotleaf", "gravedirt", "steppe", "bog",
-];
-
 /// js seasonName for the farm passes.
 fn season_name(clock: i64) -> &'static str {
     super::codex::calendar_tab::SEASONS[super::codex::calendar_tab::season_index(clock) % 4]
 }
 
-/// js Farm.tillable: inside the border ring, unhoed, not solid, on soft earth.
-fn tillable(world: &World, grid: &RoomGrid, farm: &FarmTiles, room: (i32, i32), c: i32, r: i32) -> bool {
+/// js Farm.tillable, minus the js soft-earth list — ANY clear ground takes the
+/// blade now (Baz: sand and snow homesteads must farm too; gating on ground type
+/// harshly punished the biome you settled). Inside the border ring, unhoed, not solid.
+fn tillable(_world: &World, grid: &RoomGrid, farm: &FarmTiles, room: (i32, i32), c: i32, r: i32) -> bool {
     if !(1..COLS - 1).contains(&c) || !(1..ROWS - 1).contains(&r) {
         return false;
     }
     if farm.tile(room, c, r).is_some() {
         return false;
     }
-    if grid.box_hits_solid((c * 16 + 8) as f32, (r * 16 + 10) as f32, 1.0, 1.0) {
-        return false;
-    }
-    TILLABLE.contains(&world.ground_name(room.0 * COLS + c, room.1 * ROWS + r))
+    !grid.box_hits_solid((c * 16 + 8) as f32, (r * 16 + 10) as f32, 1.0, 1.0)
 }
 
 /// The tile the player faces, in room coords (js farmFrontTile).
@@ -580,6 +574,18 @@ fn farm_tool_tick(
                         dirty.0 = true;
                     }
                     HoeAct::None => {
+                        // Say WHY the blade refused (Baz: "the hoe doesn't till") —
+                        // each veto names itself instead of a mute tink.
+                        let msg = if ctx.world.0.is_town(room.0, room.1) || room == HOME_VILLAGE {
+                            "TOWN GROUND REFUSES THE BLADE"
+                        } else if farm.tile(room, fc, fr).is_some() {
+                            "A CROP GROWS THERE"
+                        } else if ctx.grid.0.box_hits_solid((fc * 16 + 8) as f32, (fr * 16 + 10) as f32, 1.0, 1.0) {
+                            "SOMETHING IS IN THE WAY"
+                        } else {
+                            "TOO CLOSE TO THE ROOM'S EDGE"
+                        };
+                        log.add("farm", msg, 1, 0xc8b088, false, true);
                         sfx.write(super::sfx::Sfx("tink"));
                     }
                 }

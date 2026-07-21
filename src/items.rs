@@ -584,7 +584,7 @@ pub static DEFS: &[ItemDef] = &[
         icon: HOE_ICON,
         kind: "TOOL",
         price: Some(40),
-        desc: "Equip to a slot, then use it facing grass to till farmland.",
+        desc: "Equip to a slot, then use it facing open ground to till farmland.",
         cooldown: 14,
         ..BASE
     },
@@ -717,6 +717,11 @@ pub static DEFS: &[ItemDef] = &[
         desc: "Slot it into your wand to imbue STORM magic. Swaps with the wand's current rune.", ..BASE
     },
     ItemDef {
+        id: "venomrune", name: "Venom Rune", icon: RUNE_ICON, icon_pal: &[('G', 0xb060f0)], kind: "RUNE", rarity: Rarity::Uncommon,
+        price: Some(35), stackable: true, consumable: true, no_equip: true, cooldown: 8,
+        desc: "Slot it into your wand to imbue VENOM magic. Swaps with the wand's current rune.", ..BASE
+    },
+    ItemDef {
         id: "manapotion", name: "Mana Potion", icon: MANAPOT_ICON, icon_pal: &[('L', 0x3868e8)], kind: "CONSUMABLE", rarity: Rarity::Common,
         price: Some(22), stackable: true, consumable: true, cooldown: 10,
         desc: "Restores arcane energy. Wasted at full mana.", ..BASE
@@ -811,6 +816,8 @@ pub static DEFS: &[ItemDef] = &[
         "A found schematic. Use it to learn the Mana Elixir recipe at its table."),
     blueprint("bpstormrune", "Recipe: Storm Rune", Rarity::Uncommon, 120,
         "A found schematic. Use it to learn the Storm Rune recipe at its table."),
+    blueprint("bpvenomrune", "Recipe: Venom Rune", Rarity::Uncommon, 120,
+        "A found schematic. Use it to learn the Venom Rune recipe at its table."),
     blueprint("bpmanacrystal", "Recipe: Mana Crystal", Rarity::Uncommon, 120,
         "A found schematic. Use it to learn the Mana Crystal recipe at its table."),
     blueprint("bpspringboots", "Recipe: Spring Boots", Rarity::Rare, 400,

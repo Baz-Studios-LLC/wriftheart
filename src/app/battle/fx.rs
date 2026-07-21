@@ -74,7 +74,9 @@ pub(super) fn sync_mobs(art: Res<MobArtBank>, mut q: MobSprites) {
         // FROZEN outranks everything: the ice-blue cast (this sync writes color every
         // frame, so the tint must live HERE or it gets stomped — the frost-beam fix).
         sprite.color = if aff.is_some_and(|a| a.freeze > 0) {
-            Color::srgb_u8(0x9a, 0xd4, 0xff)
+            Color::srgb_u8(0x60, 0xa8, 0xff)
+        } else if aff.is_some_and(|a| a.poison > 0) {
+            Color::srgb_u8(0xb8, 0x68, 0xe8) // envenomed: the purple cast
         } else if d.kind == "boglight" {
             // Half out of the world every other beat (js faded alpha 0.28).
             Color::srgba(1.0, 1.0, 1.0, if (m.anim % 260) >= 130 { 0.28 } else { 1.0 })
@@ -196,8 +198,14 @@ pub(super) fn sync_goblins(art: Res<GoblinArt>, mut q: GoblinSprites) {
             Some(s) => s.frames[g.facing as usize][g.frame].clone(), // stand / step
             None => art.0[kind_idx][g.facing as usize][g.frame].clone(),
         };
-        // FROZEN wears the same ice-blue cast the beasts do (sync_mobs' rule).
-        sprite.color = if aff.is_some_and(|a| a.freeze > 0) { Color::srgb_u8(0x9a, 0xd4, 0xff) } else { Color::WHITE };
+        // FROZEN/ENVENOMED wear the same casts the beasts do (sync_mobs' rule).
+        sprite.color = if aff.is_some_and(|a| a.freeze > 0) {
+            Color::srgb_u8(0x60, 0xa8, 0xff)
+        } else if aff.is_some_and(|a| a.poison > 0) {
+            Color::srgb_u8(0xb8, 0x68, 0xe8)
+        } else {
+            Color::WHITE
+        };
         *tf = at(PLAY_X + g.x.round(), PLAY_Y + g.y.round(), 16.0, 16.0, actor_z(g.y.round() + 16.0));
         // Hit flash: skip-draw on alternating frames (js: if (e.flash & 1) return).
         *vis = if h.flash > 0 && (h.flash & 1) == 1 { Visibility::Hidden } else { Visibility::Inherited };

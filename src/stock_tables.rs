@@ -8,7 +8,7 @@ pub static STOCK: &[(&str, &[&str])] = &[
     ("general", &["potion", "greaterpotion", "bombs", "lantern", "pocketwatch", "satchel", "antidote", "tonic", "chicken"]),
     ("blacksmith", &["shield", "bpmace", "bpchainmail"]),
     ("armory", &[]),
-    ("magic", &["wand", "firerune", "frostrune", "stormrune", "manapotion", "elixir", "manaelixir", "magehat", "magerobe", "magefocus", "arcanesigil", "manacrystal", "bpstormrune", "bpmanacrystal"]),
+    ("magic", &["wand", "firerune", "frostrune", "stormrune", "venomrune", "manapotion", "elixir", "manaelixir", "magehat", "magerobe", "magefocus", "arcanesigil", "manacrystal", "bpstormrune", "bpvenomrune", "bpmanacrystal"]),
     ("alchemist", &["potion", "greaterpotion", "elixir", "manapotion", "bombs", "antidote", "tonic", "manaelixir", "bpmanapotion", "bpelixir", "bpmanaelixir"]),
     ("jeweler", &["regenring", "luckamulet", "greedcharm", "vigorpendant", "bubblering", "powerring", "critring", "swiftcharm", "ironheart", "gamblerscoin", "vampirefang", "phoenixfeather", "compass", "bpcritring", "bpluckamulet"]),
     ("fletcher", &["bow", "arrow", "springboots", "boomerang", "bpgrapple", "bpspringboots"]),

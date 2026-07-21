@@ -97,6 +97,7 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { out: "firerune", n: 1, cost: &[("gem", 1), ("fiber", 2)], station: "enchanter", bp: None },
     Recipe { out: "frostrune", n: 1, cost: &[("gem", 1), ("fiber", 2)], station: "enchanter", bp: None },
     Recipe { out: "stormrune", n: 1, cost: &[("gem", 2), ("copper", 1)], station: "enchanter", bp: Some("bpstormrune") },
+    Recipe { out: "venomrune", n: 1, cost: &[("gem", 2), ("herb", 2)], station: "enchanter", bp: Some("bpvenomrune") },
     Recipe { out: "manacrystal", n: 1, cost: &[("gem", 3)], station: "enchanter", bp: Some("bpmanacrystal") },
     Recipe { out: "bow", n: 1, cost: &[("wood", 5), ("leather", 2), ("fiber", 2)], station: "fletcher", bp: None },
     Recipe { out: "arrow", n: 8, cost: &[("wood", 1), ("fiber", 1)], station: "fletcher", bp: None },

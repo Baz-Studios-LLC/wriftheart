@@ -210,6 +210,14 @@ fn use_bag_at(inv: &mut PlayerInv, i: usize, health: &mut Health, bags: &mut sup
         bags.blueprints.write(crate::app::blueprints::LearnBlueprint(def.id));
         return;
     }
+    if def.kind == "UPGRADE" {
+        // Satchels (js expandBag): sew on another bag row; at the cap the stitch
+        // refuses and the satchel stays.
+        if inv.expand_bag() {
+            inv.remove_entry(uid);
+        }
+        return;
+    }
     // A station kit / the house opens GHOST PLACEMENT straight from the bag (Baz:
     // no equipping first) — consumed on PLACE, not on use, so a cancel keeps it.
     if def.kind == "STATION" {
