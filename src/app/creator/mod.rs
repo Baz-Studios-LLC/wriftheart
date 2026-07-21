@@ -37,6 +37,9 @@ pub struct CreatorState {
     pub slot: u32, // target save slot — the title sets this before entering
     cursor: usize,
     editing: bool,
+    /// The name as it stood when the editor opened — the box starts BLANK, and
+    /// backing out with nothing typed restores this (Baz).
+    name_backup: String,
     kb_row: usize,
     kb_col: usize,
     gender_m: bool,
@@ -63,6 +66,7 @@ impl Default for CreatorState {
             slot: 1,
             cursor: 0,
             editing: false,
+            name_backup: String::new(),
             needs_redraw: false,
             kb_row: 0,
             kb_col: 0,
@@ -96,6 +100,21 @@ impl CreatorState {
     }
     fn ri(&mut self, n: usize) -> usize {
         (self.rng.next_f64() * n as f64) as usize % n
+    }
+}
+
+impl CreatorState {
+    /// Open the name editor: stash the current name and clear the box.
+    fn begin_name_edit(&mut self) {
+        self.name_backup = std::mem::take(&mut self.name);
+        self.editing = true;
+    }
+    /// Close it: an untouched (empty) box keeps the name that was there before.
+    fn end_name_edit(&mut self) {
+        self.editing = false;
+        if self.name.trim().is_empty() {
+            self.name = std::mem::take(&mut self.name_backup);
+        }
     }
 }
 
@@ -227,7 +246,7 @@ fn creator_tick(
     if st.editing {
         // The on-screen keyboard — one naming flow for pad and keys alike (the js).
         if cancel {
-            st.editing = false;
+            st.end_name_edit();
             dirty = true;
         } else {
             if input.pressed(Action::Up) {
@@ -270,7 +289,7 @@ fn creator_tick(
             st.kb_col = st.kb_col.min(KB[st.kb_row].len() - 1);
             if confirm {
                 match KB[st.kb_row][st.kb_col] {
-                    "OK" => st.editing = false,
+                    "OK" => st.end_name_edit(),
                     "DEL" => {
                         st.name.pop();
                     }
@@ -348,7 +367,7 @@ fn creator_tick(
     if confirm {
         match st.cursor {
             0 => {
-                st.editing = true;
+                st.begin_name_edit();
                 st.kb_row = 0;
                 st.kb_col = 0;
                 dirty = true;
@@ -425,7 +444,7 @@ fn typing(mut msgs: MessageReader<bevy::input::keyboard::KeyboardInput>, mut st:
                 }
             }
             Key::Enter => {
-                st.editing = false;
+                st.end_name_edit();
                 st.needs_redraw = true;
             }
             _ => {}

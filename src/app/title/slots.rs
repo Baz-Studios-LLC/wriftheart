@@ -39,7 +39,8 @@ pub(super) fn tick(
     metas: &mut SlotMetas,
     ptr: &crate::input::Pointer,
 ) -> SlotAct {
-    if input.pressed(Action::Slot2) {
+    // Back out on the cancel button OR ESC (Baz: menus should honour ESC too).
+    if input.pressed(Action::Slot2) || input.pressed(Action::Pause) {
         st.view = View::Main;
         st.armed = None;
         return SlotAct::Dirty;

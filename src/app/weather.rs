@@ -314,6 +314,11 @@ fn tick(
         crate::weather::DEFS.iter().find(|d| d.id == *f).map(|d| d.id).unwrap_or("clear")
     } else if let Some((id, _)) = &state.commanded {
         crate::weather::DEFS.iter().find(|d| d.id == *id).map(|d| d.id).unwrap_or("clear")
+    } else if clock.0 < super::gather::DAY_LEN {
+        // The FIRST DAY is always fair skies (Baz: the game starts on a clear
+        // day) — the fronts start rolling from day two. Dev/song weather above
+        // still outrank this, so storm testing works from minute one.
+        "clear"
     } else {
         let season = ["SPRING", "SUMMER", "FALL", "WINTER"][super::codex::calendar_tab::season_index(clock.0) % 4];
         let period = clock.0.div_euclid((super::gather::DAY_LEN / 3).max(1));

@@ -275,8 +275,10 @@ fn title_tick(
         st.sel = (st.sel + 1) % o.len();
         dirty = true;
     }
-    // Select = INTERACT or ENTER (js Input.confirm), with Slot1/Pause still accepted.
-    let mut confirm = state.pressed(Action::Interact) || state.pressed(Action::MenuConfirm) || state.pressed(Action::Slot1) || state.pressed(Action::Pause);
+    // Select = INTERACT or ENTER (js Input.confirm), with Slot1 still accepted.
+    // Pause (ESC) left the list: ESC now means BACK in every title menu, and an
+    // ESC that suddenly picked CONTINUE read as a misfire (Baz).
+    let mut confirm = state.pressed(Action::Interact) || state.pressed(Action::MenuConfirm) || state.pressed(Action::Slot1);
     // Mouse: hover a row highlights it, a click selects it (same confirm path as the keys).
     let (px, _, pw, _) = menu_geom(&o);
     for i in 0..o.len() {
@@ -328,6 +330,58 @@ fn crawl_tick(st: Res<TitleState>, lines: Query<(&crawl::CrawlLine, &mut Transfo
     }
 }
 
+/// Blur padding around the logo's shadow canvas — room for the soft edge.
+const SHADOW_PAD: f32 = 4.0;
+
+/// The wordmark's soft drop shadow: the logo silhouette at 85% black, box-blurred
+/// twice (radius 2 ~= a slight gaussian). Baked fresh per redraw like the logo.
+fn logo_shadow(images: &mut Assets<Image>) -> (Handle<Image>, f32, f32) {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    const R: i32 = 2;
+    let pad = SHADOW_PAD as usize;
+    let (lw, lh) = (logo::LOGO[0].len(), logo::LOGO.len());
+    let (w, h) = (lw + pad * 2, lh + pad * 2);
+    let mut a = vec![0f32; w * h];
+    for (y, row) in logo::LOGO.iter().enumerate() {
+        for (x, ch) in row.chars().enumerate() {
+            if ch != '.' {
+                a[(y + pad) * w + x + pad] = 1.0;
+            }
+        }
+    }
+    for _ in 0..2 {
+        let src = a.clone();
+        for y in 0..h as i32 {
+            for x in 0..w as i32 {
+                let (mut s, mut n) = (0.0, 0);
+                for dy in -R..=R {
+                    for dx in -R..=R {
+                        let (nx, ny) = (x + dx, y + dy);
+                        if nx >= 0 && ny >= 0 && nx < w as i32 && ny < h as i32 {
+                            s += src[ny as usize * w + nx as usize];
+                            n += 1;
+                        }
+                    }
+                }
+                a[y as usize * w + x as usize] = s / n as f32;
+            }
+        }
+    }
+    let mut buf = vec![0u8; w * h * 4];
+    for (i, v) in a.iter().enumerate() {
+        buf[i * 4 + 3] = (v * 0.85 * 255.0) as u8; // black, alpha only
+    }
+    let img = Image::new(
+        Extent3d { width: w as u32, height: h as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        buf,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+    (images.add(img), w as f32, h as f32)
+}
+
 /// Rebuild the title's UI layer (js Title.draw minus the backdrop, which is retained).
 fn redraw(
     commands: &mut Commands,
@@ -347,15 +401,15 @@ fn redraw(
 
     // The wordmark: Baz's word-art logo, pixelated to 200x85 (title/logo.rs),
     // centred in the band above the menu — replaces the old scale-2 font title.
-    // A silhouette drop shadow (+1,+1, like the old font title's) lifts it off
-    // the flyover so the world in the letter gaps reads as BEHIND, not junk.
+    // Under it, a SOFT drop shadow (Baz: "a slight blur"): the silhouette run
+    // through two box-blur passes, offset down-right, so the wordmark lifts off
+    // the flyover and the world in the letter gaps reads as BEHIND it.
     let (lw, lh) = (logo::LOGO[0].len() as f32, logo::LOGO.len() as f32);
     let lx = ((w - lw) / 2.0).round();
-    let shadow_pal: Vec<(char, u32)> = logo::LOGO_PAL.iter().map(|(c, _)| (*c, 0x0a0a0a)).collect();
-    let shadow_img = pen.images.add(crate::gfx::bake(logo::LOGO, &shadow_pal));
+    let (shadow_img, sw, sh) = logo_shadow(pen.images);
     pen.commands.spawn((
         Sprite::from_image(shadow_img),
-        at(lx + 1.0, 11.0, lw, lh, TEXT_Z - 0.01),
+        at(lx - SHADOW_PAD + 2.0, 10.0 - SHADOW_PAD + 3.0, sw, sh, TEXT_Z - 0.01),
         PIXEL_LAYER,
         TitleUi,
     ));
