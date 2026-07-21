@@ -121,12 +121,13 @@ pub struct Livestock {
 #[derive(Message)]
 pub struct UseFarmItem(pub &'static str);
 
-/// The wake tracker (room, day) — cleared to force a respawn after placements.
+/// The wake tracker (room, day) — cleared to force a respawn after placements
+/// (packup.rs pokes it too when a coop/barn comes down).
 #[derive(Resource, Default)]
-struct YardWake(Option<(i32, i32, i64)>);
+pub(super) struct YardWake(pub(super) Option<(i32, i32, i64)>);
 
 #[derive(Component)]
-struct FarmYard; // any spawned yard piece (buildings + animals + hearts)
+pub(super) struct FarmYard; // any spawned yard piece (buildings + animals + hearts)
 
 #[derive(Component)]
 pub(crate) struct YardAnimal {

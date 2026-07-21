@@ -30,6 +30,7 @@ pub mod uniques;
 pub mod guildhall;
 pub mod hall_exterior;
 pub mod home;
+pub mod packup;
 pub mod placing;
 pub mod fire;
 pub mod fishing;

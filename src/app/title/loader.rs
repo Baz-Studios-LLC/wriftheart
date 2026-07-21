@@ -125,6 +125,16 @@ pub fn handle_load_slot(
             extras.guards.0 = false;
             extras.victory.won = false;
             extras.rune.0 = "arcane";
+            // The rest of SaveExtras leaked the OLD slot into a new game (Baz died
+            // and respawned at a house he never built): a fresh start owns NONE of
+            // the last life's house, spawn point, stash, blueprints, pins, or goblin.
+            *extras.house = Default::default();
+            *extras.respawn = Default::default();
+            *extras.blueprints = Default::default();
+            *extras.stash = Default::default();
+            *extras.pins = Default::default();
+            *extras.loot_gob = Default::default();
+            *extras.loot_gob_cleared = Default::default();
             *ctx.inv = PlayerInv::default();
             *ctx.progress = Progress::default();
             *ctx.alloc = TreeAlloc::default();

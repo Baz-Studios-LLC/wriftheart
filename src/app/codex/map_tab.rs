@@ -64,7 +64,8 @@ pub fn hint(bindings: &Bindings, pad: bool) -> String {
         bindings.prompt(Action::Slot3, pad)
     );
     let pan = if pad { "STICK PAN" } else { "ARROWS PAN" };
-    hint_scaffold(bindings, pad, &format!("{zoom} - {pan}"))
+    let home = format!("{} RECENTER", bindings.prompt(Action::Slot4, pad));
+    hint_scaffold(bindings, pad, &format!("{zoom} - {pan} - {home}"))
 }
 
 /// The MAP tab driver: (re)build on entry/zoom, pan the root every tick.
@@ -227,7 +228,8 @@ pub fn run(
         } else {
             *drag = None;
         }
-        if ptr.click && ptr.over(bx, by, bw, bh) {
+        // Click the chip OR press Slot4 (Baz: unreachable by pad otherwise).
+        if (ptr.click && ptr.over(bx, by, bw, bh)) || state.pressed(Action::Slot4) {
             view.cx = ((cur.rx - b.min_x) as f32 * cell_w + COLS as f32 * view.ts as f32 / 2.0) / full_w;
             view.cy = ((cur.ry - b.min_y) as f32 * cell_h + ROWS as f32 * view.ts as f32 / 2.0) / full_h;
         }
