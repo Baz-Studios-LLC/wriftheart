@@ -513,6 +513,24 @@ fn build_stage_stump() -> Vec<String> {
     outlined(&g)
 }
 
+/// The giant flower's cut base: a slim green stem stub, a pale sap disc where
+/// the blade went through, and a couple of surviving ground leaves — the woody
+/// growth-ring stump read as someone else's tree on it (Baz).
+fn build_stage_stump_flower() -> Vec<String> {
+    let mut g = blank(SG_W as usize, SG_H as usize);
+    let top_y = SG_H - 11;
+    for y in top_y..SG_H - 2 {
+        for x in SG_CX - 2..=SG_CX + 2 {
+            g[y as usize][x as usize] = if x < SG_CX { 'd' } else { 'D' };
+        }
+    }
+    sg_ell(&mut g, SG_CX as f64, top_y as f64, 3.2, 1.4, 'L');
+    g[(top_y - 1) as usize][SG_CX as usize] = 'l';
+    sg_ell(&mut g, (SG_CX + 5) as f64, (SG_H - 6) as f64, 3.0, 1.4, 'F');
+    sg_ell(&mut g, (SG_CX - 5) as f64, (SG_H - 5) as f64, 2.6, 1.2, 'F');
+    outlined(&g)
+}
+
 /// SAPLING (~26px): a slim stem with a crown tuft + two side leaves.
 fn build_stage_sapling() -> Vec<String> {
     let mut g = blank(SG_W as usize, SG_H as usize);
@@ -653,6 +671,10 @@ fn kind_seed(kind: &str) -> i32 {
 pub fn stage_grid(kind: &str, stage: u8) -> (Vec<String>, Vec<(char, u32)>) {
     let (t, td, fol) = stage_col(kind);
     match stage {
+        0 if kind == "giantflower" => (
+            build_stage_stump_flower(),
+            vec![('D', t), ('d', td), ('L', 0xa8d878), ('l', 0xd8f0a8), ('F', 0x8ac860), ('K', 0x000000)],
+        ),
         0 => (build_stage_stump(), vec![('D', t), ('d', td), ('L', 0xc89a5a), ('l', 0xa87840), ('K', 0x000000)]),
         1 => (build_stage_sapling(), vec![('D', t), ('d', td), ('F', fol), ('f', shade_hex(fol, 1.28)), ('K', 0x000000)]),
         _ => {

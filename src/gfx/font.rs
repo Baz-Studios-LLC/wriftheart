@@ -92,6 +92,25 @@ pub fn measure(text: &str) -> i32 {
     if w > 0 { w - 1 } else { 0 }
 }
 
+/// Word-wrap at a pixel width (scale-1) — shared by any panel that flows prose.
+pub fn wrap(text: &str, max_w: i32) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut line = String::new();
+    for w in text.split(' ') {
+        let try_line = if line.is_empty() { w.to_string() } else { format!("{line} {w}") };
+        if measure(&try_line) > max_w && !line.is_empty() {
+            out.push(line);
+            line = w.to_string();
+        } else {
+            line = try_line;
+        }
+    }
+    if !line.is_empty() {
+        out.push(line);
+    }
+    out
+}
+
 /// Bake a whole string into one texture in `color` (0xRRGGBB) — the sprite-friendly analog of
 /// `Font.draw`. The image is padded to even dimensions so a centre-anchored sprite still lands
 /// on whole pixels. Unknown glyphs draw as '?', exactly like the JS.

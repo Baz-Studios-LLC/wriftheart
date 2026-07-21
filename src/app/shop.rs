@@ -18,8 +18,9 @@ use crate::ui::{border_strips, label};
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 
-const W: f32 = 200.0;
+const W: f32 = 264.0; // two panes: the list + the ware's details (Baz)
 const H: f32 = 150.0;
+const LIST_W: f32 = 158.0; // the left pane; the divider sits on its edge
 const ROW: f32 = 13.0;
 const Z: f32 = crate::gfx::layers::WINDOW;
 
@@ -498,8 +499,8 @@ fn redraw(
         let Some((id, qty, price)) = rows.get(scroll + v).copied() else { break };
         let ry = top + v as f32 * ROW;
         if scroll + v == cursor {
-            fill(commands, x + 4.0, ry - 1.0, W - 8.0, ROW - 1.0, Color::srgb_u8(0x1c, 0x1c, 0x24), Z + 0.02);
-            for (sx, sy, sw, sh) in border_strips(x + 4.0, ry - 1.0, W - 8.0, ROW - 1.0, 1.0) {
+            fill(commands, x + 4.0, ry - 1.0, LIST_W - 8.0, ROW - 1.0, Color::srgb_u8(0x1c, 0x1c, 0x24), Z + 0.02);
+            for (sx, sy, sw, sh) in border_strips(x + 4.0, ry - 1.0, LIST_W - 8.0, ROW - 1.0, 1.0) {
                 fill(commands, sx, sy, sw, sh, Color::srgb_u8(0xfc, 0xe0, 0xa8), Z + 0.03);
             }
         }
@@ -508,20 +509,70 @@ fn redraw(
             icon.custom_size = Some(Vec2::splat(10.0));
             commands.spawn((icon, at(x + 7.0, ry, 10.0, 10.0, Z + 0.04), PIXEL_LAYER, ShopUi));
         }
-        let name = crate::items::get(id).map_or(id, |d| d.name).to_uppercase();
-        let name = if qty > 1 { format!("{name} x{qty}") } else { name };
-        label(commands, images, &name, x + 20.0, ry + 1.0, crate::items::rarity_of(id).color(), Z + 0.04, ShopUi);
         let afford = shop.tab == 1 || inv.money >= price as i64;
         let pw = font::measure(&coin_str(price as i64)) as f32;
+        let name = crate::items::get(id).map_or(id, |d| d.name).to_uppercase();
+        let name = if qty > 1 { format!("{name} x{qty}") } else { name };
+        // The name yields to the price: clip with '..' rather than collide.
+        let name_max = (LIST_W - 20.0 - pw - 12.0) as i32;
+        let name = if font::measure(&name) > name_max {
+            let mut cut = name.clone();
+            while !cut.is_empty() && font::measure(&format!("{cut}..")) > name_max {
+                cut.pop();
+            }
+            format!("{cut}..")
+        } else {
+            name
+        };
+        label(commands, images, &name, x + 20.0, ry + 1.0, crate::items::rarity_of(id).color(), Z + 0.04, ShopUi);
         let (pc, tint) = if afford { (0xf0f0f0, true) } else { (0xa05050, false) };
-        draw_coin_str(commands, images, price as i64, x + W - 8.0 - pw, ry + 1.0, pc, tint, Z + 0.04);
+        draw_coin_str(commands, images, price as i64, x + LIST_W - 8.0 - pw, ry + 1.0, pc, tint, Z + 0.04);
     }
     if rows.len() > vis {
         let track_h = vis as f32 * ROW;
         let th = (track_h * vis as f32 / rows.len() as f32).round().max(6.0);
         let ty = top + ((track_h - th) * (scroll as f32 / (rows.len() - vis) as f32)).round();
-        fill(commands, x + W - 5.0, top, 1.0, track_h, Color::srgb_u8(0x20, 0x20, 0x28), Z + 0.02);
-        fill(commands, x + W - 5.0, ty, 1.0, th, Color::srgb_u8(0x6c, 0x6c, 0x78), Z + 0.03);
+        fill(commands, x + LIST_W - 4.0, top, 1.0, track_h, Color::srgb_u8(0x20, 0x20, 0x28), Z + 0.02);
+        fill(commands, x + LIST_W - 4.0, ty, 1.0, th, Color::srgb_u8(0x6c, 0x6c, 0x78), Z + 0.03);
+    }
+    // The DETAILS pane (Baz: a two-panel window): the selected ware, examined —
+    // big icon, name, its class + rarity, the price, and the flavour line.
+    let (pane_x, pane_w) = (x + LIST_W + 6.0, W - LIST_W - 12.0);
+    fill(commands, x + LIST_W, top - 2.0, 1.0, y + H - 12.0 - (top - 2.0), Color::srgb_u8(0x2a, 0x2a, 0x34), Z + 0.02);
+    if let Some((id, qty, price)) = rows.get(cursor).copied()
+        && let Some(def) = crate::items::get(id)
+    {
+        let mut dy = top + 2.0;
+        let mut icon = Sprite::from_image(images.add(crate::gfx::bake(def.icon, def.icon_pal)));
+        icon.custom_size = Some(Vec2::splat(20.0));
+        commands.spawn((icon, at((pane_x + (pane_w - 20.0) / 2.0).round(), dy, 20.0, 20.0, Z + 0.04), PIXEL_LAYER, ShopUi));
+        dy += 24.0;
+        let rar = crate::items::rarity_of(id);
+        for line in font::wrap(&def.name.to_uppercase(), pane_w as i32 - 2).into_iter().take(2) {
+            let lw = font::measure(&line) as f32;
+            label(commands, images, &line, (pane_x + (pane_w - lw) / 2.0).round(), dy, rar.color(), Z + 0.04, ShopUi);
+            dy += 8.0;
+        }
+        let meta = format!("{} {}", rar.name(), def.kind);
+        let mw = font::measure(&meta) as f32;
+        label(commands, images, &meta, (pane_x + (pane_w - mw) / 2.0).round(), dy, 0x6c7480, Z + 0.04, ShopUi);
+        dy += 10.0;
+        let tag = if shop.tab == 0 { "PRICE" } else if qty > 1 { "EACH" } else { "SELLS FOR" };
+        let pline = format!("{tag} {}", coin_str(price as i64));
+        let plw = font::measure(&pline) as f32;
+        let px0 = (pane_x + (pane_w - plw) / 2.0).round();
+        label(commands, images, tag, px0, dy, 0x9aa4b0, Z + 0.04, ShopUi);
+        draw_coin_str(commands, images, price as i64, px0 + font::measure(tag) as f32 + 4.0, dy, 0xf0f0f0, true, Z + 0.04);
+        dy += 11.0;
+        if !def.desc.is_empty() {
+            for line in font::wrap(&def.desc.to_uppercase(), pane_w as i32 - 2).into_iter().take(6) {
+                if dy > y + H - 20.0 {
+                    break;
+                }
+                label(commands, images, &line, pane_x, dy, 0x8a94a0, Z + 0.04, ShopUi);
+                dy += 8.0;
+            }
+        }
     }
     // The bottom hint (js promptLine with ' - '), keys following the live bindings.
     let pad = state.pad_present;
