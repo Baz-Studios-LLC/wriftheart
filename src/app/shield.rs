@@ -171,6 +171,13 @@ fn shield_overlay(
         }
     }
     let Some(f) = want else { return };
+    // The bash's PUNCH (Baz): the shield jabs 2px out and settles back.
+    let punch = match p.bash_t {
+        5..=6 => 2.0,
+        2..=4 => 1.0,
+        _ => 0.0,
+    };
+    let (px_, py_) = f.offset();
     for (_, mut tf) in &mut fx {
         let ((ox, oy, w, h), dz) = match f {
             Facing::Right => ((10.0, 3.0, 4.0, 12.0), 0.01),
@@ -178,7 +185,7 @@ fn shield_overlay(
             Facing::Down => ((3.0, 6.0, 10.0, 12.0), 0.01),
             Facing::Up => ((3.0, -3.0, 10.0, 12.0), -0.01), // mostly occluded by the body
         };
-        *tf = at(PLAY_X + p.x + ox, PLAY_Y + p.y + oy, w, h, actor_z(p.y + 16.0) + dz);
+        *tf = at(PLAY_X + p.x + ox + px_ * punch, PLAY_Y + p.y + oy + py_ * punch, w, h, actor_z(p.y + 16.0) + dz);
     }
 }
 

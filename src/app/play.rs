@@ -226,6 +226,7 @@ pub struct Player {
     pub dash_cd: u32, // frames until the next dash
     pub charge: Option<ChargePlay>, // a held weapon winding its hold move
     pub spin: Option<SpinPlay>,     // the sword's 360 in flight
+    pub bash_t: u32, // frames left of the bash's little shield punch (draw-only)
     pub hop_z: f32,               // the leap's draw-height offset (js p.hopZ)
     pub vx: f32,                  // carried velocity (only meaningful on slippery ice, js p.vx/vy)
     pub vy: f32,
@@ -523,6 +524,7 @@ fn setup(
             dash_cd: 0,
             charge: None,
             spin: None,
+            bash_t: 0,
         },
         Combatant { team: Team::Player, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
         {
@@ -687,6 +689,9 @@ pub fn tick(
     }
     if p.dash_cd > 0 {
         p.dash_cd -= 1;
+    }
+    if p.bash_t > 0 {
+        p.bash_t -= 1;
     }
 
     // Death is death.rs's: check_death sees hp <= 0 this same tick and takes the screen.
@@ -882,6 +887,7 @@ pub fn tick(
                 uses.sfx.write(super::sfx::Sfx("stone"));
                 p.cooldowns[i] = 26;
                 p.lock_timer = p.lock_timer.max(10);
+                p.bash_t = 6; // the shield itself punches forward and back (draw)
                 weapon_fired = true;
                 continue;
             }
