@@ -337,6 +337,24 @@ impl MobArtBank {
             let left: Vec<_> = set.iter().map(|f| bake_frame(images, f, true)).collect();
             frames.insert(*kind, [right, left]);
         }
+        // CULTISTS ARE PEOPLE (Baz): a person in the purple hood and robe, not the
+        // retired js blob. The caster def keeps its AI; the LOOK is hero side-frames
+        // in cultist gear, baked over the generated entry. (This bank also feeds the
+        // bestiary page, so the codex shows the same hooded figure.)
+        {
+            let look = crate::actors::hero::build_frames_geared(
+                &crate::actors::hero::random_look(0xba9d),
+                &[
+                    Some(&super::goblin::CULTIST_HOOD),
+                    Some(&super::goblin::CULTIST_ROBE),
+                    Some(&super::goblin::CULTIST_BOOTS),
+                ],
+                images,
+            )
+            .frames;
+            let strip = |f: usize| -> Vec<Baked> { look[f].iter().map(|h| (h.clone(), 16.0, 16.0)).collect() };
+            frames.insert("cultist", [strip(2), strip(3)]); // right, left
+        }
         let mut wf = |set: &[MobFrame], left: bool| -> [Baked; 2] {
             [bake_frame(images, &set[0], left), bake_frame(images, &set[1], left)]
         };

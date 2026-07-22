@@ -18,13 +18,25 @@ pub struct Bestiary(pub HashSet<&'static str>);
 /// The dex roster: the goblins (bespoke art) + every ported biome mob (js BESTIARY text).
 type Row = (&'static str, &'static str, &'static str, crate::actors::mobs::Baked);
 
-fn roster(goblins: &GoblinArt, mobs: &MobArtBank) -> Vec<Row> {
+fn roster(
+    goblins: &GoblinArt,
+    mobs: &MobArtBank,
+    human_art: &mut crate::actors::goblin::HumanArt,
+    images: &mut Assets<Image>,
+) -> Vec<Row> {
     let mut out: Vec<Row> = vec![
         ("goblin", "GOBLIN", "Wretched raiders; some sling stones.", (goblins.0[0][0][0].clone(), 16.0, 16.0)),
         ("slinger", "SPEAR GOBLIN", "Keeps its distance and slings stones.", (goblins.0[1][0][0].clone(), 16.0, 16.0)),
     ];
     for (kind, name, desc) in BESTIARY_INFO.iter().chain(crate::actors::mobs_art_extra::EXTRA_BESTIARY) {
-        let art = if *kind == "wolf" { mobs.wolf[0][0].clone() } else { mobs.frames[kind][0][0].clone() };
+        let art = match *kind {
+            "wolf" => mobs.wolf[0][0].clone(),
+            // People in costumes wear PEOPLE art in the field (task #27) — the codex
+            // page shows the same, not the retired js blob (Baz). Fixed seed: one
+            // representative face per page.
+            "cultist" | "bandit" => (human_art.frames(kind, 0xba9d, images)[0][0].clone(), 16.0, 16.0),
+            _ => mobs.frames[kind][0][0].clone(),
+        };
         out.push((kind, name, desc, art));
     }
     out
@@ -53,12 +65,13 @@ pub fn run(
     mob_art: Res<MobArtBank>,
     bestiary: Res<Bestiary>,
     mut dex_state: ResMut<MobDex>,
+    mut human_art: ResMut<crate::actors::goblin::HumanArt>,
     ptr: Res<crate::input::Pointer>,
     mut images: ResMut<Assets<Image>>,
     old: Query<Entity, With<MobsUi>>,
     mut seen_gen: Local<u32>,
 ) {
-    let entries = roster(&goblins, &mob_art);
+    let entries = roster(&goblins, &mob_art, &mut human_art, &mut images);
     let mut dirty = *seen_gen != cx_state.generation;
     *seen_gen = cx_state.generation;
     let cur = dex::dex_nav(&state, entries.len(), dex_state.cur, dex::DEX_COLS);

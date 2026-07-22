@@ -66,11 +66,11 @@ static BANDIT_BOOTS: crate::actors::hero::ArmorLook =
     crate::actors::hero::ArmorLook { style: "boots", lite: 0x4a3018, dark: 0x2a1c10 };
 // The cultist costume: the CHOIR'S grey (the opening's hilltop singers and the still
 // watcher above burning Emberfall wear exactly these) — hood + long grey robe.
-static CULTIST_HOOD: crate::actors::hero::ArmorLook =
+pub static CULTIST_HOOD: crate::actors::hero::ArmorLook =
     crate::actors::hero::ArmorLook { style: "hood", lite: 0x767b84, dark: 0x42464e };
-static CULTIST_ROBE: crate::actors::hero::ArmorLook =
+pub static CULTIST_ROBE: crate::actors::hero::ArmorLook =
     crate::actors::hero::ArmorLook { style: "robe", lite: 0x8a8f98, dark: 0x525660 };
-static CULTIST_BOOTS: crate::actors::hero::ArmorLook =
+pub static CULTIST_BOOTS: crate::actors::hero::ArmorLook =
     crate::actors::hero::ArmorLook { style: "boots", lite: 0x3a3e46, dark: 0x22262c };
 
 /// The humanoid WARDROBE: seeded people-in-costume frames by (kind, look seed),
