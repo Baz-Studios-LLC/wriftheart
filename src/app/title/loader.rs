@@ -265,7 +265,7 @@ pub(crate) fn swap_world_room(
         &mut swap.armed,
         &ents,
         (rx, ry),
-        crate::app::gather::farm_day(ctx.clock.0),
+        crate::app::encounters::Now::at(ctx.clock.0),
         home_room == Some((rx, ry)), // the home room is a mob-free safe zone (Baz)
     );
     swap.banners.anchor(&swap.world.0, rx, ry); // silent arrival — no announcement

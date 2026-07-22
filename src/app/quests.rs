@@ -304,9 +304,9 @@ fn build_type(qtype: &str, ctx: &GenCtx, rng: &mut Mulberry32) -> Option<Quest> 
                     return false;
                 }
                 // Hostile LIVE camps only (fallow ground and friendly folk don't count).
-                encounters::live_at(ctx.world, ctx.cleared, x, y, ctx.today).is_some_and(|(d, _)| !d.friendly)
+                encounters::stable_at(ctx.world, ctx.cleared, x, y, ctx.today).is_some_and(|(d, _)| !d.friendly)
             })?;
-            let (def, _) = encounters::live_at(ctx.world, ctx.cleared, spot.0, spot.1, ctx.today)?;
+            let (def, _) = encounters::stable_at(ctx.world, ctx.cleared, spot.0, spot.1, ctx.today)?;
             let place = def.name.to_lowercase();
             let dir = dir_word(spot.0 - ctx.rx, spot.1 - ctx.ry);
             let dist = (spot.0 - ctx.rx).abs().max((spot.1 - ctx.ry).abs());

@@ -36,6 +36,11 @@ pub struct EncDef {
     pub min_tier: i32,
     pub max_tier: Option<i32>,
     pub weight: i32,
+    /// Gate to seasons (indices into calendar SEASONS). Gated defs are EVENTS:
+    /// they roam daily instead of holding a stable tenancy.
+    pub seasons: Option<&'static [usize]>,
+    /// Gate to the night (Some(true)) or the day (Some(false)). Also event-making.
+    pub night: Option<bool>,
     /// No foes — peaceful strangers take the room's slot (no threat, never "cleared").
     pub friendly: bool,
     pub place: fn(&mut Scene),
@@ -106,110 +111,139 @@ impl Scene {
 /// The authored table — order + weights are PARITY-LOAD-BEARING (the weighted pick walks
 /// the eligible list in table order; adding an encounter appends, never reorders).
 pub static ENCOUNTERS: &[EncDef] = &[
-    EncDef { id: "goblinRaid", name: "GOBLIN RAID", biomes: None, min_tier: 0, max_tier: None, weight: 3, friendly: false,
+    EncDef { id: "goblinRaid", name: "GOBLIN RAID", biomes: None, min_tier: 0, max_tier: None, weight: 3, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.wagon(cx - 8.0, cy - 18.0); a.crate_(cx + 30.0, cy - 2.0); a.blood(cx - 22.0, cy + 22.0); a.bones(cx + 38.0, cy + 18.0);
             for (i, k) in ["goblin", "goblin", "slinger", "goblin", "slinger"].into_iter().enumerate() { a.foe(k, cx - 56.0 + i as f32 * 28.0, cy + 20.0 + (i % 2) as f32 * 12.0); }
             a.victim(cx + 44.0, cy - 8.0); a.victim(cx + 56.0, cy + 14.0); a.victim(cx + 34.0, cy + 32.0); } },
-    EncDef { id: "banditAmbush", name: "BANDIT AMBUSH", biomes: None, min_tier: 1, max_tier: None, weight: 3, friendly: false,
+    EncDef { id: "banditAmbush", name: "BANDIT AMBUSH", biomes: None, min_tier: 1, max_tier: None, weight: 3, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.campfire(cx + 22.0, cy + 12.0); a.crate_(cx - 32.0, cy - 10.0); a.crate_(cx - 22.0, cy + 18.0); a.bones(cx + 6.0, cy - 28.0);
             for i in 0..4 { a.foe("bandit", cx - 44.0 + i as f32 * 30.0, cy - 22.0 + (i % 2) as f32 * 30.0); }
             a.victim(cx + 40.0, cy - 14.0); a.victim(cx + 48.0, cy + 4.0); } },
-    EncDef { id: "ogreCamp", name: "OGRE ENCAMPMENT", biomes: None, min_tier: 2, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "ogreCamp", name: "OGRE ENCAMPMENT", biomes: None, min_tier: 2, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.campfire(cx - 4.0, cy - 6.0);
             a.corpse(cx + 32.0, cy + 20.0); a.blood(cx + 34.0, cy + 24.0); a.corpse(cx - 40.0, cy - 6.0); a.blood(cx - 38.0, cy - 2.0);
             a.bones(cx - 30.0, cy + 22.0); a.bones(cx + 26.0, cy - 26.0); a.crate_(cx + 46.0, cy - 18.0); a.crate_(cx - 52.0, cy + 12.0);
             a.foe("ogre", cx - 36.0, cy - 24.0); a.foe("ogre", cx + 40.0, cy - 14.0); a.foe("ogre", cx + 4.0, cy + 32.0); } },
-    EncDef { id: "evilRitual", name: "DARK RITUAL", biomes: None, min_tier: 2, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "evilRitual", name: "DARK RITUAL", biomes: None, min_tier: 2, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.ritual(cx - 7.0, cy - 7.0); a.corpse(cx - 2.0, cy - 2.0); a.blood(cx, cy);
             a.bones(cx - 44.0, cy + 22.0); a.bones(cx + 32.0, cy - 28.0);
             a.foe("cultist", cx, cy - 36.0); a.foe("cultist", cx - 40.0, cy + 12.0); a.foe("cultist", cx + 40.0, cy + 12.0); } },
-    EncDef { id: "wolfPack", name: "WOLF PACK", biomes: Some(&["forest", "grassland", "mountains"]), min_tier: 1, max_tier: None, weight: 3, friendly: false,
+    EncDef { id: "wolfPack", name: "WOLF PACK", biomes: Some(&["forest", "grassland", "mountains"]), min_tier: 1, max_tier: None, weight: 3, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.corpse(cx - 4.0, cy + 4.0); a.blood(cx - 2.0, cy + 8.0); a.blood(cx + 8.0, cy + 2.0); a.bones(cx + 28.0, cy + 18.0);
             for i in 0..5 { let ang = (i as f32 / 5.0) * std::f32::consts::TAU; a.foe("wolf", cx + ang.cos() * 48.0, cy + ang.sin() * 36.0); } } },
-    EncDef { id: "undeadVigil", name: "UNDEAD VIGIL", biomes: Some(&["graveyard"]), min_tier: 1, max_tier: None, weight: 3, friendly: false,
+    EncDef { id: "undeadVigil", name: "UNDEAD VIGIL", biomes: Some(&["graveyard"]), min_tier: 1, max_tier: None, weight: 3, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.bones(cx - 6.0, cy); a.bones(cx + 32.0, cy + 20.0); a.bones(cx - 36.0, cy - 16.0);
             a.foe("skeleton", cx - 42.0, cy - 10.0); a.foe("skeleton", cx + 40.0, cy - 6.0); a.foe("zombie", cx - 20.0, cy + 26.0); a.foe("zombie", cx + 18.0, cy + 28.0);
             if a.tier >= 3 { a.foe("revenant", cx, cy - 22.0); } } },
-    EncDef { id: "frozenCamp", name: "FROZEN WARCAMP", biomes: Some(&["arctic"]), min_tier: 2, max_tier: None, weight: 3, friendly: false,
+    EncDef { id: "frozenCamp", name: "FROZEN WARCAMP", biomes: Some(&["arctic"]), min_tier: 2, max_tier: None, weight: 3, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.campfire(cx, cy - 2.0); a.crate_(cx + 32.0, cy + 12.0); a.bones(cx - 30.0, cy + 18.0);
             a.foe("icetroll", cx - 32.0, cy - 16.0); a.foe("icetroll", cx + 34.0, cy - 12.0); a.foe("frostmite", cx - 14.0, cy + 24.0); a.foe("frostmite", cx + 16.0, cy + 26.0); } },
-    EncDef { id: "sporeBloom", name: "SPORE BLOOM", biomes: Some(&["mushroom"]), min_tier: 2, max_tier: None, weight: 3, friendly: false,
+    EncDef { id: "sporeBloom", name: "SPORE BLOOM", biomes: Some(&["mushroom"]), min_tier: 2, max_tier: None, weight: 3, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.foe("sporemother", cx, cy - 6.0);
             for i in 0..4 { let ang = (i as f32 / 4.0) * std::f32::consts::TAU; a.foe("sporeling", cx + ang.cos() * 42.0, cy + ang.sin() * 30.0); }
             a.foe("myconid", cx - 46.0, cy + 14.0); } },
-    EncDef { id: "warband", name: "WARBAND CAMP", biomes: None, min_tier: 2, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "warband", name: "WARBAND CAMP", biomes: None, min_tier: 2, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.tent(cx - 40.0, cy - 18.0); a.tent(cx + 30.0, cy - 16.0);
             a.banner(cx - 12.0, cy - 26.0, 0xb01818); a.banner(cx + 14.0, cy - 26.0, 0x1a1a1a); a.campfire(cx, cy + 2.0);
             a.crate_(cx - 56.0, cy + 16.0); a.crate_(cx + 52.0, cy + 18.0); a.bones(cx + 4.0, cy + 30.0);
             a.foe("ogre", cx, cy - 18.0);
             a.foe("goblin", cx - 48.0, cy + 2.0); a.foe("goblin", cx + 46.0, cy + 4.0); a.foe("goblin", cx - 24.0, cy + 30.0);
             a.foe("slinger", cx + 26.0, cy + 32.0); a.foe("slinger", cx + 60.0, cy - 6.0); } },
-    EncDef { id: "plunderedCaravan", name: "PLUNDERED CARAVAN", biomes: None, min_tier: 1, max_tier: None, weight: 2, friendly: false,
+    EncDef { id: "plunderedCaravan", name: "PLUNDERED CARAVAN", biomes: None, min_tier: 1, max_tier: None, weight: 2, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.wagon(cx - 30.0, cy - 14.0); a.wagon(cx + 22.0, cy + 6.0); a.gold(cx, cy + 2.0);
             a.crate_(cx + 44.0, cy - 14.0); a.crate_(cx - 50.0, cy + 18.0); a.blood(cx - 8.0, cy + 18.0); a.corpse(cx - 14.0, cy + 16.0);
             a.foe("bandit", cx - 24.0, cy - 2.0); a.foe("bandit", cx + 8.0, cy - 8.0); a.foe("bandit", cx + 34.0, cy + 22.0);
             a.victim(cx + 54.0, cy + 6.0); a.victim(cx - 56.0, cy - 8.0); } },
-    EncDef { id: "arcaneExperiment", name: "ARCANE EXPERIMENT", biomes: None, min_tier: 2, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "arcaneExperiment", name: "ARCANE EXPERIMENT", biomes: None, min_tier: 2, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.ritual(cx - 7.0, cy + 4.0); a.crystal(cx - 34.0, cy - 16.0, 0x4a9cff); a.crystal(cx + 30.0, cy - 16.0, 0x4a9cff);
             a.corpse(cx + 30.0, cy + 22.0); a.blood(cx + 32.0, cy + 26.0); a.crate_(cx - 48.0, cy + 16.0);
             a.foe("cultist", cx - 30.0, cy - 4.0); a.foe("cultist", cx + 30.0, cy - 2.0); a.foe("ogre", cx, cy + 16.0); } },
-    EncDef { id: "lastStand", name: "LAST STAND", biomes: None, min_tier: 1, max_tier: None, weight: 2, friendly: false,
+    EncDef { id: "lastStand", name: "LAST STAND", biomes: None, min_tier: 1, max_tier: None, weight: 2, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.campfire(cx, cy - 4.0); a.crate_(cx - 18.0, cy + 6.0); a.crate_(cx + 14.0, cy + 8.0);
             a.corpse(cx - 8.0, cy + 20.0); a.blood(cx - 6.0, cy + 24.0); a.bones(cx + 30.0, cy - 18.0);
             a.victim(cx - 4.0, cy); a.victim(cx + 8.0, cy + 2.0);
             for i in 0..5 { let ang = (i as f32 / 5.0) * std::f32::consts::TAU + 0.3; a.foe(if i % 2 == 1 { "bandit" } else { "goblin" }, cx + ang.cos() * 64.0, cy + ang.sin() * 44.0); } } },
-    EncDef { id: "guardedHoard", name: "ANCIENT HOARD", biomes: Some(&["mountains", "desert"]), min_tier: 3, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "guardedHoard", name: "ANCIENT HOARD", biomes: Some(&["mountains", "desert"]), min_tier: 3, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.gold(cx - 10.0, cy); a.gold(cx + 8.0, cy + 4.0); a.gold(cx, cy - 12.0);
             a.crystal(cx, cy - 24.0, 0xfcd000); a.clutter("pillar", cx - 46.0, cy - 18.0); a.clutter("pillar", cx + 42.0, cy - 18.0); a.bones(cx - 30.0, cy + 22.0);
             a.foe("golem", cx - 30.0, cy + 4.0); a.foe("golem", cx + 30.0, cy + 4.0); } },
-    EncDef { id: "spiderLair", name: "SPIDER LAIR", biomes: Some(&["forest", "swamp", "mushroom"]), min_tier: 2, max_tier: None, weight: 2, friendly: false,
+    EncDef { id: "spiderLair", name: "SPIDER LAIR", biomes: Some(&["forest", "swamp", "mushroom"]), min_tier: 2, max_tier: None, weight: 2, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.web(cx - 40.0, cy - 20.0); a.web(cx + 24.0, cy - 16.0); a.web(cx - 8.0, cy + 16.0); a.web(cx + 36.0, cy + 12.0);
             a.corpse(cx, cy - 6.0); a.blood(cx + 2.0, cy - 2.0); a.bones(cx - 34.0, cy + 18.0);
             for i in 0..5 { let ang = (i as f32 / 5.0) * std::f32::consts::TAU; a.foe("spider", cx + ang.cos() * 50.0, cy + ang.sin() * 36.0); } } },
-    EncDef { id: "barrowRising", name: "THE DEAD RISE", biomes: Some(&["graveyard"]), min_tier: 2, max_tier: None, weight: 2, friendly: false,
+    EncDef { id: "barrowRising", name: "THE DEAD RISE", biomes: Some(&["graveyard"]), min_tier: 2, max_tier: None, weight: 2, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.clutter("gravestone", cx - 30.0, cy - 14.0); a.clutter("gravestone", cx + 26.0, cy - 12.0); a.clutter("gravestone", cx, cy + 18.0);
             a.clutter("pillar", cx + 44.0, cy - 18.0); a.bones(cx - 10.0, cy + 2.0); a.bones(cx + 14.0, cy + 24.0);
             a.foe("revenant", cx, cy - 10.0); a.foe("skeleton", cx - 36.0, cy + 8.0); a.foe("skeleton", cx + 34.0, cy + 10.0);
             a.foe("zombie", cx - 18.0, cy + 28.0); a.foe("zombie", cx + 20.0, cy + 30.0); } },
-    EncDef { id: "graveRobbers", name: "GRAVE ROBBERS", biomes: Some(&["graveyard"]), min_tier: 1, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "graveRobbers", name: "GRAVE ROBBERS", biomes: Some(&["graveyard"]), min_tier: 1, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.clutter("gravestone", cx - 24.0, cy - 10.0); a.clutter("gravestone", cx + 22.0, cy - 8.0);
             a.torch(cx - 4.0, cy - 18.0); a.crate_(cx + 30.0, cy + 14.0); a.bones(cx - 8.0, cy + 10.0); a.blood(cx + 10.0, cy + 16.0);
             a.foe("bandit", cx - 16.0, cy + 2.0); a.foe("bandit", cx + 12.0, cy + 4.0); a.foe("bandit", cx, cy + 24.0);
             a.foe("skeleton", cx - 40.0, cy - 6.0); a.foe("skeleton", cx + 38.0, cy + 22.0); } },
-    EncDef { id: "moltenForge", name: "THE MOLTEN FORGE", biomes: Some(&["embermaw"]), min_tier: 3, max_tier: None, weight: 3, friendly: false,
+    EncDef { id: "moltenForge", name: "THE MOLTEN FORGE", biomes: Some(&["embermaw"]), min_tier: 3, max_tier: None, weight: 3, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.crystal(cx - 34.0, cy - 14.0, 0xfc4030); a.crystal(cx + 30.0, cy - 16.0, 0xfc7430);
             a.clutter("emberpile", cx - 4.0, cy + 18.0); a.clutter("lavarock", cx + 22.0, cy + 8.0); a.clutter("obsidianshard", cx - 30.0, cy + 14.0); a.bones(cx + 6.0, cy - 26.0);
             a.foe("charbrute", cx, cy + 2.0); a.foe("pyrewraith", cx + 2.0, cy - 18.0); a.foe("cinderhound", cx - 28.0, cy + 8.0); a.foe("cinderhound", cx + 26.0, cy - 4.0); } },
-    EncDef { id: "infernalGate", name: "INFERNAL GATE", biomes: Some(&["burnt", "chaos", "embermaw"]), min_tier: 3, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "infernalGate", name: "INFERNAL GATE", biomes: Some(&["burnt", "chaos", "embermaw"]), min_tier: 3, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.ritual(cx - 7.0, cy - 4.0); a.crystal(cx - 32.0, cy - 18.0, 0xfc4030); a.crystal(cx + 28.0, cy - 18.0, 0xfc4030);
             a.clutter("embers", cx - 18.0, cy + 18.0); a.clutter("embers", cx + 16.0, cy + 16.0); a.clutter("charredlog", cx + 36.0, cy + 8.0); a.corpse(cx, cy + 22.0);
             a.foe("cultist", cx - 28.0, cy); a.foe("cultist", cx + 26.0, cy + 2.0); a.foe("pyrewraith", cx - 6.0, cy - 18.0);
             let boss = if a.biome == "chaos" { "riftlord" } else { "charbrute" }; a.foe(boss, cx, cy + 6.0); } },
-    EncDef { id: "frozenColossus", name: "FROZEN COLOSSUS", biomes: Some(&["arctic"]), min_tier: 3, max_tier: None, weight: 1, friendly: false,
+    EncDef { id: "frozenColossus", name: "FROZEN COLOSSUS", biomes: Some(&["arctic"]), min_tier: 3, max_tier: None, weight: 1, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.ice(cx - 36.0, cy - 12.0); a.ice(cx + 34.0, cy - 12.0); a.ice(cx - 14.0, cy + 18.0); a.ice(cx + 18.0, cy + 20.0);
             a.bones(cx, cy + 6.0); a.crate_(cx + 48.0, cy + 14.0);
             a.foe("frostwyrm", cx, cy - 14.0); a.foe("icetroll", cx - 30.0, cy + 6.0); a.foe("icetroll", cx + 30.0, cy + 6.0); } },
-    EncDef { id: "fungalNexus", name: "FUNGAL NEXUS", biomes: Some(&["mushroom"]), min_tier: 2, max_tier: None, weight: 2, friendly: false,
+    EncDef { id: "fungalNexus", name: "FUNGAL NEXUS", biomes: Some(&["mushroom"]), min_tier: 2, max_tier: None, weight: 2, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.crystal(cx, cy - 8.0, 0xff5cae); a.mushroom(cx - 30.0, cy + 12.0); a.mushroom(cx + 26.0, cy + 10.0); a.mushroom(cx - 12.0, cy - 14.0);
             a.clutter("toadstool", cx + 14.0, cy - 16.0); a.flower(cx - 44.0, cy + 18.0);
             a.foe("sporemother", cx, cy + 8.0); a.foe("myconid", cx - 38.0, cy - 4.0); a.foe("myconid", cx + 36.0, cy - 2.0);
             for i in 0..3 { a.foe("sporeling", cx - 24.0 + i as f32 * 24.0, cy + 28.0); } } },
-    EncDef { id: "scorchedConvoy", name: "SCORCHED CONVOY", biomes: Some(&["burnt"]), min_tier: 2, max_tier: None, weight: 2, friendly: false,
+    EncDef { id: "scorchedConvoy", name: "SCORCHED CONVOY", biomes: Some(&["burnt"]), min_tier: 2, max_tier: None, weight: 2, seasons: None, night: None, friendly: false,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.wagon(cx - 24.0, cy - 12.0); a.clutter("charredlog", cx + 20.0, cy + 4.0); a.clutter("ashpile", cx - 4.0, cy + 18.0);
             a.clutter("embers", cx + 6.0, cy - 8.0); a.corpse(cx - 12.0, cy + 14.0); a.blood(cx - 10.0, cy + 18.0); a.bones(cx + 36.0, cy + 16.0);
             a.foe("charbrute", cx + 6.0, cy - 6.0); a.foe("cinderhound", cx - 34.0, cy + 6.0); a.foe("cinderhound", cx + 34.0, cy + 8.0); a.foe("cinderhound", cx, cy + 28.0); } },
-    EncDef { id: "lostTraveler", name: "A LOST TRAVELER", biomes: None, min_tier: 0, max_tier: Some(3), weight: 4, friendly: true,
+    EncDef { id: "lostTraveler", name: "A LOST TRAVELER", biomes: None, min_tier: 0, max_tier: Some(3), weight: 4, seasons: None, night: None, friendly: true,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.crate_(cx + 22.0, cy + 8.0); a.clutter("pebble", cx - 26.0, cy + 14.0); a.flower(cx - 18.0, cy + 20.0);
             a.wanderer(cx, cy, "lost", "TRAVELER"); } },
-    EncDef { id: "wanderingMinstrel", name: "A WANDERING MINSTREL", biomes: None, min_tier: 0, max_tier: Some(3), weight: 3, friendly: true,
+    EncDef { id: "wanderingMinstrel", name: "A WANDERING MINSTREL", biomes: None, min_tier: 0, max_tier: Some(3), weight: 3, seasons: None, night: None, friendly: true,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.campfire(cx + 4.0, cy + 18.0); a.clutter("twig", cx - 22.0, cy + 16.0); a.flower(cx + 30.0, cy + 6.0);
             a.wanderer(cx - 6.0, cy - 4.0, "minstrel", "MINSTREL"); } },
-    EncDef { id: "hurtWayfarer", name: "AN INJURED WAYFARER", biomes: None, min_tier: 0, max_tier: Some(3), weight: 3, friendly: true,
+    EncDef { id: "hurtWayfarer", name: "AN INJURED WAYFARER", biomes: None, min_tier: 0, max_tier: Some(3), weight: 3, seasons: None, night: None, friendly: true,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.campfire(cx + 22.0, cy + 14.0); a.clutter("pebble", cx - 28.0, cy + 8.0); a.bones(cx + 34.0, cy + 18.0);
             a.wanderer(cx - 4.0, cy + 2.0, "hurt", "WAYFARER"); } },
-    EncDef { id: "wanderingHerbalist", name: "A WANDERING HERBALIST", biomes: None, min_tier: 0, max_tier: Some(3), weight: 3, friendly: true,
+    EncDef { id: "wanderingHerbalist", name: "A WANDERING HERBALIST", biomes: None, min_tier: 0, max_tier: Some(3), weight: 3, seasons: None, night: None, friendly: true,
         place: |a| { let (cx, cy) = (a.cx, a.cy); a.crate_(cx + 24.0, cy + 6.0); a.mushroom(cx - 26.0, cy + 16.0); a.flower(cx - 14.0, cy + 20.0); a.flower(cx + 12.0, cy + 22.0);
             a.wanderer(cx, cy - 2.0, "herbalist", "HERBALIST"); } },
+    // --- EVENTS (Baz): gated to a season and/or the night. They ROAM — fresh
+    // dice each day — visiting rooms that hold no standing camp, and vanish when
+    // their window closes (night events die at dawn with the day's cache).
+    EncDef { id: "restlessDead", name: "THE RESTLESS DEAD", biomes: None, min_tier: 1, max_tier: None, weight: 3, seasons: None, night: Some(true), friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.bones(cx - 8.0, cy + 2.0); a.bones(cx + 30.0, cy - 16.0); a.bones(cx - 36.0, cy + 20.0);
+            a.foe("skeleton", cx - 38.0, cy - 8.0); a.foe("skeleton", cx + 36.0, cy - 4.0); a.foe("skeleton", cx, cy - 26.0);
+            a.foe("zombie", cx - 16.0, cy + 24.0); a.foe("zombie", cx + 18.0, cy + 26.0); } },
+    EncDef { id: "moonlitRite", name: "MOONLIT RITE", biomes: None, min_tier: 2, max_tier: None, weight: 2, seasons: None, night: Some(true), friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.ritual(cx - 7.0, cy - 7.0); a.torch(cx - 30.0, cy - 20.0); a.torch(cx + 26.0, cy - 20.0);
+            a.foe("cultist", cx, cy - 34.0); a.foe("cultist", cx - 38.0, cy + 10.0); a.foe("cultist", cx + 38.0, cy + 10.0); a.foe("cultist", cx, cy + 30.0); } },
+    EncDef { id: "nightHunt", name: "THE NIGHT HUNT", biomes: Some(&["forest", "grassland", "mountains"]), min_tier: 1, max_tier: None, weight: 3, seasons: None, night: Some(true), friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.corpse(cx, cy + 2.0); a.blood(cx + 4.0, cy + 6.0);
+            for i in 0..6 { let ang = (i as f32 / 6.0) * std::f32::consts::TAU; a.foe("wolf", cx + ang.cos() * 52.0, cy + ang.sin() * 38.0); } } },
+    EncDef { id: "nightfire", name: "A FIRE IN THE DARK", biomes: None, min_tier: 0, max_tier: Some(4), weight: 2, seasons: None, night: Some(true), friendly: true,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.campfire(cx + 6.0, cy + 12.0); a.clutter("twig", cx - 20.0, cy + 18.0);
+            a.wanderer(cx - 6.0, cy - 2.0, "minstrel", "MINSTREL"); } },
+    EncDef { id: "springtide", name: "SPRINGTIDE SWARM", biomes: None, min_tier: 1, max_tier: None, weight: 3, seasons: Some(&[0]), night: None, friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.mushroom(cx - 24.0, cy + 10.0); a.mushroom(cx + 22.0, cy - 12.0); a.flower(cx - 8.0, cy - 20.0); a.flower(cx + 36.0, cy + 16.0);
+            for i in 0..6 { let ang = (i as f32 / 6.0) * std::f32::consts::TAU + 0.5; a.foe("sporeling", cx + ang.cos() * 44.0, cy + ang.sin() * 32.0); } } },
+    EncDef { id: "noonMuster", name: "NOON MUSTER", biomes: None, min_tier: 2, max_tier: None, weight: 3, seasons: Some(&[1]), night: Some(false), friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.tent(cx - 36.0, cy - 16.0); a.banner(cx - 6.0, cy - 24.0, 0xb01818); a.crate_(cx + 40.0, cy + 10.0);
+            for i in 0..5 { a.foe("bandit", cx - 48.0 + i as f32 * 24.0, cy + 14.0 + (i % 2) as f32 * 16.0); } } },
+    EncDef { id: "harvestThieves", name: "HARVEST THIEVES", biomes: None, min_tier: 0, max_tier: None, weight: 3, seasons: Some(&[2]), night: Some(false), friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.wagon(cx + 18.0, cy - 12.0); a.crate_(cx - 28.0, cy + 8.0); a.crate_(cx - 12.0, cy + 20.0);
+            a.foe("goblin", cx - 40.0, cy - 8.0); a.foe("goblin", cx + 2.0, cy + 30.0); a.foe("goblin", cx + 44.0, cy + 8.0); a.foe("slinger", cx - 8.0, cy - 26.0);
+            a.victim(cx + 50.0, cy - 18.0); } },
+    EncDef { id: "creepingCold", name: "THE CREEPING COLD", biomes: None, min_tier: 1, max_tier: None, weight: 3, seasons: Some(&[3]), night: None, friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.ice(cx - 30.0, cy - 10.0); a.ice(cx + 28.0, cy - 8.0); a.ice(cx - 4.0, cy + 18.0);
+            a.foe("frostmite", cx - 34.0, cy + 8.0); a.foe("frostmite", cx + 32.0, cy + 10.0); a.foe("frostmite", cx - 8.0, cy - 22.0); a.foe("frostmite", cx + 10.0, cy + 30.0); } },
 ];
 
 /// Camps the hero has wiped, and WHEN (room -> (day of last clear, clears so
@@ -289,19 +323,53 @@ fn dry_enough(world: &World, rx: i32, ry: i32) -> bool {
 
 /// Which encounter (if any) owns this room — deterministic from seed + coords
 /// (js forRoom). None on shard grounds, towns, dry-fail, or the 90% quiet rooms.
+/// The moment's face: the day index, the season, and whether it's night —
+/// everything a time-gated event needs. Build one with [`Now::at`].
+#[derive(Clone, Copy)]
+pub struct Now {
+    pub today: i64,
+    pub season: usize,
+    pub night: bool,
+}
+
+impl Now {
+    pub fn at(clock: i64) -> Self {
+        Now {
+            today: super::gather::farm_day(clock),
+            season: super::codex::calendar_tab::season_index(clock),
+            night: super::lighting::day_darkness(clock) > 0.6, // evening through pre-dawn
+        }
+    }
+}
+
+/// The room/tier/biome eligibility every roll shares.
+fn fits(d: &EncDef, biome: &'static str, tier: i32) -> bool {
+    d.min_tier <= tier && d.max_tier.is_none_or(|m| tier <= m) && d.biomes.is_none_or(|bs| bs.contains(&biome))
+}
+
+/// The shared weighted pick off a roll's hash.
+fn weighted(list: &[&'static EncDef], h: u32) -> &'static EncDef {
+    let total: i32 = list.iter().map(|d| d.weight).sum();
+    let mut r = (((h >> 10) % 100000) as f64 / 100000.0) * total as f64;
+    for d in list {
+        r -= d.weight as f64;
+        if r < 0.0 {
+            return d;
+        }
+    }
+    list[0]
+}
+
 pub fn for_room(world: &World, rx: i32, ry: i32, cycle: u32) -> Option<(&'static EncDef, u32)> {
     if world.shard_dungeon_at(rx, ry).is_some() || world.is_town(rx, ry) {
         return None;
     }
     let tier = World::threat_tier(rx, ry);
     let biome = world.biome_key_at(rx, ry);
+    // STABLE tenancies only — gated defs are roaming events (event_at's business).
     let list: Vec<&'static EncDef> = ENCOUNTERS
         .iter()
-        .filter(|d| {
-            d.min_tier <= tier
-                && d.max_tier.is_none_or(|m| tier <= m)
-                && d.biomes.is_none_or(|bs| bs.contains(&biome))
-        })
+        .filter(|d| d.seasons.is_none() && d.night.is_none() && fits(d, biome, tier))
         .collect();
     if list.is_empty() {
         return None;
@@ -314,23 +382,46 @@ pub fn for_room(world: &World, rx: i32, ry: i32, cycle: u32) -> Option<(&'static
     if !dry_enough(world, rx, ry) {
         return None;
     }
-    let total: i32 = list.iter().map(|d| d.weight).sum();
-    let mut r = (((h >> 10) % 100000) as f64 / 100000.0) * total as f64;
-    let mut def = list[0];
-    for d in &list {
-        r -= d.weight as f64;
-        if r < 0.0 {
-            def = d;
-            break;
-        }
-    }
-    Some((def, h))
+    Some((weighted(&list, h), h))
 }
 
-/// The room's LIVE encounter today: fallow ground is quiet, and each tenancy
-/// rolls its own dice. THE entry point — callers should not pair for_room with
-/// their own cleared checks.
-pub fn live_at(
+const SALT_EVENT: u32 = 0x51e7_a3d9;
+/// Events visit ~7% of quiet eligible rooms while their window is open.
+pub const EVENT_CHANCE: f64 = 0.07;
+
+/// A roaming EVENT for this room right now: season/night-gated defs roll fresh
+/// dice each day, so they wander the world instead of holding ground.
+fn event_at(world: &World, rx: i32, ry: i32, now: Now) -> Option<(&'static EncDef, u32)> {
+    if world.shard_dungeon_at(rx, ry).is_some() || world.is_town(rx, ry) {
+        return None;
+    }
+    let tier = World::threat_tier(rx, ry);
+    let biome = world.biome_key_at(rx, ry);
+    let list: Vec<&'static EncDef> = ENCOUNTERS
+        .iter()
+        .filter(|d| {
+            (d.seasons.is_some() || d.night.is_some())
+                && d.seasons.is_none_or(|ss| ss.contains(&now.season))
+                && d.night.is_none_or(|n| n == now.night)
+                && fits(d, biome, tier)
+        })
+        .collect();
+    if list.is_empty() {
+        return None;
+    }
+    let h = hash(world.seed ^ (now.today as u32).wrapping_mul(0x2545_F491), rx, ry, SALT_EVENT);
+    if (h % 1000) as f64 / 1000.0 >= EVENT_CHANCE {
+        return None;
+    }
+    if !dry_enough(world, rx, ry) {
+        return None;
+    }
+    Some((weighted(&list, h), h))
+}
+
+/// The room's STABLE encounter today (fallow ground is quiet; each tenancy rolls
+/// its own dice). Quest targeting rides THIS — events are too fleeting to chase.
+pub fn stable_at(
     world: &World,
     cleared: &ClearedEncounters,
     rx: i32,
@@ -338,6 +429,20 @@ pub fn live_at(
     today: i64,
 ) -> Option<(&'static EncDef, u32)> {
     for_room(world, rx, ry, cleared.tenancy((rx, ry), today)?)
+}
+
+/// EVERYTHING here right now — the standing camp if one holds the room, else any
+/// event whose window is open. THE entry point for spawn/dress/banner/lights;
+/// callers should not pair for_room with their own cleared checks.
+pub fn live_at(
+    world: &World,
+    cleared: &ClearedEncounters,
+    rx: i32,
+    ry: i32,
+    now: Now,
+) -> Option<(&'static EncDef, u32)> {
+    let cycle = cleared.tenancy((rx, ry), now.today)?;
+    for_room(world, rx, ry, cycle).or_else(|| event_at(world, rx, ry, now))
 }
 
 /// Stage the def into a concrete scene (js build — decor + foe list, clamped in-room).
@@ -1037,7 +1142,7 @@ pub fn threat_banner_tick(
         return;
     }
     *last = Some(room);
-    if let Some((def, _)) = live_at(&world.0, &cleared, room.0, room.1, super::gather::farm_day(clock.0))
+    if let Some((def, _)) = live_at(&world.0, &cleared, room.0, room.1, Now::at(clock.0))
         && !def.friendly
     {
         banners.threat(def.name);

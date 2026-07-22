@@ -225,10 +225,10 @@ fn update_overlay(
         }
         // Encounter camp light (js collectLights: campfire r44, crystal r30) — the
         // scene is deterministic, so it bakes once per room into a local cache.
-        let today = super::gather::farm_day(clock.0);
         if camp_cache.as_ref().map(|(room, _)| *room) != Some((cur.rx, cur.ry)) {
             let mut v = Vec::new();
-            if let Some((def, h)) = super::encounters::live_at(&world.0, &scene.cleared, cur.rx, cur.ry, today) {
+            let now = super::encounters::Now::at(clock.0);
+            if let Some((def, h)) = super::encounters::live_at(&world.0, &scene.cleared, cur.rx, cur.ry, now) {
                 let scene = super::encounters::build(def, &world.0, cur.rx, cur.ry, h);
                 for d in &scene.decor {
                     match d.kind {

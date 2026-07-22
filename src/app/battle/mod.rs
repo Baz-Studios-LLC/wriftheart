@@ -89,7 +89,7 @@ pub fn spawn_room_mobs(
     armed: &mut super::encounters::ArmedEncounter,
     ents: &[RoomEntity],
     room: (i32, i32),
-    today: i64,
+    now: super::encounters::Now,
 ) {
     // Safe havens never host foes (js noMobs): the start room and the burnt home
     // village (the castle grounds + player home join as they port).
@@ -98,12 +98,12 @@ pub fn spawn_room_mobs(
     }
     // Beaten ground lies FALLOW half a season — no camp, no natural mobs; then the
     // world moves on and the room re-rolls a fresh tenancy (encounters::live_at).
-    if cleared.fallow(room, today) {
+    if cleared.fallow(room, now.today) {
         return;
     }
     // An encounter takes the room's mob slot: its curated roster replaces the natural
     // roll entirely (friendly ones spawn no foes at all).
-    if let Some((def, h)) = super::encounters::live_at(world, cleared, room.0, room.1, today) {
+    if let Some((def, h)) = super::encounters::live_at(world, cleared, room.0, room.1, now) {
         let scene = super::encounters::build(def, world, room.0, room.1, h);
         for (kind, x, y) in &scene.foes {
             let (x, y) = (*x, *y);

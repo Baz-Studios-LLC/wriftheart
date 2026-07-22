@@ -341,7 +341,7 @@ pub fn spawn_room_props(
     }
     // The room's LIVE encounter dresses its scene over the natural room (decor
     // rebuilds identically every visit; the foes are spawn_room_mobs' business).
-    if let Some((def, h)) = super::encounters::live_at(world, cleared, room.0, room.1, today) {
+    if let Some((def, h)) = super::encounters::live_at(world, cleared, room.0, room.1, super::encounters::Now::at(clock)) {
         let scene = super::encounters::build(def, world, room.0, room.1, h);
         super::encounters::spawn_decor(commands, images, art, root, &scene, &mut blockers);
         super::encounters::spawn_wanderers(commands, root, &scene);

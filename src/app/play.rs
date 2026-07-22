@@ -480,7 +480,8 @@ fn setup(
         .as_ref()
         .map_or_else(super::farm::FarmTiles::default, |d| super::save::farm_from_save(&d.farm));
     // ...and its beaten camps lie fallow where the ledger says (encounters::live_at).
-    let today0 = super::gather::farm_day(loaded.0.as_ref().map_or(0, |d| d.clock));
+    let clock0 = loaded.0.as_ref().map_or(0, |d| d.clock);
+    let today0 = super::gather::farm_day(clock0);
     let cleared = loaded.0.as_ref().map_or_else(Default::default, |d| {
         super::encounters::ClearedEncounters::from_save(&d.cleared_led, &d.cleared_encounters, today0)
     });
@@ -564,7 +565,7 @@ fn setup(
     let world = GameWorld(world);
     let grid = CurGrid(grid);
     let mut human_art = crate::actors::goblin::HumanArt::default();
-    spawn_room_mobs(&mut commands, &mut images, &mut rng, &mut human_art, &world.0, &cleared, &mut armed, &ents, (rx, ry), today0);
+    spawn_room_mobs(&mut commands, &mut images, &mut rng, &mut human_art, &world.0, &cleared, &mut armed, &ents, (rx, ry), super::encounters::Now::at(clock0));
     commands.insert_resource(human_art); // seeds the session cache (replaces the plugin default)
     commands.insert_resource(cleared);
     commands.insert_resource(world);
@@ -686,7 +687,7 @@ pub fn tick(
                     &mut armed,
                     &world.0.room_entities(cur.rx, cur.ry),
                     (cur.rx, cur.ry),
-                    super::gather::farm_day(clock.0),
+                    super::encounters::Now::at(clock.0),
                     uses.house.0.as_ref().is_some_and(|h| h.room == (cur.rx, cur.ry)),
                 );
                 banners.room_entered(&world.0, &mut town_names, cur.rx, cur.ry); // announce towns/regions
