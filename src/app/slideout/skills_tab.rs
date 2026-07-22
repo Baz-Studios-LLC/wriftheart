@@ -229,10 +229,6 @@ pub struct TreeRoot;
 /// The pulsing white cursor ring.
 #[derive(Component)]
 pub struct CursorRing;
-/// A twinkling backdrop star (its index seeds the phase).
-#[derive(Component)]
-pub struct Twinkle(pub usize);
-
 /// A parallax star-dust sheet behind the constellation (Baz: the map's WRIFT
 /// backdrop, here too). The sprite sits FIXED over the panel; the scroll lives in
 /// its texture rect - the map can translate its layers because the codex owns the
@@ -365,8 +361,7 @@ pub fn skills_anim(
     mut st: ResMut<SkillsState>,
     mut root: Query<&mut Transform, (With<TreeRoot>, Without<CursorRing>)>,
     mut ring: Query<&mut Transform, (With<CursorRing>, Without<TreeRoot>)>,
-    mut stars: Query<(&Twinkle, &mut Sprite), Without<WriftLayer>>,
-    mut wrift: Query<(&WriftLayer, &mut Sprite), Without<Twinkle>>,
+    mut wrift: Query<(&WriftLayer, &mut Sprite)>,
 ) {
     let cur = &nodes()[st.cursor];
     let target = Vec2::new(cur.x as f32, cur.y as f32);
@@ -394,10 +389,6 @@ pub fn skills_anim(
     if let Ok(mut tf) = ring.single_mut() {
         tf.scale = Vec3::splat(1.0 + 0.25 * pulse);
     }
-    for (tw, mut sprite) in &mut stars {
-        let a = 0.25 + 0.75 * (t * 1.5 + tw.0 as f32 * 1.7).sin().abs();
-        sprite.color = sprite.color.with_alpha(a * 0.35);
-    }
 }
 
 fn area_centre() -> Vec2 {
@@ -422,9 +413,10 @@ pub fn draw(
     let allocated = |i: usize| i == skilltree::start() || alloc.taken.contains(&i);
     let tint = |c: (u8, u8, u8), a: f32| Color::srgba_u8(c.0, c.1, c.2, (a * 255.0) as u8);
 
-    // The void + fixed twinkling stars (backdrop stays put; the tree pans over it).
+    // The void base - the codex overlay's exact near-black, so MAP and SKILLS read
+    // as one sky (Baz).
     commands.spawn((
-        Sprite::from_color(Color::srgb_u8(0x0b, 0x0d, 0x12), Vec2::new(w, h - AREA_TOP)),
+        Sprite::from_color(Color::srgb_u8(0x05, 0x05, 0x08), Vec2::new(w, h - AREA_TOP)),
         at(x0, AREA_TOP, w, h - AREA_TOP, Z + 0.1),
         PIXEL_LAYER,
         tag(),
@@ -454,19 +446,6 @@ pub fn draw(
             at(x0, AREA_TOP, w, h - AREA_TOP, Z + 0.12 + li as f32 * 0.02),
             PIXEL_LAYER,
             WriftLayer { k, drift },
-            tag(),
-        ));
-    }
-    for i in 0..90usize {
-        let sx = (i as f32 * 97.0 + 31.0) % w;
-        let sy = AREA_TOP + (i as f32 * 61.0 + 17.0) % (h - AREA_TOP);
-        let bright = i % 4 == 0;
-        let c = if bright { Color::srgba_u8(230, 240, 255, 128) } else { Color::srgba_u8(160, 180, 210, 128) };
-        commands.spawn((
-            Sprite::from_color(c, Vec2::splat(1.0)),
-            at(x0 + sx, sy, 1.0, 1.0, Z + 0.15),
-            PIXEL_LAYER,
-            Twinkle(i),
             tag(),
         ));
     }
