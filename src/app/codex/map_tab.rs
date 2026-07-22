@@ -464,6 +464,42 @@ fn spawn_map(
         .id();
     // Child at map-space top-left (mx,my), size (w,h): local y flips (root is a canvas point).
     let local = |mx: f32, my: f32, w: f32, h: f32, dz: f32| Transform::from_xyz(mx + w / 2.0, -(my + h / 2.0), dz);
+    // The map SHEET: a near-black panel + faint room-grid under everything. The void
+    // was pure black, so a pan over unexplored fold didn't visibly move (Baz) — the
+    // grid gives the camera something to slide, and hints where rooms could be.
+    {
+        let full_w = b.cols as f32 * cell_w - GAP;
+        let full_h = b.rows as f32 * cell_h - GAP;
+        let sheet = commands
+            .spawn((
+                Sprite::from_color(Color::srgb_u8(0x0b, 0x0b, 0x10), Vec2::new(full_w + 4.0, full_h + 4.0)),
+                local(-2.0, -2.0, full_w + 4.0, full_h + 4.0, -0.1),
+                PIXEL_LAYER,
+            ))
+            .id();
+        commands.entity(root).add_child(sheet);
+        let line = Color::srgb_u8(0x17, 0x17, 0x1f);
+        for i in 1..b.cols {
+            let e = commands
+                .spawn((
+                    Sprite::from_color(line, Vec2::new(1.0, full_h + 4.0)),
+                    local(i as f32 * cell_w - 1.5, -2.0, 1.0, full_h + 4.0, -0.05),
+                    PIXEL_LAYER,
+                ))
+                .id();
+            commands.entity(root).add_child(e);
+        }
+        for j in 1..b.rows {
+            let e = commands
+                .spawn((
+                    Sprite::from_color(line, Vec2::new(full_w + 4.0, 1.0)),
+                    local(-2.0, j as f32 * cell_h - 1.5, full_w + 4.0, 1.0, -0.05),
+                    PIXEL_LAYER,
+                ))
+                .id();
+            commands.entity(root).add_child(e);
+        }
+    }
     for &(x, y) in &visited.0 {
         let mx = (x - b.min_x) as f32 * cell_w;
         let my = (y - b.min_y) as f32 * cell_h;
