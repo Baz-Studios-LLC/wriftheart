@@ -400,15 +400,16 @@ these must keep Wren's voice consistent with §5.
 
 ## 11. The Library Plan — 100 books
 
-Existing 23 fold into these series. Counts are targets; ✎ = already written.
+The shelf (`src/lore_books.rs`) currently holds **125 written books**. Counts are targets;
+✎ = written credits per series (older rows under-count — the shelf is the truth).
 
 | # | Series | Author/voice | Books | Found | Pages | Carries |
 |---|---|---|---|---|---|---|
 | 1 | Chronicles of the Sundering I–VI | Vell | 6 (✎3: sundering, foundingtowns, blackcastle) | towns/library | 3 | T1 spine, official history |
 | 2 | The Four-and-Twenty Lands | Mull | 10 (✎2: twelverealms, inland) | region-matched | 2 | Gazetteer, T1 |
 | 3 | Torwen's Journals I–V | Torwen | 5 (✎1: shardseeker) | dungeons | 2–3 | T2, ends T3 |
-| 4 | Letters of the Bright Court | various | 6 | castle/dungeons | 1–2 | T2 (Maren, Sorrel) |
-| 5 | Liturgies of the Sharded Choir | the Choir | 5 (✎2: litany, witherwhisper) | dungeons, escalating | 2 | T2 outer → T3 inner |
+| 4 | Letters of the Bright Court | various | 6 (✎3: servantletter, cradlesong, marenbees) | castle/dungeons | 1–2 | T2 (Maren, Sorrel) |
+| 5 | Liturgies of the Sharded Choir | the Choir | 5 (✎3: litany, witherwhisper, firstsinger) | dungeons, escalating | 2 | T2 outer → T3 inner |
 | 6 | The Lantern Order | the Order | 4 (✎1: graveward) | gravelands/chapels | 2 | T2, Emberfall record |
 | 7 | Grey College primers | the College | 5 (✎1: firstwand) | magic shops/library | 2 | Mechanics-as-lore |
 | 8 | Trades & crafts | Dun, Pork, Bren, Sage + new | 8 (✎4: smithledger, herbal, almanac, waters) | matching shops | 2 | Gameplay tips with voice |
@@ -416,12 +417,12 @@ Existing 23 fold into these series. Counts are targets; ✎ = already written.
 | 10 | Rhymes & ballads | folk | 10 (✎3: baldhero, skyweeps, minerssong) | taverns/towns | 1–2 | Accidentally-true folklore |
 | 11 | Diaries of common folk | 10 voices | 10 (✎1: tradersroad) | houses/inns | 2 | Texture; Bren's rhyme reveal |
 | 12 | Emberfall fragments | various | 4 (✎1: lastnight) | home region | 1–2 | The hero's thread |
-| 13 | Black Castle papers | court remnants | 5 | final dungeon | 2–3 | T3 reveals |
-| 14 | Legends & found texts | unknown | 6 (✎2: weepingking, starlessdeep) | scattered | 2 | T2/T4 mystery |
-| 15 | One-offs | various | 10 | everywhere | 1 | Wills, menus, a ship's log, a confession, a wanted poster |
-| 16 | The Vigil Roll (the Unrelieved) | knights' own hands | 4 | wild battle-sites/dungeons | 1–2 | T1–T2; each a last testament — dovetails with the DYING KNIGHT scenes |
-| 17 | Wells & Falling Stars | College field notes + folk | 4 | libraries/craters/wells | 2 | T1–T2 wonder; asks Tier-4 questions, answers none |
-| | **Total** | | **108 (✎23)** | | | |
+| 13 | Black Castle papers | court remnants | 5 (✎3: expulsion, surveyfragment, wrongcastle) | final dungeon | 2–3 | T3 reveals |
+| 14 | Legends & found texts | unknown | 6 (✎4: weepingking, starlessdeep, quietman, hearthstone) | scattered | 2 | T2/T4 mystery |
+| 15 | One-offs | various | 10 (✎1: masoncompact) | everywhere | 1 | Wills, menus, a ship's log, a confession, a wanted poster |
+| 16 | The Vigil Roll (the Unrelieved) | knights' own hands | 4 (✎4: vigiloath, vigilthirty, vigilgrey, vigillast) | wild battle-sites/dungeons | 1–2 | T1–T2; each a last testament — dovetails with the DYING KNIGHT scenes |
+| 17 | Wells & Falling Stars | College field notes + folk | 4 (✎4: wellsurvey, wellname, starledger, starnight) | libraries/craters/wells | 2 | T1–T2 wonder; asks Tier-4 questions, answers none |
+| | **Total** | | **108 planned — 125 on the shelf** | | | |
 
 **Placement rule:** a book's series determines *where* it can spawn (extend the `where` field:
 town, library, dungeon, castle, camp, home, chapel, tavern, shop-kind). Deep-tier reveals only
