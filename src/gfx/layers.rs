@@ -23,9 +23,12 @@ pub const FIREFLY: f32 = 12.4;
 // (LIGHTING 13.0) and the weather pass (13.2). Nothing UI may sit below those two.
 /// The heart that drifts up when a villager warms to you.
 pub const HEART_FX: f32 = 13.24;
-/// The villager name chip + speech bubble (bubble text at +0.05).
-pub const CHAT: f32 = 13.26;
-pub const CHAT_TEXT: f32 = 13.32;
+/// The villager name chip + speech bubble (bubble text at +0.05). ABOVE the
+/// prompt band (13.36-13.42) and the quest ! glyphs (13.50-13.52): live speech
+/// owns its airspace — the town garble was the TALK plate and a giver's ! both
+/// carving through a lower, see-through bubble (Baz).
+pub const CHAT: f32 = 13.56;
+pub const CHAT_TEXT: f32 = 13.62;
 /// The interact prompts: the floating "F ENTER" bubble and the bottom-centre bar
 /// (border +0.02, text +0.05).
 pub const PROMPT: f32 = 13.36;

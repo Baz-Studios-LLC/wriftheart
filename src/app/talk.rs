@@ -312,7 +312,7 @@ pub(crate) fn talk_tick(
         let nx = (PLAY_X + (vx + 8.0 - nw / 2.0).round()).clamp(PLAY_X + 2.0, PLAY_X + PX_W as f32 - nw - 2.0);
         let ny = if talking { by - 9.0 } else { by + 2.0 };
         commands.spawn((
-            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.75), Vec2::new(nw + 4.0, 8.0)),
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.95), Vec2::new(nw + 4.0, 8.0)),
             at(nx - 2.0, ny, nw + 4.0, 8.0, layers::CHAT),
             PIXEL_LAYER,
             ChatUi,

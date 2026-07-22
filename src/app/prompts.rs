@@ -29,11 +29,11 @@ pub(crate) struct TakeCtx<'w, 's> {
 #[derive(Component, Clone)]
 pub(crate) struct PromptUi;
 
-/// Worn by EVERY bubble spawn_bubble makes, whatever the caller's own marker —
+/// Worn by EVERY bubble — spawn_bubble's AND ui::speech_bubble's (the town chat
+/// path missed it and the TALK plate overprinted a live speech line — Baz) —
 /// the presence check that keeps two prompt systems from stacking their bubbles
-/// on the same head (services + TALK fused into garble — Baz).
-#[derive(Component)]
-pub struct AnyBubble;
+/// on the same head. Lives in ui::widgets so the shared recipe can wear it.
+pub use crate::ui::AnyBubble;
 
 /// What the bubble said last tick (rebuild only when it changes; position rides along).
 #[derive(Default)]

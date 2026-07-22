@@ -7,6 +7,11 @@ use crate::input::{Action, ActionState};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
+/// Worn by every speech/prompt bubble — prompt systems yield while one is live
+/// (see prompts.rs; defined here so speech_bubble can insert it itself).
+#[derive(Component)]
+pub struct AnyBubble;
+
 /// One label = one baked-text sprite. THE text helper — every string on screen goes through
 /// here. Returns the entity (despawn + respawn to retext).
 #[allow(clippy::too_many_arguments)] // (text, pos, colour, z, marker) IS the label's arity
@@ -308,11 +313,14 @@ pub fn speech_bubble(
     let (img, w) = crate::gfx::font::bake_text(text, 0xe8f0ff, images);
     let iw = (w + (w & 1)) as f32;
     let bw = iw + 8.0;
+    // OPAQUE plate: at 0.85 whatever sat beneath ghosted through the line (the
+    // town garble) — a live bubble hides its ground completely.
     let parent = commands
         .spawn((
-            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.85), Vec2::new(bw, 11.0)),
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 1.0), Vec2::new(bw, 11.0)),
             crate::gfx::at(x, y, bw, 11.0, z),
             crate::gfx::PIXEL_LAYER,
+            AnyBubble,
         ))
         .id();
     let child_tf =
