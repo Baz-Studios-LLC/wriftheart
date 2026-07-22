@@ -663,8 +663,9 @@ fn redraw(
     let iw = font::measure(&info) as f32;
     label(&mut commands, &mut images, &info, w - 10.0 - iw, 8.0, 0x8a8a92, Z + 0.2, DevUi);
     let info2 = format!(
-        "{}  -  TIER {}  -  {}  -  {} OF {} SHARDS",
+        "{}  -  ZONE {}  -  THREAT {}  -  {}  -  {} OF {} SHARDS",
         world.0.biome_key_at(cur.rx, cur.ry).to_uppercase(),
+        crate::worldgen::World::zone_tier(cur.rx, cur.ry),
         crate::worldgen::World::threat_tier(cur.rx, cur.ry),
         crate::weather::get(weather.cur).label,
         relics.0.len(),

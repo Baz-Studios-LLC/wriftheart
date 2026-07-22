@@ -518,7 +518,9 @@ pub static ENCOUNTERS: &[EncDef] = &[
             a.clutter("embers", cx - 12.0, cy + 16.0); a.clutter("embers", cx + 10.0, cy - 18.0);
             a.clutter("scree", cx - 38.0, cy - 8.0); a.clutter("scree", cx + 36.0, cy - 10.0); a.clutter("pebble", cx + 2.0, cy + 28.0);
             // Star-metal, scattered where it fell — richer the deeper the land.
-            let ore: &'static str = match a.tier { t if t >= 5 => "voidsteel", 4 => "mithril", 3 => "gold", _ => "silver" };
+            // a.tier is THREAT (ring/4, uncapped) — thresholds sit on zone-equivalents:
+            // voidsteel ~zone 5+, mithril ~zone 4, gold ~zone 3 (purple is endgame).
+            let ore: &'static str = match a.tier { t if t >= 9 => "voidsteel", t if t >= 7 => "mithril", t if t >= 5 => "gold", _ => "silver" };
             for (ox, oy) in [(-18, -4), (16, -8), (-6, 12), (22, 18), (-30, 16), (8, -22), (34, 2), (-40, -14)] {
                 a.loot(ore, cx + ox as f32, cy + oy as f32);
             }
