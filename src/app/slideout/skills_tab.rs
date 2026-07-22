@@ -97,16 +97,19 @@ pub fn gear_refresh(
     }
 }
 
-/// Page state: the cursor node + the lerping camera (in tree coordinates).
+/// Page state: the cursor node + the lerping camera (in tree coordinates). `drift`
+/// is set while a mouse drag has carried the camera away from the cursor - the lerp
+/// lets go until the cursor moves again (else it would fight the drag every frame).
 #[derive(Resource)]
 pub struct SkillsState {
     pub cursor: usize,
     pub cam: Vec2,
+    pub drift: bool,
 }
 
 impl Default for SkillsState {
     fn default() -> Self {
-        Self { cursor: skilltree::start(), cam: Vec2::ZERO }
+        Self { cursor: skilltree::start(), cam: Vec2::ZERO, drift: false }
     }
 }
 
@@ -239,6 +242,8 @@ pub fn skills_input(
     ident: Res<crate::app::identity::HeroIdent>,
     night: Res<crate::app::identity::Night>,
     ptr: Res<crate::input::Pointer>,
+    // The drag gear (Baz: drag the tree around like the map) - buttons, anchor, travel.
+    mouse: (Res<ButtonInput<MouseButton>>, Local<Option<Vec2>>, Local<f32>),
 ) {
     let pressed_dir = [Action::Up, Action::Down, Action::Left, Action::Right]
         .iter()
@@ -249,40 +254,63 @@ pub fn skills_input(
         let dy = state.held(Action::Down) as i32 as f64 - state.held(Action::Up) as i32 as f64;
         if let Some(next) = skilltree::nav(st.cursor, dx, dy) {
             st.cursor = next;
+            st.drift = false; // keyboard nav hands the camera back to the lerp
             so.dirty = true;
         }
     }
-    // Mouse: hover a node selects it, a click allocates it (refund stays on its button). The
+    // MOUSE (Baz: drag the constellation around like the map): hold-and-drag pans the
+    // tree under the cursor; a STILL click (released without real travel) selects the
+    // node under it, and a second still click on the selected node allocates. The
     // node-to-canvas map inverts skills_anim's root transform: node = centre + (x,y) - cam.
+    let (mbtn, mut drag, mut travel) = mouse;
     let mut click_alloc = false;
-    if let Some(pos) = ptr.pos.filter(|p| p.y >= AREA_TOP && p.x >= SIDEBAR_W) {
-        let (centre, cam) = (area_centre(), st.cam.round());
-        let mut best: Option<(usize, f32)> = None;
-        for (i, nd) in nodes().iter().enumerate() {
-            let r = match nd.kind {
-                "keystone" => 7.0,
-                "notable" | "start" => 5.0,
-                _ => 3.0,
-            };
-            let nc = centre + Vec2::new(nd.x as f32, nd.y as f32) - cam;
-            let d = nc.distance(pos);
-            if d <= r + 2.0 && best.is_none_or(|(_, bd)| d < bd) {
-                best = Some((i, d));
-            }
-        }
-        // CLICK-ONLY (Baz: hover-select panned the camera as the mouse moved — felt bad):
-        // a click SELECTS the node under the cursor; clicking the selected node again
-        // allocates it. Bare mouse motion does nothing.
-        if ptr.click
-            && let Some((i, _)) = best
-        {
-            if st.cursor != i {
-                st.cursor = i;
-                so.dirty = true;
+    let in_area = ptr.pos.filter(|p| p.y >= AREA_TOP && p.x >= SIDEBAR_W);
+    if mbtn.pressed(MouseButton::Left) {
+        if let Some(pos) = in_area {
+            if let Some(last) = *drag {
+                let d = pos - last;
+                *travel += d.length();
+                if *travel > 3.0 {
+                    st.cam -= d; // the tree rides WITH the cursor
+                    st.drift = true;
+                }
+                *drag = Some(pos);
             } else {
-                click_alloc = true;
+                // Arm on HELD-in-area, not just_pressed - the map drag's fixed-tick rule.
+                *drag = Some(pos);
+                *travel = 0.0;
             }
         }
+    } else {
+        if drag.take().is_some()
+            && *travel <= 3.0
+            && let Some(pos) = in_area
+        {
+            let (centre, cam) = (area_centre(), st.cam.round());
+            let mut best: Option<(usize, f32)> = None;
+            for (i, nd) in nodes().iter().enumerate() {
+                let r = match nd.kind {
+                    "keystone" => 7.0,
+                    "notable" | "start" => 5.0,
+                    _ => 3.0,
+                };
+                let nc = centre + Vec2::new(nd.x as f32, nd.y as f32) - cam;
+                let d = nc.distance(pos);
+                if d <= r + 2.0 && best.is_none_or(|(_, bd)| d < bd) {
+                    best = Some((i, d));
+                }
+            }
+            if let Some((i, _)) = best {
+                if st.cursor != i {
+                    st.cursor = i;
+                    st.drift = false; // selecting hands the camera back to the lerp
+                    so.dirty = true;
+                } else {
+                    click_alloc = true;
+                }
+            }
+        }
+        *travel = 0.0;
     }
     let cur = st.cursor;
     let n = &nodes()[cur];
@@ -322,8 +350,10 @@ pub fn skills_anim(
 ) {
     let cur = &nodes()[st.cursor];
     let target = Vec2::new(cur.x as f32, cur.y as f32);
-    let cam = st.cam;
-    st.cam = cam + (target - cam) * 0.18;
+    if !st.drift {
+        let cam = st.cam;
+        st.cam = cam + (target - cam) * 0.18;
+    }
     let centre = area_centre();
     if let Ok(mut tf) = root.single_mut() {
         let base = at(centre.x, centre.y, 0.0, 0.0, Z + 0.2);
