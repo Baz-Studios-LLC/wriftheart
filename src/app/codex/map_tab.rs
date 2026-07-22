@@ -22,7 +22,9 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 const GAP: f32 = 2.0; // px between room cells (MAP_G)
 const AX: f32 = 6.0;
 const AY: f32 = TOP_H + 1.0;
-const PAN_PX: f32 = 2.0; // canvas px per held tick — constant on-screen pan speed
+const PAN_PX: f32 = 2.0; // canvas px per held tick at the start of a pan
+const PAN_MAX: f32 = 6.0; // full speed after ~half a second of holding
+const PAN_RAMP: f32 = 30.0; // frames to reach full speed
 
 /// Zoom (integer px per tile) + camera centre as a fraction of the full map.
 #[derive(Resource)]
@@ -105,6 +107,7 @@ pub fn run(
             Local<Option<Vec2>>,
             Local<f32>,
             Query<Entity, With<RecenterBtn>>,
+            Local<f32>,
         ),
         // Where you FELL + the clock that expires it with the day's room reset.
         (Res<crate::app::death::LastDeath>, Res<crate::app::room_render::FrameClock>),
@@ -113,7 +116,7 @@ pub fn run(
 ) {
     let (towns, phouse, relics_res, players_q, in_dungeon, chant, mouse, fell) = marks;
     let death_room = fell.0 .0.filter(|(_, day)| *day == crate::app::gather::farm_day(fell.1 .0)).map(|(r, _)| r);
-    let (ptr, mbtn, mut wheels, mut drag, mut wacc, btns) = mouse;
+    let (ptr, mbtn, mut wheels, mut drag, mut wacc, btns, mut pan_t) = mouse;
     // UNDERGROUND: the DUNGEON FLOOR MAP replaces the world map (js drawDungeonMap) —
     // auto-fit, no zoom/pan, rebuilt when the room/floor moves (or the chant meter ticks).
     if let Some(drun) = &in_dungeon.0 {
@@ -169,17 +172,22 @@ pub fn run(
         let (cell_w, cell_h) = cell_size(view.ts);
         let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
         let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
+        // Accelerating pan (Baz: the flat crawl read as lag): first tick moves at
+        // PAN_PX for fine control, a held direction ramps to PAN_MAX over PAN_RAMP.
+        let any = state.held(Action::Left) || state.held(Action::Right) || state.held(Action::Up) || state.held(Action::Down);
+        *pan_t = if any { (*pan_t + 1.0).min(PAN_RAMP) } else { 0.0 };
+        let px = PAN_PX + (PAN_MAX - PAN_PX) * (*pan_t / PAN_RAMP);
         if state.held(Action::Left) {
-            view.cx -= PAN_PX / full_w;
+            view.cx -= px / full_w;
         }
         if state.held(Action::Right) {
-            view.cx += PAN_PX / full_w;
+            view.cx += px / full_w;
         }
         if state.held(Action::Up) {
-            view.cy -= PAN_PX / full_h;
+            view.cy -= px / full_h;
         }
         if state.held(Action::Down) {
-            view.cy += PAN_PX / full_h;
+            view.cy += px / full_h;
         }
     }
     // MOUSE (Baz): hold-and-drag pans the map under the cursor, the wheel zooms,
