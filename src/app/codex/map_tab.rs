@@ -267,6 +267,108 @@ pub fn run(
     }
 }
 
+/// Gold octant arrows (E, SE, S, SW, W, NW, N, NE) for the viewport-rim quest
+/// compass — an in-progress marker off the visible map gets an arrow on the rim
+/// pointing its way (Baz: "arrows on the edge of the map that point towards
+/// quests"). 7x7 bakes, quest-gold.
+const ARROW_PAL: &[(char, u32)] = &[('g', 0xffd34d)];
+const OCTANT_ARROWS: [&[&str]; 8] = [
+    &["g......", "gg.....", "ggg....", "gggg...", "ggg....", "gg.....", "g......"], // E
+    &[".......", ".......", "....ggg", ".....gg", "....g.g", "...g..g", "..g...g"], // SE
+    &[".......", ".......", ".......", "ggggggg", ".ggggg.", "..ggg..", "...g..."], // S
+    &[".......", ".......", "ggg....", "gg.....", "g.g....", "g..g...", "g...g.."], // SW
+    &["......g", ".....gg", "....ggg", "...gggg", "....ggg", ".....gg", "......g"], // W
+    &["g...g..", "g..g...", "g.g....", "gg.....", "ggg....", ".......", "......."], // NW
+    &["...g...", "..ggg..", ".ggggg.", "ggggggg", ".......", ".......", "......."], // N
+    &["..g...g", "...g..g", "....g.g", ".....gg", "....ggg", ".......", "......."], // NE
+];
+
+/// The rim-arrow layer, rebuilt whenever the picture changes (pan, zoom, log).
+#[derive(Component)]
+pub struct EdgeArrow;
+
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+pub fn edge_arrows(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    cx_state: Res<super::CodexState>,
+    in_dungeon: Res<crate::app::dungeon::InDungeon>,
+    visited: Res<Visited>,
+    cur: Res<CurRoom>,
+    view: Res<MapView>,
+    quests: Res<crate::app::quests::QuestLog>,
+    tmaps: Res<crate::app::digging::TreasureMaps>,
+    inv: Res<crate::inventory::PlayerInv>,
+    old: Query<Entity, With<EdgeArrow>>,
+    mut art: Local<Vec<Handle<Image>>>,
+    mut last: Local<Option<String>>,
+) {
+    let mut wants: Vec<(f32, f32, usize)> = Vec::new();
+    if in_dungeon.0.is_none() {
+        let pins = pin_rooms(&quests, &tmaps);
+        let b = bounds(&visited, cur.rx, cur.ry, &pins);
+        let (cell_w, cell_h) = cell_size(view.ts);
+        let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
+        let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
+        let (vw, vh) = view_size();
+        let off = |full: f32, v: f32, c: f32| {
+            if full <= v { -((v - full) / 2.0) } else { (c * full - v / 2.0).clamp(0.0, full - v) }
+        };
+        let (ox, oy) = (AX - off(full_w, vw, view.cx), AY - off(full_h, vh, view.cy));
+        let (rw, rh) = ((COLS * view.ts) as f32, (ROWS * view.ts) as f32);
+        for q in &quests.0 {
+            if q.ready(&inv) {
+                continue; // the '?' giver pin is a different errand — arrows track '!'s
+            }
+            let Some(m) = q.marker() else { continue };
+            let sx = ox + (m.0 - b.min_x) as f32 * cell_w + rw / 2.0;
+            let sy = oy + (m.1 - b.min_y) as f32 * cell_h + rh / 2.0;
+            if sx >= AX && sx <= AX + vw && sy >= AY && sy <= AY + vh {
+                continue; // on screen — the pin itself carries it
+            }
+            let ax = sx.clamp(AX + 3.0, AX + vw - 10.0);
+            let ay = sy.clamp(AY + 3.0, AY + vh - 10.0);
+            // Octant from the rim toward the marker (canvas y grows DOWN: 0=E, 1=SE ...).
+            let ang = (sy - ay).atan2(sx - ax);
+            let oct = ((((ang / std::f32::consts::FRAC_PI_4).round() as i32) % 8) + 8) % 8;
+            wants.push((ax.round(), ay.round(), oct as usize));
+        }
+    }
+    // Redraw only when the picture changes; the generation salt survives tab sweeps.
+    let key = format!("{}|{wants:?}", cx_state.generation);
+    if Some(&key) == last.as_ref() {
+        return;
+    }
+    *last = Some(key);
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    if wants.is_empty() {
+        return;
+    }
+    if art.is_empty() {
+        *art = OCTANT_ARROWS.iter().map(|g| images.add(crate::gfx::bake(g, ARROW_PAL))).collect();
+    }
+    for (x, y, oct) in wants {
+        commands.spawn((
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.6), Vec2::new(9.0, 9.0)),
+            at(x - 1.0, y - 1.0, 9.0, 9.0, CONTENT_Z + 0.5),
+            PIXEL_LAYER,
+            CodexUi,
+            TabContent,
+            EdgeArrow,
+        ));
+        commands.spawn((
+            Sprite::from_image(art[oct].clone()),
+            at(x, y, 7.0, 7.0, CONTENT_Z + 0.51),
+            PIXEL_LAYER,
+            CodexUi,
+            TabContent,
+            EdgeArrow,
+        ));
+    }
+}
+
 /// Rooms the quest pins keep in frame (js codex fold: markers + giver rooms).
 fn pin_rooms(quests: &crate::app::quests::QuestLog, tmaps: &crate::app::digging::TreasureMaps) -> Vec<(i32, i32)> {
     let mut out = Vec::new();
@@ -474,6 +576,34 @@ fn spawn_map(
             // Where you FELL (today only — the corpse bag's window): a plain
             // gravestone, deliberately NOT the dungeon skull.
             mark(commands, images, GRAVE_MARK, &[('b', 0x1a1208), ('s', 0x9aa0ac), ('S', 0x5a6068), ('g', 0x4a8a3a)]);
+        }
+    }
+    // Marked-but-unexplored rooms (quest targets, treasure X's): a dim slate cell so
+    // the pin sits on a tile you can pan to, not in bare void (Baz). No terrain leak —
+    // the room stays a mystery until you walk it.
+    {
+        let mut seen: std::collections::HashSet<(i32, i32)> = Default::default();
+        for (x, y) in pin_rooms(quests, tmaps) {
+            if visited.0.contains(&(x, y)) || !seen.insert((x, y)) {
+                continue;
+            }
+            let mx = (x - b.min_x) as f32 * cell_w;
+            let my = (y - b.min_y) as f32 * cell_h;
+            let backing = commands
+                .spawn((
+                    Sprite::from_color(Color::srgb_u8(0x10, 0x10, 0x10), Vec2::new(rw + 2.0, rh + 2.0)),
+                    local(mx - 1.0, my - 1.0, rw + 2.0, rh + 2.0, 0.0),
+                    PIXEL_LAYER,
+                ))
+                .id();
+            let slate = commands
+                .spawn((
+                    Sprite::from_color(Color::srgb_u8(0x22, 0x22, 0x2c), Vec2::new(rw, rh)),
+                    local(mx, my, rw, rh, 0.05),
+                    PIXEL_LAYER,
+                ))
+                .id();
+            commands.entity(root).add_child(backing).add_child(slate);
         }
     }
     // Quest pins (js codex 271): '!' where the job is (until it's ready), '?' at the

@@ -15,12 +15,13 @@ use bevy::prelude::*;
 
 /// The tome-take working set (grouped under Bevy's 16-param cap).
 #[derive(bevy::ecs::system::SystemParam)]
-pub(crate) struct TakeCtx<'w> {
+pub(crate) struct TakeCtx<'w, 's> {
     pub gathered: ResMut<'w, GatherState>,
     pub log: ResMut<'w, super::rewards::LootLog>,
     pub farm: Res<'w, super::farm::FarmTiles>,
     pub inv: Res<'w, crate::inventory::PlayerInv>,
     pub learned: ResMut<'w, super::flute::LearnedSongs>,
+    pub villagers: Query<'w, 's, &'static crate::actors::villager::Villager>,
 }
 
 #[derive(Component, Clone)]
@@ -143,6 +144,15 @@ pub(crate) fn prompt_tick(
             })
     };
 
+    // A named villager in arm's reach — the js TALK label (game.js 5228: every
+    // fixture prompt outranks it; talk_tick's 26px reach is the same circle).
+    let near_npc = !at_door
+        && near_book.is_none()
+        && !on_crop
+        && tk.villagers.iter().any(|v| {
+            v.pkey.is_some() && ((v.x + 8.0) - (p.x + 8.0)).hypot((v.y + 8.0) - (p.y + 8.0)) < 26.0
+        });
+
     // The bubble: label + anchor (book prompts hover the BOOK, door prompts the player).
     let key = bindings.prompt(Action::Interact, input.pad_present);
     let want: Option<(String, i32, i32)> = if at_door {
@@ -151,6 +161,8 @@ pub(crate) fn prompt_tick(
         Some((format!("{key} TAKE"), pk.x as i32 + 8, pk.y as i32 - 8))
     } else if on_crop {
         Some((format!("{key} PICK"), p.x as i32 + 8, p.y as i32 - 10))
+    } else if near_npc {
+        Some((format!("{key} TALK"), p.x as i32 + 8, p.y as i32 - 10))
     } else {
         None
     };
