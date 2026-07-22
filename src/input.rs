@@ -550,14 +550,14 @@ pub fn poll_input(
     for (i, a) in ACTIONS.into_iter().enumerate() {
         let mut held = bindings.key_binds(a).iter().any(|k| keys.pressed(*k));
         let mut pressed = bindings.key_binds(a).iter().any(|k| keys.just_pressed(*k));
-        // Bound mouse buttons feed the same action state (e.g. LMB -> Ability 1) — but ONLY in
-        // free roam. In any menu (dpad_dirs = the arrows context), the mouse drives the UI
-        // cursor instead, so a click that lands on a tab/row can't ALSO fire Slot1 and
-        // double-confirm (Baz: "I can't click the tabs on the esc menu" — LMB was resuming).
-        if !dpad_dirs.0 {
-            held |= bindings.mouse_binds(a).iter().any(|b| mouse_btns.pressed(*b));
-            pressed |= bindings.mouse_binds(a).iter().any(|b| mouse_btns.just_pressed(*b));
-        }
+        // Bound mouse buttons feed the same action state (e.g. LMB -> Ability 1). In any menu
+        // (dpad_dirs = the arrows context) LMB alone goes quiet: it drives the UI cursor, so a
+        // click on a tab/row can't ALSO fire Slot1 and double-confirm (Baz: "I can't click the
+        // tabs on the esc menu" — LMB was resuming). Every OTHER button keeps firing — the
+        // flute's RMB TO LOWER prompt has to work mid-song (Baz), and nothing else owns RMB.
+        let mouse_ok = |b: &MouseButton| !dpad_dirs.0 || *b != MouseButton::Left;
+        held |= bindings.mouse_binds(a).iter().any(|b| mouse_ok(b) && mouse_btns.pressed(*b));
+        pressed |= bindings.mouse_binds(a).iter().any(|b| mouse_ok(b) && mouse_btns.just_pressed(*b));
         for g in &pads {
             for b in bindings.pad_binds(a) {
                 // Menus own the D-pad as arrows — its shortcut bindings go quiet there.
