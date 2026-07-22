@@ -38,7 +38,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build (release)
-        run: cargo build --release --bin wriftheart
+        run: cargo build --release --bin wriftheart --features bevy/debug # TEMP: name systems in panics (death-crash hunt) - drop when caught
 
       - name: Compute version (tag without leading v)
         id: ver
