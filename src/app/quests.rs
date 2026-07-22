@@ -427,7 +427,7 @@ pub fn spawn_glyph_pair(
     let plate = commands
         .spawn((
             Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(ink2 + 4.0, 12.0)),
-            crate::gfx::at(0.0, -40.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.005),
+            crate::gfx::at(0.0, -40.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.14),
             PIXEL_LAYER,
             GlyphSprite,
         ))
@@ -437,7 +437,7 @@ pub fn spawn_glyph_pair(
     let ge = commands
         .spawn((
             spr,
-            crate::gfx::at(0.0, -40.0, iw2, 12.0, crate::gfx::layers::PROMPT + 0.02),
+            crate::gfx::at(0.0, -40.0, iw2, 12.0, crate::gfx::layers::PROMPT + 0.16),
             PIXEL_LAYER,
             GlyphSprite,
         ))
@@ -510,11 +510,11 @@ fn giver_glyph_tick(
             let gx = (super::room_render::PLAY_X + v.x + 8.0 - ink2 / 2.0).round();
             let gy = (super::room_render::PLAY_Y + v.y.round() + bob).round();
             if let Ok((mut tf, mut vis)) = sprites.get_mut(ge) {
-                *tf = crate::gfx::at(gx, gy, iw2, 12.0, crate::gfx::layers::PROMPT + 0.02);
+                *tf = crate::gfx::at(gx, gy, iw2, 12.0, crate::gfx::layers::PROMPT + 0.16);
                 *vis = Visibility::Inherited;
             }
             if let Ok((mut tf, mut vis)) = sprites.get_mut(plate) {
-                *tf = crate::gfx::at(gx - 2.0, gy - 1.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.005);
+                *tf = crate::gfx::at(gx - 2.0, gy - 1.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.14);
                 *vis = Visibility::Inherited;
             }
         }

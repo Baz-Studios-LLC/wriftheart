@@ -23,10 +23,17 @@ pub(crate) struct TakeCtx<'w, 's> {
     pub learned: ResMut<'w, super::flute::LearnedSongs>,
     pub villagers: Query<'w, 's, &'static crate::actors::villager::Villager>,
     pub wanderers: Query<'w, 's, &'static super::encounters::Wanderer>,
+    pub other_bubbles: Query<'w, 's, (), (With<AnyBubble>, Without<PromptUi>)>,
 }
 
 #[derive(Component, Clone)]
 pub(crate) struct PromptUi;
+
+/// Worn by EVERY bubble spawn_bubble makes, whatever the caller's own marker —
+/// the presence check that keeps two prompt systems from stacking their bubbles
+/// on the same head (services + TALK fused into garble — Baz).
+#[derive(Component)]
+pub struct AnyBubble;
 
 /// What the bubble said last tick (rebuild only when it changes; position rides along).
 #[derive(Default)]
@@ -151,6 +158,7 @@ pub(crate) fn prompt_tick(
     let near_npc = !at_door
         && near_book.is_none()
         && !on_crop
+        && tk.other_bubbles.is_empty() // a counter/station/wagon prompt owns the head
         && (tk.villagers.iter().any(|v| {
             v.pkey.is_some() && ((v.x + 8.0) - (p.x + 8.0)).hypot((v.y + 8.0) - (p.y + 8.0)) < 26.0
         }) || tk.wanderers.iter().any(|w| {
@@ -196,10 +204,12 @@ pub fn spawn_bubble(
     let w = font::measure(text) as f32;
     let bx = (cx - w / 2.0).round();
     commands.spawn((
-        Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.8), Vec2::new(w + 4.0, 9.0)),
+        Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.95), Vec2::new(w + 4.0, 9.0)),
         at(PLAY_X + bx - 2.0, PLAY_Y + by - 1.0, w + 4.0, 9.0, layers::PROMPT),
         PIXEL_LAYER,
+        AnyBubble,
         marker.clone(),
     ));
-    label(commands, images, text, PLAY_X + bx, PLAY_Y + by, 0xfce0a8, layers::PROMPT_TEXT, marker);
+    let le = label(commands, images, text, PLAY_X + bx, PLAY_Y + by, 0xfce0a8, layers::PROMPT_TEXT, marker);
+    commands.entity(le).insert(AnyBubble);
 }
