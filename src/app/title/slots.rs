@@ -161,7 +161,9 @@ pub(super) fn draw(pen: &mut Pen, st: &TitleState, metas: &SlotMetas, bindings: 
         if st.slot_mode == SlotMode::Load && m.is_some() {
             let (dx, dy, dw, dh) = del_rect(i);
             pen.fill_rgba(dx, dy, dw, dh, Color::srgba(0.0, 0.0, 0.0, 0.55), TEXT_Z - 0.01);
-            pen.text("X", dx + 3.0, dy + 3.0, if on { 0xfc7460 } else { 0x8a5a5a }, TEXT_Z);
+            // Centred by measure (glyph ink is 3x5 — the fixed +3 inset sat it a px left).
+            let xw = crate::gfx::font::measure("X") as f32;
+            pen.text("X", dx + ((dw - xw) / 2.0).round(), dy + ((dh - 5.0) / 2.0).round(), if on { 0xfc7460 } else { 0x8a5a5a }, TEXT_Z);
         }
     }
     let mut help = format!(
