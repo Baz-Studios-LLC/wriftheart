@@ -80,8 +80,8 @@ pub static GEAR_DEFS: &[ItemDef] = &[
         desc: "Equip for a live minimap on your HUD.", ..BASE
     },
     ItemDef {
-        id: "regenring", name: "Ring of Regen", kind: "TRINKET", rarity: Rarity::Rare,
-        slot: Some("trinket"), price: Some(300),
+        id: "regenring", name: "Ring of Regen", kind: "TRINKET", rarity: Rarity::Epic,
+        slot: Some("trinket"), price: Some(1200),
         icon: &["...l....", "..lGl...", ".P...P..", "P.....P.", "P.....P.", ".P...P..", "..PPP...", "........"],
         stats: &[("regen", 1.0)],
         desc: "Slowly mends your wounds.", ..BASE

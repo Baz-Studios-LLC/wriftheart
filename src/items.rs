@@ -932,7 +932,7 @@ pub static DEFS: &[ItemDef] = &[
         &[('b', 0x4a9ad0), ('W', 0xffffff), ('w', 0xc8e8f8)],
         &[("manaregen", 1.5), ("maxmana", 2.0)], &[],
         "Calm as a windless lake. Your mind refills like one."),
-    trinket("harvestknot", "Harvest Knot", Rarity::Uncommon,
+    trinket("harvestknot", "Harvest Knot", Rarity::Epic,
         &["...Y....", "..YyY...", "..yYy...", "..YyY...", "..yYy...", "...Y....", "..gg....", ".g......"],
         &[('Y', 0xe0b040), ('y', 0xc09a2a), ('g', 0x5a7a3a)],
         &[("regen", 0.6), ("maxhp", 1.0)], &[],
@@ -1070,11 +1070,11 @@ const LOOT_POOLS: [&[&str]; 5] = [
     // common (js also: dagger, club, shortsword, hatchet, sickle, antidote, satchel)
     &["potion", "leathercap", "leatherboots", "paddedcoif", "clothtunic", "sandals"],
     // uncommon (js also: saber, spear, satchel2, rapier, scimitar, flail, trident, cleaver)
-    &["bow", "bombs", "greaterpotion", "leathervest", "pocketwatch", "greedcharm", "bronzehelm", "rangerhood", "studdedleather", "swiftboots", "powerring", "swiftcharm", "lodestone", "gamblerscoin", "manacrystal", "tonic", "grudgepurse", "harvestknot"],
+    &["bow", "bombs", "greaterpotion", "leathervest", "pocketwatch", "greedcharm", "bronzehelm", "rangerhood", "studdedleather", "swiftboots", "powerring", "swiftcharm", "lodestone", "gamblerscoin", "manacrystal", "tonic", "grudgepurse"],
     // rare (js also: mace, battleaxe, springboots, katana, glaive, morningstar, halberd, manaelixir, satchel3)
-    &["elixir", "ironhelm", "chainmail", "travelboots", "regenring", "luckamulet", "hornedhelm", "magehat", "scalemail", "magerobe", "ironcladgreaves", "critring", "magefocus", "ironheart", "titangrip", "focuslens", "wintershard", "brambleband", "owltalisman", "gravecoin", "boarheart", "hollowbone", "wardensknuckle", "stillwaterpearl", "boomerang"],
+    &["elixir", "ironhelm", "chainmail", "travelboots", "luckamulet", "hornedhelm", "magehat", "scalemail", "magerobe", "ironcladgreaves", "critring", "magefocus", "ironheart", "titangrip", "focuslens", "wintershard", "brambleband", "owltalisman", "gravecoin", "boarheart", "hollowbone", "wardensknuckle", "stillwaterpearl", "boomerang"],
     // epic (js also: warhammer, greatsword, grapplehook, bubblering, executioner, frostbrand, vampiricscythe, satchel4)
-    &["platemail", "vigorpendant", "dragonhelm", "dragonscale", "bootsofhaste", "berserkertotem", "vampirefang", "arcanesigil", "assassinmark", "emberfang", "midastooth", "soullocket", "saltcrown", "riftsplinter", "bellclapper", "compass"],
+    &["platemail", "vigorpendant", "dragonhelm", "dragonscale", "bootsofhaste", "berserkertotem", "vampirefang", "arcanesigil", "assassinmark", "emberfang", "midastooth", "soullocket", "saltcrown", "riftsplinter", "bellclapper", "compass", "regenring", "harvestknot"],
     // legendary (js also: sunblade, voidreaver, dragonfang, worldsplitter)
     &["crownofvalor", "aegisplate", "sevenleague", "phoenixfeather", "warlordbanner", "saintsglass", "wispstone"],
 ];

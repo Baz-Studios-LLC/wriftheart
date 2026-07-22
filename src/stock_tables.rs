@@ -10,7 +10,7 @@ pub static STOCK: &[(&str, &[&str])] = &[
     ("armory", &[]),
     ("magic", &["wand", "firerune", "frostrune", "stormrune", "venomrune", "manapotion", "elixir", "manaelixir", "magehat", "magerobe", "magefocus", "arcanesigil", "manacrystal", "bpstormrune", "bpvenomrune", "bpmanacrystal"]),
     ("alchemist", &["potion", "greaterpotion", "elixir", "manapotion", "bombs", "antidote", "tonic", "manaelixir", "bpmanapotion", "bpelixir", "bpmanaelixir"]),
-    ("jeweler", &["regenring", "luckamulet", "greedcharm", "vigorpendant", "bubblering", "powerring", "critring", "swiftcharm", "ironheart", "gamblerscoin", "vampirefang", "phoenixfeather", "compass", "bpcritring", "bpluckamulet"]),
+    ("jeweler", &["luckamulet", "greedcharm", "vigorpendant", "bubblering", "powerring", "critring", "swiftcharm", "ironheart", "gamblerscoin", "vampirefang", "phoenixfeather", "compass", "bpcritring", "bpluckamulet"]),
     ("fletcher", &["bow", "arrow", "springboots", "boomerang", "bpgrapple", "bpspringboots"]),
     ("trader", &["lantern", "pocketwatch", "satchel", "satchel2", "bombs", "potion", "tonic", "lodestone", "shovel", "treasuremap", "arrow"]),
     ("farm", &["turnipseed", "potatoseed", "carrotseed", "wheatseed", "tomatoseed", "pepperseed", "pumpkinseed", "cranberryseed", "chicken", "cow"]),
@@ -37,7 +37,7 @@ pub static WILD_POOLS: &[(&str, &[&str])] = &[
     ("tool", &["lantern", "pocketwatch", "shovel", "treasuremap", "hoe", "wateringcan", "milkpail", "satchel", "satchel2", "minerhelm", "ironpick", "ironaxe", "silverpick", "lodestone"]),
     ("seed", &["turnipseed", "potatoseed", "carrotseed", "wheatseed", "tomatoseed", "pepperseed", "pumpkinseed", "cranberryseed"]),
     ("misc", &["bow", "arrow", "boomerang", "springboots", "bubblering", "grapplehook", "chicken", "cow"]),
-    ("trinket", &["regenring", "luckamulet", "greedcharm", "vigorpendant", "powerring", "critring", "swiftcharm", "ironheart", "gamblerscoin", "vampirefang", "phoenixfeather", "compass"]),
+    ("trinket", &["luckamulet", "greedcharm", "vigorpendant", "powerring", "critring", "swiftcharm", "ironheart", "gamblerscoin", "vampirefang", "phoenixfeather", "compass"]),
     ("blueprint", &["bpforge", "bpalchemy", "bpenchanter", "bpjeweler", "bpfletcher", "bpcook", "bpfarmtable", "bpgrapple"]),
 ];
 

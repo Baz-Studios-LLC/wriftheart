@@ -126,16 +126,18 @@ const A_PREFIX: &[Affix] = &[
     Affix { word: "Nimble", adds: &[("move", 0.08)], gem: 0x8fe0ff },
     Affix { word: "Lucky", adds: &[("luck", 0.06)], gem: 0x8fe0ff },
     Affix { word: "Plated", adds: &[("defense", 1.0)], gem: 0x8fe0ff },
-    Affix { word: "Hale", adds: &[("regen", 1.0)], gem: 0x8fe0ff },
 ];
 const A_SUFFIX: &[Affix] = &[
     Affix { word: "of Warding", adds: &[("defense", 1.0)], gem: 0x8fe0ff },
     Affix { word: "of the Bear", adds: &[("maxhp", 1.0)], gem: 0x8fe0ff },
     Affix { word: "of the Fox", adds: &[("move", 0.08)], gem: 0x8fe0ff },
-    Affix { word: "of Vigor", adds: &[("regen", 1.0)], gem: 0x8fe0ff },
     Affix { word: "of Greed", adds: &[("coin", 0.12)], gem: 0x8fe0ff },
     Affix { word: "of the Mage", adds: &[("maxmana", 1.0)], gem: 0x8fe0ff },
 ];
+
+/// Regen NEVER rolls in the open pools (Baz: ultra rare, epic+ only) - epic and
+/// legendary armour has a slim chance at the one suffix that carries it.
+const REGEN_AFFIX: Affix = Affix { word: "of Mending", adds: &[("regen", 1.0)], gem: 0xd85868 };
 
 const RARITY_PRICE: [i32; 5] = [30, 120, 400, 1200, 4000];
 fn rarity_of(t: i32) -> Rarity {
@@ -328,7 +330,12 @@ fn gen_armor(id: &str, r_tier: i32, rng: &mut Mulberry32) -> (ItemDef, Option<Ar
     let mat = &ramp[mat_idx];
     let (n_suf, n_pre) = if r_tier >= 2 { (1usize, (r_tier - 1) as usize) } else { (0, r_tier as usize) };
     let prefixes = roll_affixes(rng, A_PREFIX, n_pre);
-    let suffix = roll_affixes(rng, A_SUFFIX, n_suf);
+    let mut suffix = roll_affixes(rng, A_SUFFIX, n_suf);
+    // The mending proc rolls AFTER the normal affixes so it leaves the rest of the
+    // item's stream intact.
+    if r_tier >= 3 && rng.next_f64() < 0.10 {
+        suffix = vec![&REGEN_AFFIX];
+    }
 
     // Base armour + affix stats (js addS). defense is summed then rarity-capped.
     let mut acc: Vec<(&'static str, f64)> = vec![("defense", (base.def + mat_idx as f64 * 0.3).round().max(1.0))];

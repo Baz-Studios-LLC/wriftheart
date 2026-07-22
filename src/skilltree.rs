@@ -123,17 +123,20 @@ fn build() -> Vec<Node> {
         ("WARLORD", v(&[("melee", 0.12), ("iframes", 4.0)])),
         ("TITANS ARM", v(&[("melee", 0.1), ("knock", 0.15)])),
         ("JUGGERNAUT", v(&[("melee", 0.35), ("knock", 0.5), ("move", -0.08)])));
+    // NO REGEN IN THE TREE (Baz, 2026-07-22): regen is ultra rare, epic+ gear only
+    // (procgen "of Mending" + a couple of top-shelf trinkets). The blood branch is
+    // leech and life, never a free heal-over-time.
     b.branch("bld", 45.0,
-        ("SCAB", v(&[("regen", 1.0)])),
+        ("SCAB", v(&[("leech", 0.01)])),
         ("THICK BLOOD", v(&[("maxhp", 2.0)])),
-        ("SLOW PULSE", v(&[("regen", 2.0)])),
-        ("CLOTTING", v(&[("regen", 3.0), ("maxhp", 1.0)])),
+        ("SLOW PULSE", v(&[("iframes", 6.0)])),
+        ("CLOTTING", v(&[("defense", 1.0), ("maxhp", 1.0)])),
         ("RED SIP", v(&[("leech", 0.015)])),
         ("HUNGER", v(&[("leech", 0.025)])),
         ("OPEN VEINS", v(&[("leech", 0.02), ("melee", 0.04)])),
-        ("RED FEAST", v(&[("leech", 0.03), ("regen", 2.0)])),
+        ("RED FEAST", v(&[("leech", 0.045)])),
         ("HEARTSBLOOD", v(&[("maxhp", 3.0)])),
-        ("VAMPIRE", v(&[("leech", 0.08), ("melee", 0.12), ("regen", -4.0)])));
+        ("VAMPIRE", v(&[("leech", 0.08), ("melee", 0.12), ("maxhp", -2.0)])));
     b.branch("for", 90.0,
         ("LUCKY PENNY", v(&[("coin", 0.08)])),
         ("SHARP EYES", v(&[("luck", 0.06)])),

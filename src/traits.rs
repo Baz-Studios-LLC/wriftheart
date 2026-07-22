@@ -4,7 +4,7 @@
 //! (folded into TreeStats by skills_tab::recompute), so damage/speed/drops respect it for
 //! free. "Quirk" traits only apply by day or by night (the recompute re-runs on the flip).
 //! Stat units match the tree: melee/crit/luck/coin/leech are fractions, move is px/frame,
-//! maxhp/defense/regen/iframes are flat.
+//! maxhp/defense/iframes are flat.
 
 use crate::worldgen::rng::Mulberry32;
 
@@ -35,9 +35,9 @@ pub const TRAITS: &[TraitDef] = &[
     t!("stalwart", "Stalwart", "+1 armor", true, &[("defense", 1.0)], &[], &[]),
     t!("wealthy", "Wealthy", "+20% gold", true, &[("coin", 0.2)], &[], &[]),
     t!("vampiric", "Vampiric", "chance to heal on hit", true, &[("leech", 0.06)], &[], &[]),
-    t!("mending", "Fast Healer", "regenerates health", true, &[("regen", 1.0)], &[], &[]),
+    t!("mending", "Deft Hands", "+10% crafting", true, &[("craft", 0.10)], &[], &[]),
     t!("nightowl", "Night Owl", "+25% damage at night", true, &[], &[("melee", 0.25)], &[]),
-    t!("sunchild", "Sun Child", "swift, mending by day", true, &[], &[], &[("move", 0.13), ("regen", 1.0)]),
+    t!("sunchild", "Sun Child", "swift, lucky by day", true, &[], &[], &[("move", 0.13), ("luck", 0.1)]),
     t!("frail", "Frail", "-2 max HP", false, &[("maxhp", -2.0)], &[], &[]),
     t!("sluggish", "Sluggish", "-15% move speed", false, &[("move", -0.19)], &[], &[]),
     t!("clumsy", "Clumsy", "-8% crit chance", false, &[("crit", -0.08)], &[], &[]),

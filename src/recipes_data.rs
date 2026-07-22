@@ -108,7 +108,6 @@ pub static RECIPES: &[Recipe] = &[
     Recipe { out: "swiftboots", n: 1, cost: &[("leather", 5), ("copper", 2)], station: "fletcher", bp: None },
     Recipe { out: "springboots", n: 1, cost: &[("leather", 4), ("copper", 2), ("fiber", 2)], station: "fletcher", bp: Some("bpspringboots") },
     Recipe { out: "powerring", n: 1, cost: &[("copper", 4), ("gem", 2)], station: "jeweler", bp: None },
-    Recipe { out: "regenring", n: 1, cost: &[("copper", 4), ("gem", 2)], station: "jeweler", bp: None },
     Recipe { out: "vigorpendant", n: 1, cost: &[("copper", 6), ("gem", 2)], station: "jeweler", bp: None },
     Recipe { out: "compass", n: 1, cost: &[("gold", 2), ("gem", 3), ("silver", 2)], station: "jeweler", bp: None },
     Recipe { out: "critring", n: 1, cost: &[("copper", 5), ("gem", 3)], station: "jeweler", bp: Some("bpcritring") },
