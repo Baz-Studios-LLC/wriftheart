@@ -436,6 +436,10 @@ in deep places — the tone map and the secrets ledger are the same map.
   never the king's name.
 - **Choir speech in the field** (rites, processions) — outer-liturgy voice only; inner
   truths never spoken aloud in the open.
+- **Talk of the day** (`people::world_talk`) — town smalltalk follows the shard count
+  through six phases (news of the burning → rumors → hope → the deep lands stir → the open
+  gate → the mended world). Strictly Tier-1: what roads and peddlers carry. The town never
+  knows the hero's name — "whoever they are" is the ceiling.
 
 ---
 

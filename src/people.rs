@@ -178,3 +178,74 @@ mod tests {
         }
     }
 }
+
+// --- TALK OF THE DAY (Baz: chats change as shards are collected) --------------------
+// Six phases of town smalltalk following the story: the burning is news, then
+// shard-bearer rumors, then real hope, the deep lands stirring, the open gate,
+// and the mended world. Tier-1 knowledge only (LORE.md): townsfolk repeat what
+// roads and peddlers carry — never what deep books know.
+
+const TALK_P0: &[&str] = &[
+    "THEY SAY A VILLAGE BURNED OUT EAST. POOR SOULS.",
+    "THE NIGHTS FEEL LONGER LATELY. LOCK YOUR DOOR.",
+    "GREY ROBES ON THE ROAD AGAIN. I DO NOT LIKE IT.",
+    "MY GRANDMOTHER SAYS THE WEATHER IS GRIEVING. OLD TALK.",
+    "EMBERFALL, THEY CALL IT. GONE IN A NIGHT.",
+    "STAY ON THE ROADS, FRIEND. THE WILDS ARE RESTLESS.",
+];
+const TALK_P1: &[&str] = &[
+    "SOMEONE PULLED A SHARD FROM A DEN, I HEARD. IMAGINE THAT.",
+    "A LIGHT IN AN OLD DUNGEON WENT OUT. GOOD RIDDANCE.",
+    "THEY SAY A WANDERER CARRIES A PIECE OF THE OLD HEART.",
+    "MY COUSIN SWEARS THE RAIN FELL SOFTER LAST WEEK.",
+    "FIRST GOOD NEWS IN YEARS, IF IT IS TRUE.",
+    "THE CHOIR FOLK LOOKED WORRIED TODAY. THAT CHEERS ME.",
+];
+const TALK_P2: &[&str] = &[
+    "HALF THE SHARDS FOUND, THE PEDDLERS SAY. HALF!",
+    "I HEARD THE BEASTS SIT QUIETER WHERE THE SHARDS PASSED.",
+    "FOLK ARE SINGING THE OLD SONGS AGAIN AT THE INN.",
+    "MAYBE THE WORLD CAN MEND. MY FATHER NEVER BELIEVED IT.",
+    "THE HERO OF EMBERFALL, THEY CALL THEM. WHOEVER THEY ARE.",
+    "EVEN THE WINTER FELT SHORTER THIS YEAR. DO NOT LAUGH.",
+];
+const TALK_P3: &[&str] = &[
+    "THE DEEP LANDS RUMBLE AT NIGHT. SOMETHING KNOWS.",
+    "NEARLY ALL OF THEM NOW. THE CASTLE WAITS, THEY SAY.",
+    "THE GREY ROBES HAVE GONE QUIET. THAT SCARES ME MORE.",
+    "MY WELL HUMMED LAST NIGHT. I SWEAR IT HUMMED.",
+    "FINISH IT, WHOEVER YOU ARE. WE ARE ALL WATCHING.",
+    "THE BLACK CASTLE SHOWED ITS GATE IN MY DREAM.",
+];
+const TALK_P4: &[&str] = &[
+    "TEN SHARDS. TEN! THE GATE STANDS OPEN, THEY SAY.",
+    "THE AIR HAS A HUM IN IT. LIKE BEFORE A STORM.",
+    "WHOEVER CARRIES THE HEART - GO. AND COME BACK.",
+    "NOBODY SLEPT LAST NIGHT. THE WHOLE TOWN FEELS IT.",
+];
+const TALK_WON: &[&str] = &[
+    "THE SKIES ARE KINDER. YOU CAN FEEL IT.",
+    "THEY SAY THE HEART BEATS AGAIN. I BELIEVE IT.",
+    "THE HERO OF EMBERFALL DID IT. RAISE A CUP!",
+    "MY GRANDMOTHER WOULD HAVE LOVED TO SEE THIS.",
+    "THE BELLS RANG BY THEMSELVES AT DAWN. HAPPY, THIS TIME.",
+];
+
+/// The town's talk of the day: as shards come home the smalltalk follows the
+/// story. About one villager in three picks it up, stable per person per day.
+pub fn world_talk(shards: usize, won: bool, seed: u32, today: i64) -> Option<&'static str> {
+    let pool: &[&str] = if won {
+        TALK_WON
+    } else {
+        match shards {
+            0 => TALK_P0,
+            1..=3 => TALK_P1,
+            4..=6 => TALK_P2,
+            7..=9 => TALK_P3,
+            _ => TALK_P4,
+        }
+    };
+    let h = seed ^ (today as u32).wrapping_mul(0x9e37_79b9);
+    let h = (h ^ (h >> 13)).wrapping_mul(0x5bd1_e995);
+    (h % 3 == 0).then(|| pool[(h >> 8) as usize % pool.len()])
+}

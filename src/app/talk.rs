@@ -97,6 +97,9 @@ pub(crate) struct ChatCtx<'w> {
     /// ...and SET SPAWN records the death respawn point (home doorstep / inn door).
     pub house: ResMut<'w, super::home::PlayerHouse>,
     pub respawn: ResMut<'w, super::home::RespawnPoint>,
+    /// The story's pulse — talk of the day follows the shard count (Baz).
+    pub relics: Res<'w, super::dungeon::Relics>,
+    pub victory: Res<'w, super::dungeon::Victory>,
 }
 
 /// A heart drifts up — you've grown a little closer (js Entities.heartFx).
@@ -170,6 +173,11 @@ pub(crate) fn chat_with(
     let Some(pkey) = v.pkey.as_deref() else { return };
     let Some(rec) = cx.ledger.0.get_mut(pkey) else { return };
     v.line = people::greeting(v.seed, rec.pts, today, &v.stock_line.clone()); // strangers mix small talk (PORT-ORIGINAL)
+    // TALK OF THE DAY (Baz): as shards come home, about a third of the town
+    // trades their smalltalk for the story — the world noticing itself mend.
+    if let Some(t) = people::world_talk(cx.relics.0.len(), cx.victory.won, v.seed, today) {
+        v.line = t.to_string();
+    }
     if !rec.know_love && people::hearts(rec.pts) >= 1 && ((v.seed >> 4) as i64 + today) % 3 == 0 {
         rec.know_love = true;
         v.line = format!("BETWEEN US - I DO LOVE {}.", people::taste_word(people::taste_for(v.seed).love));
