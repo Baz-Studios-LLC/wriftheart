@@ -1521,7 +1521,13 @@ pub fn wanderer_talk(
                 "MY ORDER IS ASHES. LET MY BLADE SERVE SOMEONE TRUE.",
             ];
             w.shout = Some((tales[(w.seed as usize) % tales.len()].to_string(), 300));
-            let id = crate::procgen::generate(crate::procgen::Kind::Weapon, tier.max(1), w.seed ^ 0x5eed_b1ad);
+            // The blade rolls the SAME rarity dice as any drop (Baz: a guaranteed
+            // epic here made hour one endgame — purple is ENDGAME). Threat deepens
+            // the odds; the floor is uncommon (a knight's blade is never junk), the
+            // cap is epic and it stays a story you tell.
+            let mut dice = crate::worldgen::rng::Mulberry32::new(w.seed ^ 0x5eed_b1ad);
+            let ti = crate::items::roll_tier(0.15 + tier as f64 * 0.10, 0.0, || dice.next_f64()).clamp(1, 3);
+            let id = crate::procgen::generate(crate::procgen::Kind::Weapon, ti as i32, w.seed ^ 0x5eed_b1ad);
             let name = crate::procgen::resolve(id).map_or("A BLADE", |d| d.name).to_uppercase();
             if inv.can_add(id) {
                 inv.add_item(id, 1);

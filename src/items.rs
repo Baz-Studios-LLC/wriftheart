@@ -1082,11 +1082,9 @@ const LOOT_POOLS: [&[&str]; 5] = [
 /// Stackables drop a small random quantity (js STACK_QTY).
 const STACK_QTY: [(&str, i32, i32); 3] = [("potion", 1, 2), ("greaterpotion", 1, 2), ("elixir", 1, 1)];
 
-/// Roll one drop: (id, qty). `boost` (0..1+) shifts weight toward higher tiers; `luck`
-/// nudges a little more. (The js procedural weapon/armour substitution joins with the
-/// item-generator port.) `rand` supplies Math.random() — the caller's game rng.
-pub fn roll_loot(boost: f64, luck: f64, mut rand: impl FnMut() -> f64) -> (&'static str, i32) {
-    // Exponential in tier so a high boost can genuinely swing drops toward epic/legendary.
+/// The rarity walk alone (0..4) — THE one set of dice every loot source shares.
+/// Exponential in tier so a high boost can genuinely swing rolls toward epic/legendary.
+pub fn roll_tier(boost: f64, luck: f64, mut rand: impl FnMut() -> f64) -> usize {
     let k = 1.0 + boost + luck * 0.5;
     let w: Vec<f64> = TIER_BASE.iter().enumerate().map(|(i, base)| base * k.powi(i as i32)).collect();
     let sum: f64 = w.iter().sum();
@@ -1099,7 +1097,14 @@ pub fn roll_loot(boost: f64, luck: f64, mut rand: impl FnMut() -> f64) -> (&'sta
         }
         ti += 1;
     }
-    let ti = ti.min(w.len() - 1);
+    ti.min(w.len() - 1)
+}
+
+/// Roll one drop: (id, qty). `boost` (0..1+) shifts weight toward higher tiers; `luck`
+/// nudges a little more. (The js procedural weapon/armour substitution joins with the
+/// item-generator port.) `rand` supplies Math.random() — the caller's game rng.
+pub fn roll_loot(boost: f64, luck: f64, mut rand: impl FnMut() -> f64) -> (&'static str, i32) {
+    let ti = roll_tier(boost, luck, &mut rand);
     let pool = if LOOT_POOLS[ti].is_empty() { LOOT_POOLS[0] } else { LOOT_POOLS[ti] };
     let id = pool[(rand() * pool.len() as f64) as usize % pool.len()];
     // Procedural substitution (js rollLoot): EVERY common..epic WEAPON/ARMOUR drop
