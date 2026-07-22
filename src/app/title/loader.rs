@@ -187,6 +187,8 @@ pub fn handle_load_slot(
     kb.timer = 0; // no shove survives a world swap (js: every teleport clears knockTimer)
     p.grapple = None; // ...nor any reel/leap in flight (js clears p.grapple/p.hop on load)
     p.hop = None;
+    p.dash = None;
+    p.dash_cd = 0;
     p.hop_z = 0.0;
     let (px, py) = data
         .as_ref()

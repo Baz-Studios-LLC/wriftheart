@@ -33,6 +33,8 @@ pub enum Action {
     Trash, // inventory: destroy an item (js 'trash' — T; tap one, hold the stack)
     Sort,  // inventory: tidy the bag (js 'warpHome' — H, the menu-helper button)
     Interact, // talk / enter / harvest / read (js 'interact' — F; pad D-pad up)
+    /// Dodge-step: a short i-frame dash (SPACE / RT — RT only tabs in menus, free in play).
+    Dodge,
     /// Menu SELECT only (js Input.confirm's ENTER half): Enter/NumpadEnter confirm on
     /// the title/slot screens. Hidden from the CONTROLS tab (its ROWS list is curated).
     MenuConfirm,
@@ -53,7 +55,7 @@ pub enum Action {
     Craft,
     StatusTab,
 }
-pub const ACTIONS: [Action; 32] = [
+pub const ACTIONS: [Action; 33] = [
     Action::MenuConfirm,
     Action::Up,
     Action::Down,
@@ -72,6 +74,7 @@ pub const ACTIONS: [Action; 32] = [
     Action::Trash,
     Action::Sort,
     Action::Interact,
+    Action::Dodge,
     Action::DevPanel,
     Action::God,
     Action::Calendar,
@@ -112,6 +115,7 @@ pub fn action_slug(a: Action) -> &'static str {
         A::TabNext => "tabNext",
         A::Pause => "pause",
         A::Trash => "trash",
+        A::Dodge => "dodge",
         A::Sort => "warpHome",
         A::Interact => "interact",
         A::MenuConfirm => "menuConfirm",
@@ -188,6 +192,7 @@ impl Default for Bindings {
                 (A::TabPrev, vec![KeyX]),
                 (A::TabNext, vec![KeyC]),
                 (A::Pause, vec![Escape]),
+                (A::Dodge, vec![Space]),
                 (A::Trash, vec![KeyT]),
                 (A::Sort, vec![KeyH]),
                 (A::Interact, vec![KeyF]),
@@ -224,6 +229,7 @@ impl Default for Bindings {
                 (A::TabPrev, vec![G::LeftTrigger2]),  // LT
                 (A::TabNext, vec![G::RightTrigger2]), // RT
                 (A::Pause, vec![G::Start]),
+                (A::Dodge, vec![G::RightTrigger2]),
                 // DEVIATION: the js pad binds are CHORDS (trash = R3+RIGHT, sort =
                 // SELECT+LEFT) — chords aren't in our binding model yet, so the thumb
                 // clicks carry them solo for now.
@@ -413,7 +419,7 @@ impl Bindings {
 /// The polled action state — gameplay's ONLY input surface. `held` is level-triggered;
 /// `pressed` is edge-triggered and consumed once per fixed tick (`clear_pressed`), so a
 /// press is seen by exactly one game tick, exactly like the JS endFrame() contract.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct ActionState {
     held: [bool; ACTIONS.len()],
     pressed: [bool; ACTIONS.len()],
@@ -422,6 +428,19 @@ pub struct ActionState {
     /// (`held` itself is rewritten from the device every poll; `pressed` accumulates).
     test_held: [bool; ACTIONS.len()],
     pub pad_present: bool,
+}
+
+// Hand-rolled: Default's array impls stop at 32 and ACTIONS is past that now.
+impl Default for ActionState {
+    fn default() -> Self {
+        ActionState {
+            held: [false; ACTIONS.len()],
+            pressed: [false; ACTIONS.len()],
+            latched: [false; ACTIONS.len()],
+            test_held: [false; ACTIONS.len()],
+            pad_present: false,
+        }
+    }
 }
 
 impl ActionState {

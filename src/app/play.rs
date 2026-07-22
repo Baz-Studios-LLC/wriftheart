@@ -219,6 +219,9 @@ pub struct Player {
     pub block_uid: Option<u32>, // WHICH shield (durability wears on this entry)
     pub grapple: Option<Grapple>, // reeled toward a lodged hook (js p.grapple)
     pub hop: Option<Hop>,         // a spring-boots leap in flight (js p.hop)
+    /// A dodge-step in flight: (unit direction, frames left) — owns the feet.
+    pub dash: Option<(Vec2, u32)>,
+    pub dash_cd: u32, // frames until the next dash
     pub hop_z: f32,               // the leap's draw-height offset (js p.hopZ)
     pub vx: f32,                  // carried velocity (only meaningful on slippery ice, js p.vx/vy)
     pub vy: f32,
@@ -477,6 +480,8 @@ fn setup(
             hop_z: 0.0,
             vx: 0.0,
             vy: 0.0,
+            dash: None,
+            dash_cd: 0,
         },
         Combatant { team: Team::Player, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
         {
@@ -639,6 +644,9 @@ pub fn tick(
     if p.lock_timer > 0 {
         p.lock_timer -= 1;
     }
+    if p.dash_cd > 0 {
+        p.dash_cd -= 1;
+    }
 
     // Death is death.rs's: check_death sees hp <= 0 this same tick and takes the screen.
 
@@ -689,6 +697,34 @@ pub fn tick(
             if r { p.facing = Facing::Right } else if l { p.facing = Facing::Left }
             else if u { p.facing = Facing::Up } else if d { p.facing = Facing::Down }
         }
+    }
+
+    // --- DODGE-STEP (Baz): a short i-frame dash on its own button (SPACE / RT —
+    // the triggers only tab inside menus, so RT is free in the field). The dash
+    // owns the feet below; swings stay available mid-dash, so dash-then-strike
+    // flows. Mercy frames make it a real defensive answer.
+    if state.pressed(Action::Dodge)
+        && p.dash.is_none()
+        && p.dash_cd == 0
+        && !p.blocking
+        && p.grapple.is_none()
+        && p.hop.is_none()
+        && modes.pulled.0.is_none()
+    {
+        let dir = {
+            let v = Vec2::new((r as i32 - l as i32) as f32, (d as i32 - u as i32) as f32);
+            if v == Vec2::ZERO {
+                let (fx, fy) = p.facing.offset();
+                Vec2::new(fx, fy)
+            } else {
+                v.normalize()
+            }
+        };
+        p.dash = Some((dir, 8));
+        p.dash_cd = 40;
+        health.invuln = health.invuln.max(10);
+        uses.sfx.write(super::sfx::Sfx("cast"));
+        super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xcfc8b8, 4);
     }
 
     // --- Ability slots: each face button triggers the item INSTANCE equipped in that slot
@@ -1009,6 +1045,23 @@ pub fn tick(
             modes.pulled.0 = None;
         }
         p.moving = false;
+    } else if let Some((dir, left)) = p.dash {
+        // The DASH owns the feet: fast per-axis strides (walls slide you, never
+        // stop you dead), a quickened gait, dust at the heels.
+        let sp = 2.75;
+        move_axis(&mut p, dir.x * sp, 0.0, &grid.0, &room_blockers);
+        move_axis(&mut p, 0.0, dir.y * sp, &grid.0, &room_blockers);
+        p.dash = if left <= 1 { None } else { Some((dir, left - 1)) };
+        if left % 3 == 0 {
+            super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xcfc8b8, 2);
+        }
+        (p.vx, p.vy) = (0.0, 0.0);
+        p.moving = true;
+        p.anim_timer += 2; // legs pump double-time through the step
+        if p.anim_timer >= ANIM_TICKS {
+            p.anim_timer = 0;
+            p.anim_frame = (p.anim_frame + 1) & 3;
+        }
     } else {
         let mut dx = (r as i32 - l as i32) as f32;
         let mut dy = (d as i32 - u as i32) as f32;

@@ -7,7 +7,7 @@ use super::{Area, Draw, GOLD, MUTED, TEXT_Z};
 use crate::input::{Action, Bindings};
 
 /// Row order mirrors the js ACTIONS table (Sort is the js warpHome, "MENU HELPER").
-const ROWS: [(Action, &str); 29] = [
+const ROWS: [(Action, &str); 30] = [
     (Action::Up, "MOVE UP"),
     (Action::Down, "MOVE DOWN"),
     (Action::Left, "MOVE LEFT"),
@@ -17,6 +17,7 @@ const ROWS: [(Action, &str); 29] = [
     (Action::Slot3, "ABILITY 3"),
     (Action::Slot4, "ABILITY 4"),
     (Action::Interact, "INTERACT"),
+    (Action::Dodge, "DODGE"),
     (Action::Inventory, "INVENTORY"),
     (Action::SkillTree, "SKILL TREE"),
     (Action::TabPrev, "PREV TAB"),
