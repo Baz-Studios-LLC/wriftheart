@@ -49,14 +49,18 @@ struct LavaBubble {
 #[derive(Resource, Default)]
 pub struct LavaAny(pub bool);
 
-/// The bubble's four moments, baked once: fleck, swell, dome, burst.
-const BUBBLE_FRAMES: [&[&str]; 4] = [
-    &["......", "......", "..y...", "......", "......", "......"],
-    &["......", "..yy..", "..oo..", "......", "......", "......"],
-    &["......", ".yooy.", ".o..o.", ".yooy.", "......", "......"],
-    &["y....y", ".y..y.", "......", ".y..y.", "y....y", "......"],
+/// The bubble's five moments, baked once: fleck, swell, dome, burst, embers.
+/// The DARK crust rim is the whole trick — hot-on-hot vanished into the shader's
+/// own glints (Baz: "I dont see bubbles").
+const BUBBLE_FRAMES: [&[&str]; 5] = [
+    &["........", "........", "...kk...", "..kwyk..", "...kk...", "........", "........", "........"],
+    &["........", "...kk...", "..kyyk..", ".kyowyk.", "..kyyk..", "...kk...", "........", "........"],
+    &["...kk...", "..kyyk..", ".kyooyk.", "kyowwoyk", ".kyooyk.", "..kyyk..", "...kk...", "........"],
+    &["..k..k..", ".k.yy.k.", "k.y..y.k", ".y.kk.y.", "k.y..y.k", ".k.yy.k.", "..k..k..", "........"],
+    &["k......k", "..y..y..", "........", ".k....k.", "........", "..y..y..", "k......k", "........"],
 ];
-const BUBBLE_PAL: &[(char, u32)] = &[('y', 0xffd140), ('o', 0xff8a2a)];
+const BUBBLE_PAL: &[(char, u32)] =
+    &[('k', 0x6a1804), ('o', 0xff8a2a), ('y', 0xffe060), ('w', 0xfff0b0)];
 
 pub struct WaterPlugin;
 
@@ -465,7 +469,7 @@ fn lava_bubbles(
     // Advance every live bubble: a frame every 6 ticks, gone after the burst.
     for (e, mut b, mut spr) in &mut live {
         b.t += 1;
-        let f = (b.t / 6) as usize;
+        let f = (b.t / 7) as usize;
         if f >= BUBBLE_FRAMES.len() {
             commands.entity(e).despawn();
             continue;
@@ -480,7 +484,7 @@ fn lava_bubbles(
     }
     // Roll a pop: ~10% of ticks try three random tiles; the first HEARTED lava
     // tile (all four neighbours molten too) births a bubble with sub-tile jitter.
-    if rng.0.next_f64() > 0.10 {
+    if rng.0.next_f64() > 0.16 {
         return;
     }
     let (gx0, gy0) = (cur.rx * COLS, cur.ry * ROWS);
@@ -501,7 +505,7 @@ fn lava_bubbles(
         commands.spawn((
             LavaBubble { t: 0 },
             Sprite::from_image(frames[0].clone()),
-            at(super::room_render::PLAY_X + x, super::room_render::PLAY_Y + y, 6.0, 6.0, layers::WATER_OVERLAY + 0.02),
+            at(super::room_render::PLAY_X + x, super::room_render::PLAY_Y + y, 8.0, 8.0, layers::WATER_OVERLAY + 0.02),
             PIXEL_LAYER,
             super::battle::RoomActor,
         ));
