@@ -150,7 +150,7 @@ fn mark_elder(
         }
     }
     if let Some((e, ..)) = best {
-        commands.entity(e).insert(StoryElder);
+        commands.entity(e).try_insert(StoryElder); // the room can sweep them mid-frame
     }
 }
 
