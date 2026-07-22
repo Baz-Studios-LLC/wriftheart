@@ -325,6 +325,35 @@ pub struct VoidLayer {
     drift: Vec2,
 }
 
+/// The room-grid layer: one seamlessly-tiled cell image covering the whole view,
+/// riding the pan 1:1 (Baz: a grid that stopped at the explored bounds looked
+/// awkward). Keyed by the zoom it was baked for.
+#[derive(Component)]
+pub struct GridLayer(pub i32);
+
+/// One grid cell at zoom `ts`: transparent, with the 1px boundary line on the
+/// right and bottom edge (the same 0x17171f the child grid used).
+fn grid_tile(ts: i32) -> Image {
+    let (w, h) = ((COLS * ts + GAP as i32) as u32, (ROWS * ts + GAP as i32) as u32);
+    let mut buf = vec![0u8; (w * h * 4) as usize];
+    let c = [0x17u8, 0x17, 0x1f, 255];
+    for y in 0..h {
+        let i = ((y * w + (w - 1)) * 4) as usize;
+        buf[i..i + 4].copy_from_slice(&c);
+    }
+    for x in 0..w {
+        let i = (((h - 1) * w + x) * 4) as usize;
+        buf[i..i + 4].copy_from_slice(&c);
+    }
+    Image::new(
+        Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        buf,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    )
+}
+
 /// The WRIFT backdrop (Baz: "something on brand... maybe parallax"): two tiled
 /// star-dust layers under the world map, sliding at 0.35x / 0.65x of the pan.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
@@ -338,7 +367,8 @@ pub fn void_backdrop(
     view: Res<MapView>,
     quests: Res<crate::app::quests::QuestLog>,
     tmaps: Res<crate::app::digging::TreasureMaps>,
-    mut layers: Query<(Entity, &VoidLayer, &mut Transform)>,
+    mut layers: Query<(Entity, &VoidLayer, &mut Transform), Without<GridLayer>>,
+    mut grids: Query<(Entity, &GridLayer, &mut Transform), Without<VoidLayer>>,
 ) {
     let t_px = WRIFT_T as f32;
     let (vw, vh) = view_size();
@@ -348,8 +378,22 @@ pub fn void_backdrop(
         for (e, ..) in &layers {
             commands.entity(e).despawn();
         }
+        for (e, ..) in &grids {
+            commands.entity(e).despawn();
+        }
         return;
     }
+    // The same camera math as the root (run/edge_arrows) — layers follow a fraction.
+    let pins = pin_rooms(&quests, &tmaps);
+    let b = bounds(&visited, cur.rx, cur.ry, &pins);
+    let (cell_w, cell_h) = cell_size(view.ts);
+    let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
+    let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
+    let off = |full: f32, v: f32, c: f32| {
+        if full <= v { -((v - full) / 2.0) } else { (c * full - v / 2.0).clamp(0.0, full - v) }
+    };
+    let (offx, offy) = (off(full_w, vw, view.cx), off(full_h, vh, view.cy));
+    let secs = time.elapsed_secs();
     if layers.is_empty() {
         for (i, (k, drift, seed)) in
             [(0.35, Vec2::new(0.8, 0.45), 0x57a11u32), (0.65, Vec2::new(1.4, 0.8), 0x57a12u32)].into_iter().enumerate()
@@ -366,24 +410,39 @@ pub fn void_backdrop(
                 VoidLayer { k, drift },
             ));
         }
-        return; // positioned next frame
     }
-    // The same camera math as the root (run/edge_arrows) — layers follow a fraction.
-    let pins = pin_rooms(&quests, &tmaps);
-    let b = bounds(&visited, cur.rx, cur.ry, &pins);
-    let (cell_w, cell_h) = cell_size(view.ts);
-    let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
-    let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
-    let off = |full: f32, v: f32, c: f32| {
-        if full <= v { -((v - full) / 2.0) } else { (c * full - v / 2.0).clamp(0.0, full - v) }
-    };
-    let (offx, offy) = (off(full_w, vw, view.cx), off(full_h, vh, view.cy));
-    let secs = time.elapsed_secs();
     for (_, l, mut tf) in &mut layers {
         let sx = ((offx * l.k + secs * l.drift.x) % t_px + t_px) % t_px;
         let sy = ((offy * l.k + secs * l.drift.y) % t_px + t_px) % t_px;
         let z = tf.translation.z;
         *tf = at((AX - t_px - sx).round(), (AY - t_px - sy).round(), w, h, z);
+    }
+    // The GRID layer: cell-aligned, 1:1 with the pan, edge to edge; rebaked on zoom.
+    let (gw, gh) = (vw + 2.0 * cell_w, vh + 2.0 * cell_h);
+    let stale = grids.iter().next().is_some_and(|(_, g, _)| g.0 != view.ts);
+    if stale {
+        for (e, ..) in &grids {
+            commands.entity(e).despawn();
+        }
+    }
+    if grids.is_empty() || stale {
+        let mut spr = Sprite::from_image(images.add(grid_tile(view.ts)));
+        spr.image_mode = SpriteImageMode::Tiled { tile_x: true, tile_y: true, stretch_value: 1.0 };
+        spr.custom_size = Some(Vec2::new(gw, gh));
+        commands.spawn((
+            spr,
+            at(AX - cell_w, AY - cell_h, gw, gh, 18.96), // over the void, under content
+            PIXEL_LAYER,
+            CodexUi,
+            TabContent,
+            GridLayer(view.ts),
+        ));
+    } else {
+        for (_, _, mut tf) in &mut grids {
+            let sx = ((offx % cell_w) + cell_w) % cell_w;
+            let sy = ((offy % cell_h) + cell_h) % cell_h;
+            *tf = at((AX - cell_w - sx).round(), (AY - cell_h - sy).round(), gw, gh, 18.96);
+        }
     }
 }
 
@@ -584,33 +643,6 @@ fn spawn_map(
         .id();
     // Child at map-space top-left (mx,my), size (w,h): local y flips (root is a canvas point).
     let local = |mx: f32, my: f32, w: f32, h: f32, dz: f32| Transform::from_xyz(mx + w / 2.0, -(my + h / 2.0), dz);
-    // A faint room-grid over the void (the WRIFT backdrop lives below, parallax —
-    // see void_backdrop): pan feedback + a hint of where rooms could be.
-    {
-        let full_w = b.cols as f32 * cell_w - GAP;
-        let full_h = b.rows as f32 * cell_h - GAP;
-        let line = Color::srgb_u8(0x17, 0x17, 0x1f);
-        for i in 1..b.cols {
-            let e = commands
-                .spawn((
-                    Sprite::from_color(line, Vec2::new(1.0, full_h + 4.0)),
-                    local(i as f32 * cell_w - 1.5, -2.0, 1.0, full_h + 4.0, -0.05),
-                    PIXEL_LAYER,
-                ))
-                .id();
-            commands.entity(root).add_child(e);
-        }
-        for j in 1..b.rows {
-            let e = commands
-                .spawn((
-                    Sprite::from_color(line, Vec2::new(full_w + 4.0, 1.0)),
-                    local(-2.0, j as f32 * cell_h - 1.5, full_w + 4.0, 1.0, -0.05),
-                    PIXEL_LAYER,
-                ))
-                .id();
-            commands.entity(root).add_child(e);
-        }
-    }
     for &(x, y) in &visited.0 {
         let mx = (x - b.min_x) as f32 * cell_w;
         let my = (y - b.min_y) as f32 * cell_h;
