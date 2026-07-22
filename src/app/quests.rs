@@ -442,9 +442,15 @@ pub fn spawn_glyph_pair(
     ch: char,
     col: u32,
 ) -> (Entity, Entity, f32, f32) {
-    let (img, w) = font::bake_text(&ch.to_string(), col, images);
-    let iw2 = ((w + (w & 1)) * 2) as f32;
-    let ink2 = (w * 2) as f32; // (Baz: '!' sat off-centre when centred by texture)
+    // The font's '!' is a 3-wide grid with the ink in the middle column only — the
+    // plate wrapped the dead padding, not the ink, and read fat (Baz). The marker
+    // bakes its OWN 1px column; '?' and '-' fill their width and keep the font.
+    let (img, iw2, ink2) = if ch == '!' {
+        (images.add(crate::gfx::bake(&["1", "1", "1", ".", "1", "."], &[('1', col)])), 2.0, 2.0)
+    } else {
+        let (img, w) = font::bake_text(&ch.to_string(), col, images);
+        (img, ((w + (w & 1)) * 2) as f32, (w * 2) as f32) // (Baz: '!' sat off-centre when centred by texture)
+    };
     let plate = commands
         .spawn((
             Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(ink2 + 2.0, 12.0)),
