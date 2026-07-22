@@ -222,9 +222,32 @@ pub struct Player {
     /// A dodge-step in flight: (unit direction, frames left) — owns the feet.
     pub dash: Option<(Vec2, u32)>,
     pub dash_cd: u32, // frames until the next dash
+    pub charge: Option<ChargePlay>, // a held weapon winding its hold move
+    pub spin: Option<SpinPlay>,     // the sword's 360 in flight
     pub hop_z: f32,               // the leap's draw-height offset (js p.hopZ)
     pub vx: f32,                  // carried velocity (only meaningful on slippery ice, js p.vx/vy)
     pub vy: f32,
+}
+
+/// A weapon charge in flight: hold past the tap swing and the weapon winds its
+/// OWN move (Baz — sword spins, axe cleaves, pick shatters). Release at full to fire.
+pub struct ChargePlay {
+    pub slot: usize,
+    pub t: u32,
+    pub tool: crate::combat::Tool,
+    pub dmg: i32,
+    pub tier: i32,
+    pub tier_img: Option<Handle<Image>>,
+}
+
+/// The sword's SPIN in flight: one quarter-turn swing every 2 frames.
+pub struct SpinPlay {
+    pub seq: [usize; 4],
+    pub step: u8,
+    pub timer: u8,
+    pub dmg: i32,
+    pub tier: i32,
+    pub tier_img: Option<Handle<Image>>,
 }
 
 /// The reel toward a lodged grapple hook (js p.grapple {tx,ty,t}).
@@ -482,6 +505,8 @@ fn setup(
             vy: 0.0,
             dash: None,
             dash_cd: 0,
+            charge: None,
+            spin: None,
         },
         Combatant { team: Team::Player, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
         {
@@ -727,11 +752,84 @@ pub fn tick(
         super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xcfc8b8, 4);
     }
 
+    // --- HOLD MOVES (Baz): a held melee weapon charges after its tap swing — full
+    // at 30 frames (a ping + gold sparks), release to unleash the weapon's OWN move.
+    const CHARGE_FULL: u32 = 30;
+    if let Some(sp) = &mut p.spin {
+        // The sword's SPIN: one quarter-turn swing every 2 frames, clockwise.
+        sp.timer += 1;
+        if sp.timer >= 2 {
+            sp.timer = 0;
+            let facing = sp.seq[sp.step as usize];
+            let (dmg, tier, img) = (sp.dmg, sp.tier, sp.tier_img.clone());
+            commands.spawn((swing_bundle(facing, crate::combat::Tool::Sword, dmg, tier, &attack_art, img), RoomActor, PIXEL_LAYER));
+            uses.sfx.write(super::sfx::Sfx("swing"));
+            sp.step += 1;
+            if sp.step >= 4 {
+                p.spin = None;
+            }
+        }
+    }
+    if let Some(ch) = &p.charge {
+        let ch_action = [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4][ch.slot];
+        if state.held(ch_action) {
+            let ch = p.charge.as_mut().unwrap();
+            ch.t += 1;
+            if ch.t == CHARGE_FULL {
+                uses.sfx.write(super::sfx::Sfx("songmatch")); // wound and ready
+            }
+            if ch.t >= CHARGE_FULL && clock.0 % 6 == 0 {
+                super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 6.0), 0xfcd000, 1);
+            }
+        } else {
+            let ch = p.charge.take().unwrap();
+            if ch.t >= CHARGE_FULL && !p.blocking && p.spin.is_none() {
+                match ch.tool {
+                    crate::combat::Tool::Sword => {
+                        // SPIN SLASH: all four quarters, 1.75x, starting where you face.
+                        let order = [0usize, 3, 1, 2]; // Up, Right, Down, Left — clockwise
+                        let start = order.iter().position(|f| *f == p.facing as usize).unwrap_or(0);
+                        p.spin = Some(SpinPlay {
+                            seq: std::array::from_fn(|k| order[(start + k) % 4]),
+                            step: 0,
+                            timer: 2, // the first quarter fires next tick
+                            dmg: (ch.dmg * 7 / 4).max(1),
+                            tier: ch.tier,
+                            tier_img: ch.tier_img,
+                        });
+                        p.lock_timer = p.lock_timer.max(10);
+                    }
+                    crate::combat::Tool::Axe => {
+                        // OVERHEAD CLEAVE: one heavy forward blow, 2.5x, wider bite, big shove.
+                        let swing = commands
+                            .spawn((swing_bundle(p.facing as usize, crate::combat::Tool::Axe, (ch.dmg * 5 / 2).max(1), ch.tier, &attack_art, ch.tier_img), RoomActor, PIXEL_LAYER))
+                            .id();
+                        commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 8.0);
+                        commands.entity(swing).entry::<Combatant>().and_modify(|mut c| c.knock += 2.5);
+                        uses.sfx.write(super::sfx::Sfx("wood"));
+                        p.lock_timer = p.lock_timer.max(18);
+                    }
+                    crate::combat::Tool::Pick => {
+                        // STONE SHATTER: a burst all around — bites every node in reach.
+                        let swing = commands
+                            .spawn((swing_bundle(p.facing as usize, crate::combat::Tool::Pick, (ch.dmg * 3 / 2).max(1), ch.tier, &attack_art, ch.tier_img), RoomActor, PIXEL_LAYER))
+                            .id();
+                        commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 20.0);
+                        super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 9.0), 0xc0c0cc, 8);
+                        uses.sfx.write(super::sfx::Sfx("stone"));
+                        p.lock_timer = p.lock_timer.max(14);
+                    }
+                }
+                p.cooldowns[ch.slot] = 30; // a heavy blow rests longer than a tap
+            }
+        }
+    }
+
     // --- Ability slots: each face button triggers the item INSTANCE equipped in that slot
-    // (js useSlot). Weapons AUTO-REPEAT while held — gated by their own slot cooldown and
-    // the swing lock, and at most ONE weapon fires per tick (holding all four buttons
-    // doesn't unleash four attacks). Consumables fire on the press edge, ungated by the
-    // swing lock.
+    // (js useSlot). DEVIATION (Baz): auto-repeat is GONE — every weapon fires on the
+    // press edge only; keeping a melee button held past the tap swing CHARGES the
+    // weapon's own hold move (see the charge block above the loop). At most ONE
+    // weapon fires per tick. Consumables fire on the press edge, ungated by the lock.
     // The guard first (js): HOLD a slotted shield's button to raise it. Raised = half
     // speed + no swings; the deflection itself lives in app/shield.rs.
     p.blocking = false;
@@ -753,7 +851,7 @@ pub fn tick(
         let Some(def) = inv.def_of(uid) else { continue };
         if def.weapon {
             // A raised shield holds every swing (js: `!p.blocking` gates the attack block).
-            if p.blocking || weapon_fired || p.lock_timer > 0 || p.cooldowns[i] > 0 || !state.held_unlatched(action) {
+            if p.blocking || weapon_fired || p.lock_timer > 0 || p.cooldowns[i] > 0 || !state.pressed(action) {
                 continue;
             }
             if def.id == "bow" && state.pressed(action) && p.cooldowns[i] == 0 {
@@ -868,6 +966,15 @@ pub fn tick(
             p.cooldowns[i] = ((def.cooldown as f64 / (1.0 + tstats.haste)).round() as u32).max(4);
             p.lock_timer = def.lock_frames;
             weapon_fired = true;
+            // Keep holding past this tap and the weapon WINDS UP its hold move.
+            p.charge = Some(ChargePlay {
+                slot: i,
+                t: 0,
+                tool,
+                dmg,
+                tier: def.tool_tier,
+                tier_img: attack_art.tiered.get(def.id).cloned(),
+            });
         } else if def.consumable && state.pressed(action) && p.cooldowns[i] == 0 {
             if matches!(def.id, "chicken" | "cow" | "coop" | "barn") {
                 // Farm items validate + consume in their own handler (js use() veto).

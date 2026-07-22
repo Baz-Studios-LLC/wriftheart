@@ -105,6 +105,8 @@ pub struct Swing {
     /// The head's rank (js toolTier): the harvest gate rejects a hit when a node's
     /// req_tier outranks it. Base sword 0, base pick/axe 1, metal tools 2..6.
     pub tool_tier: i32,
+    /// Extra hitbox size for HOLD moves (cleave/shatter) — 0 for a plain tap swing.
+    pub grow: f32,
 }
 
 /// The goblin's axe swipe: pivots on the goblin, active only after the wind-up.
@@ -174,7 +176,7 @@ pub fn axe_z(fy: f32, wielder_z: f32) -> f32 {
 pub fn swing_bundle(facing: usize, tool: Tool, damage: i32, tool_tier: i32, art: &AttackArt, tiered_img: Option<Handle<Image>>) -> impl Bundle {
     let spec = swing_spec(tool);
     (
-        Swing { life: spec.life, facing, tool, tool_tier },
+        Swing { life: spec.life, facing, tool, tool_tier, grow: 0.0 },
         // hurt_team None: player swings hit foes AND resource nodes (js weapons set no
         // hurtTeam — the tool/team gates in resolve_combat do the sorting). `damage` is the
         // caller's final number (base spec x the tree's melee bonus).
@@ -216,7 +218,8 @@ pub fn swing_tick(s: &mut Swing, px: f32, py: f32) -> (Hitbox, f32, Vec2, bool) 
     let prog = 1.0 - s.life as f32 / spec.life as f32;
     let cx = px + 8.0 + dx * spec.reach;
     let cy = py + 9.0 + dy * spec.reach;
-    let hb = Hitbox { x: cx - spec.hit_box / 2.0, y: cy - spec.hit_box / 2.0, w: spec.hit_box, h: spec.hit_box };
+    let g = s.grow;
+    let hb = Hitbox { x: cx - (spec.hit_box + g) / 2.0, y: cy - (spec.hit_box + g) / 2.0, w: spec.hit_box + g, h: spec.hit_box + g };
     let rot = ang + spin * (-spec.arc / 2.0 + spec.arc * prog);
     (hb, rot, Vec2::new(px + 8.0, py + 9.0), s.life > 0)
 }

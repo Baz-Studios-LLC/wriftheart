@@ -1644,7 +1644,7 @@ fn spawn_tableau(
             PIXEL_LAYER,
         ));
         for (i, life) in [12, 7, 2].into_iter().enumerate() {
-            let mut s = Swing { life: life + 1, facing: f, tool: Tool::Sword, tool_tier: 0 }; // tick decrements first
+            let mut s = Swing { life: life + 1, facing: f, tool: Tool::Sword, tool_tier: 0, grow: 0.0 }; // tick decrements first
             let (_, rot, pivot, _) = swing_tick(&mut s, hx, hy);
             let mut tf = at(PLAY_X + pivot.x, PLAY_Y + pivot.y, 0.0, 0.0, swing_z(f, actor_z(hy + 16.0)));
             tf.rotation = Quat::from_rotation_z(-rot);
