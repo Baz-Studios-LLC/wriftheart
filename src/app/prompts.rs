@@ -22,6 +22,7 @@ pub(crate) struct TakeCtx<'w, 's> {
     pub inv: Res<'w, crate::inventory::PlayerInv>,
     pub learned: ResMut<'w, super::flute::LearnedSongs>,
     pub villagers: Query<'w, 's, &'static crate::actors::villager::Villager>,
+    pub wanderers: Query<'w, 's, &'static super::encounters::Wanderer>,
 }
 
 #[derive(Component, Clone)]
@@ -144,14 +145,17 @@ pub(crate) fn prompt_tick(
             })
     };
 
-    // A named villager in arm's reach — the js TALK label (game.js 5228: every
-    // fixture prompt outranks it; talk_tick's 26px reach is the same circle).
+    // A named villager OR a wilds wanderer in arm's reach — the js TALK label
+    // (game.js 5228-5231: every fixture prompt outranks it; both talk systems
+    // use the same 26px circle).
     let near_npc = !at_door
         && near_book.is_none()
         && !on_crop
-        && tk.villagers.iter().any(|v| {
+        && (tk.villagers.iter().any(|v| {
             v.pkey.is_some() && ((v.x + 8.0) - (p.x + 8.0)).hypot((v.y + 8.0) - (p.y + 8.0)) < 26.0
-        });
+        }) || tk.wanderers.iter().any(|w| {
+            ((w.x + 8.0) - (p.x + 8.0)).hypot((w.y + 8.0) - (p.y + 8.0)) < 26.0
+        }));
 
     // The bubble: label + anchor (book prompts hover the BOOK, door prompts the player).
     let key = bindings.prompt(Action::Interact, input.pad_present);
