@@ -202,7 +202,7 @@ fn wand_msgs(
                 }
                 let (dx, dy) = aim_vec(&state, p);
                 // js: dmg x (1 + spell stat); the gear rows the catalog banked now bite.
-                let dmg = ((sp.dmg * (1.0 + crate::items::gear_stat(&inv, "spell"))) + 0.5).floor().max(1.0) as i32;
+                let dmg = ((sp.dmg * (1.0 + tstats.spell)) + 0.5).floor().max(1.0) as i32;
                 if sp.el == "frost" {
                     // FROST BEAM (Baz: make it unique — a ray, not a ball): an instant
                     // lance from the hero's center along the aim. It sails OVER water

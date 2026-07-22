@@ -48,9 +48,14 @@ pub struct TreeStats {
     pub defense: f64, // flat armor (traits today; armor nodes/gear fold in as they port)
     pub crit: f64,    // crit chance (combat.rs CritChance rolls it)
     pub critmult: f64, // crit damage bonus over the x2 base
-    pub leech: f64,   // banked
-    pub regen: f64,   // banked
-    pub iframes: f64, // banked (mercy-frame delta)
+    pub leech: f64,
+    pub regen: f64,
+    pub iframes: f64,  // extra mercy frames on the player's hurt profile
+    pub knock: f64,    // extra swing knockback (fraction)
+    pub spell: f64,    // wand/spell damage (fraction)
+    pub maxmana: f64,  // flat max MP
+    pub manaregen: f64, // flat MP per regen tick
+    pub haste: f64,    // attack-speed: shrinks weapon cooldowns (fraction)
 }
 
 pub fn recompute(alloc: &TreeAlloc, traits: &[String], night: bool, inv: &crate::inventory::PlayerInv) -> TreeStats {
@@ -68,6 +73,11 @@ pub fn recompute(alloc: &TreeAlloc, traits: &[String], night: bool, inv: &crate:
         defense: s("defense"),
         crit: s("crit"),
         critmult: s("critmult"),
+        knock: s("knock"),
+        spell: s("spell"),
+        maxmana: s("maxmana"),
+        manaregen: s("manaregen"),
+        haste: s("haste"),
         leech: s("leech"),
         regen: s("regen"),
         iframes: s("iframes"),

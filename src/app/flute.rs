@@ -212,8 +212,8 @@ fn catch_up_tick(
 /// Mana seeps back over time (js: +2 into the accumulator, 80 -> one point).
 /// Worn gear folds in here: maxmana raises the pool, manaregen feeds the trickle
 /// (Salt Crown / Stillwater Pearl).
-fn mana_regen(mut mana: ResMut<Mana>, inv: Res<crate::inventory::PlayerInv>) {
-    let gear_max = crate::items::gear_stat(&inv, "maxmana").round() as i32;
+fn mana_regen(mut mana: ResMut<Mana>, tstats: Res<super::slideout::TreeStats>) {
+    let gear_max = tstats.maxmana.round() as i32;
     mana.max = (MANA_BASE + gear_max).max(1);
     if mana.flash > 0 {
         mana.flash -= 1;
@@ -227,7 +227,7 @@ fn mana_regen(mut mana: ResMut<Mana>, inv: Res<crate::inventory::PlayerInv>) {
         mana.accum = 0;
         return;
     }
-    mana.accum += 2 + crate::items::gear_stat(&inv, "manaregen").round() as i32;
+    mana.accum += 2 + tstats.manaregen.round() as i32;
     if mana.accum >= 80 {
         mana.accum -= 80;
         mana.cur = (mana.cur + 1).min(mana.max);

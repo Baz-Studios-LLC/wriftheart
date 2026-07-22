@@ -86,6 +86,7 @@ impl Plugin for PlayPlugin {
                     relabel_coords,
                     worn_refresh,
                     apply_tree_hp,
+                    apply_iframes,
                 ),
             );
     }
@@ -808,7 +809,7 @@ pub fn tick(
             });
             // Bonus knockback (generated "knock" affixes) + lifesteal on the strike
             // (weapon leech + worn gear leech — js atk.leech).
-            let wknock = if is_gen { crate::items::def_stat(def, "knock") } else { 0.0 };
+            let wknock = tstats.knock + if is_gen { crate::items::def_stat(def, "knock") } else { 0.0 };
             let leech = tstats.leech + if is_gen { crate::items::def_stat(def, "leech") } else { 0.0 };
             if wknock > 0.0 || leech > 0.0 {
                 commands.entity(swing).insert(super::uniques::SwingBonus { knock: wknock as f32, leech });
@@ -827,7 +828,8 @@ pub fn tick(
                     uses.beams.write(super::saltmaze::FireBeam); // hale: the blade sings
                 }
             }
-            p.cooldowns[i] = def.cooldown;
+            // HASTE (the wind branch): attack speed shrinks the swing cooldown.
+            p.cooldowns[i] = ((def.cooldown as f64 / (1.0 + tstats.haste)).round() as u32).max(4);
             p.lock_timer = def.lock_frames;
             weapon_fired = true;
         } else if def.consumable && state.pressed(action) && p.cooldowns[i] == 0 {
@@ -1213,6 +1215,16 @@ fn sync_player_sprite(
 
 /// The tree's Max HP total lands on the player whenever allocations change (no free heal:
 /// current HP only clamps down, like the JS refresh).
+/// The tree's MERCY FRAMES land on the player's hurt profile (72 js base + iframes).
+fn apply_iframes(tstats: Res<TreeStats>, mut q: Query<&mut HurtProfile, With<Player>>) {
+    if !tstats.is_changed() {
+        return;
+    }
+    if let Ok(mut hp) = q.single_mut() {
+        hp.invuln = ((72.0 + tstats.iframes).max(10.0)) as u32;
+    }
+}
+
 fn apply_tree_hp(tstats: Res<TreeStats>, mut q: Query<&mut Health, With<Player>>) {
     if !tstats.is_changed() {
         return;
