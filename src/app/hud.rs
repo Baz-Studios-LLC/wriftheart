@@ -314,8 +314,20 @@ fn hud_time(
 #[derive(Component)]
 struct QuestHud;
 
-/// The MP bar tracks the mana pool (js drawSidebar's mana trough).
-fn hud_mana(mut fills: Query<&mut Sprite, With<MpFill>>, mana: Res<super::flute::Mana>) {
+/// The MP value text, sibling of HpValue.
+#[derive(Component)]
+struct MpValue;
+
+/// The MP bar tracks the mana pool (js drawSidebar's mana trough) — bar, flash,
+/// and the centred value text (HP's read, same recipe).
+fn hud_mana(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut fills: Query<&mut Sprite, With<MpFill>>,
+    mana: Res<super::flute::Mana>,
+    old_value: Query<Entity, With<MpValue>>,
+    mut last: Local<(i32, i32)>,
+) {
     if !mana.is_changed() {
         return;
     }
@@ -327,6 +339,18 @@ fn hud_mana(mut fills: Query<&mut Sprite, With<MpFill>>, mana: Res<super::flute:
     }
     if let Ok(mut s) = fills.single_mut() {
         set_bar(&mut s, BAR_W, 9.0, frac);
+    }
+    if *last == (mana.cur, mana.max) {
+        return; // a flash tick, not a pool change — keep the baked text
+    }
+    *last = (mana.cur, mana.max);
+    for e in &old_value {
+        commands.entity(e).despawn();
+    }
+    if mana.max > 0 {
+        let text = format!("{}/{}", mana.cur.max(0), mana.max);
+        let tw = font::measure(&text) as f32;
+        label(&mut commands, &mut images, &text, PAD + 13.0 + ((BAR_W - tw) / 2.0).round(), MP_Y + 2.0, 0xfcfcfc, HUD_Z + 1.5, MpValue);
     }
 }
 
@@ -425,7 +449,8 @@ fn hud_hp(
         commands.entity(e).despawn();
     }
     let text = format!("{}/{}", h.hp.max(0), h.max);
-    label(&mut commands, &mut images, &text, PAD + 13.0 + 20.0, HP_Y + 2.0, 0xfcfcfc, HUD_Z + 1.5, HpValue);
+    let tw = font::measure(&text) as f32;
+    label(&mut commands, &mut images, &text, PAD + 13.0 + ((BAR_W - tw) / 2.0).round(), HP_Y + 2.0, 0xfcfcfc, HUD_Z + 1.5, HpValue);
 }
 
 /// Re-bake every derived prompt when a controller connects or disconnects — THE payoff of

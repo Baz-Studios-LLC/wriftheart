@@ -411,6 +411,27 @@ pub fn giver_key(rx: i32, ry: i32, seed: u32) -> String {
 
 // --- Live systems -----------------------------------------------------------------
 
+/// The horizontal offset of a frame's INK centre from its canvas centre — side
+/// facings carry the body off-centre, and a glyph centred on the canvas hung
+/// beside the head (Baz). Cached per frame image by the caller.
+fn ink_center_off(img: Option<&Image>) -> f32 {
+    let Some(img) = img else { return 0.0 };
+    let w = img.size().x as usize;
+    let data = img.data.as_deref().unwrap_or(&[]);
+    let (mut min_x, mut max_x) = (usize::MAX, 0usize);
+    for (i, px) in data.chunks_exact(4).enumerate() {
+        if px[3] > 0 {
+            let x = i % w;
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+        }
+    }
+    if min_x == usize::MAX {
+        return 0.0;
+    }
+    (min_x + max_x + 1) as f32 / 2.0 - w as f32 / 2.0
+}
+
 /// A SCALE-2 glyph on a dark plate (js drawQuestMarkers) — the WoW-style overhead
 /// read; the scale-1 plateless glyph read as a stray speck. Shared with the story
 /// thread's mark. Returns (glyph entity, plate entity, texture width, ink width) —
@@ -460,12 +481,15 @@ fn giver_glyph_tick(
     villagers: Query<(
         Entity,
         &Villager,
+        &Sprite,
         bevy::ecs::query::Has<crate::app::story::StorySurvivor>,
         bevy::ecs::query::Has<crate::app::story::StoryElder>,
     )>,
-    mut sprites: Query<(&mut Transform, &mut Visibility), With<GlyphSprite>>,
+    mut sprites: Query<(&mut Transform, &mut Visibility), (With<GlyphSprite>, Without<Villager>)>,
     // (char, glyph entity, plate entity, glyph width at 2x)
     mut live: Local<HashMap<Entity, GlyphRow>>,
+    // Ink-centre offset per frame image (facing frames differ) — scanned once each.
+    mut centers: Local<HashMap<bevy::asset::AssetId<Image>, f32>>,
 ) {
     // Mid-slide the villagers ride their room root but these are FREE sprites — they'd
     // hang at settled coords over nothing (the torch-light bug's cousin). Hide till land.
@@ -476,7 +500,7 @@ fn giver_glyph_tick(
         return;
     }
     let mut seen: Vec<Entity> = Vec::new();
-    for (ve, v, is_survivor, is_elder) in &villagers {
+    for (ve, v, vsprite, is_survivor, is_elder) in &villagers {
         if v.pkey.is_none() {
             continue;
         }
@@ -504,10 +528,11 @@ fn giver_glyph_tick(
         }
         if let Some((_, ge, plate, iw2, ink2)) = live.get(&ve).copied() {
             // Centred over their head, bobbing as they wander (js: sin(t/14 + x), -11 up).
-            // The glyph centres by its INK; the texture's blank pad column hangs
-            // invisibly off the right.
+            // The glyph centres by its INK — and over the FRAME's ink too (side
+            // facings carry the body off-centre in the canvas).
+            let body = *centers.entry(vsprite.image.id()).or_insert_with(|| ink_center_off(images.get(&vsprite.image)));
             let bob = (clock.0 as f32 / 14.0 + v.x).sin().round() - 11.0;
-            let gx = (super::room_render::PLAY_X + v.x + 8.0 - ink2 / 2.0).round();
+            let gx = (super::room_render::PLAY_X + v.x + 8.0 + body - ink2 / 2.0).round();
             let gy = (super::room_render::PLAY_Y + v.y.round() + bob).round();
             if let Ok((mut tf, mut vis)) = sprites.get_mut(ge) {
                 *tf = crate::gfx::at(gx, gy, iw2, 12.0, crate::gfx::layers::PROMPT + 0.16);
