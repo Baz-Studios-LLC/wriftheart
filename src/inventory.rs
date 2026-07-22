@@ -326,6 +326,42 @@ impl PlayerInv {
         }
         false
     }
+
+    /// Would `auto_equip` find an EMPTY home for this id right now — its gear slot
+    /// (trinkets: any of the three) or, for bar equippables, a free ability slot?
+    /// Mirrors auto_equip's own rules exactly.
+    pub fn slot_room(&self, id: &str) -> bool {
+        if let Some(gs) = items::gear_slot(id) {
+            return if gs == "trinket" {
+                (3..6).any(|g| self.gear[g].is_none())
+            } else {
+                GEAR_KEYS.iter().position(|k| *k == gs).is_some_and(|g| self.gear[g].is_none())
+            };
+        }
+        items::equippable(id)
+            && self.slots.iter().any(|u| u.is_none())
+            && !self.slots.iter().flatten().any(|u| self.id_of(*u) == Some(id))
+    }
+
+    /// Bank a ground drop: add_item + the auto-equip courtesy — and when the BAG is
+    /// full but an empty slot would wear it (Baz: boots drop, feet slot empty, bag
+    /// full — put them ON), the entry is born detached and auto_equip claims it in
+    /// the same breath. slot_room is checked FIRST, so a floating unreferenced entry
+    /// can never be created. Some(equipped) if taken, None if there is truly no room.
+    /// NOT for shops/quests — those want add_item's plain bag semantics.
+    pub fn take_drop(&mut self, id: &'static str, qty: i32) -> Option<bool> {
+        if self.add_item(id, qty) {
+            return Some(self.auto_equip(id));
+        }
+        if items::get(id).is_some_and(|d| d.unique) && self.has_item(id) {
+            return None; // one-of-a-kind — already own it
+        }
+        if self.slot_room(id) {
+            self.new_entry(id, qty);
+            return Some(self.auto_equip(id)); // slot_room guarantees the claim
+        }
+        None
+    }
 }
 
 #[cfg(test)]

@@ -624,7 +624,9 @@ fn pickups_tick(
         let takeable = match pk.kind {
             PickupKind::Coin(_) => true,
             PickupKind::Book(_) => false, // books are PRESS-to-take (prompts.rs)
-            PickupKind::Item { id, .. } => inv.can_add(id),
+            // Bag room - OR an empty slot the auto-equip courtesy can wear it into
+            // (Baz: a full bag must not leave boots on the ground over an empty feet slot).
+            PickupKind::Item { id, .. } => inv.can_add(id) || inv.slot_room(id),
         };
         if dist < 10.0 && takeable {
             // js collectPickup: the toast + coin-stat scaling + the auto-equip courtesy.
@@ -642,8 +644,9 @@ fn pickups_tick(
                     log.add("tome", &format!("NEW TOME: {title}"), 1, 0xd8b8ff, false, true);
                 }
                 PickupKind::Item { id, qty } => {
-                    inv.add_item(id, qty);
-                    let slotted = inv.auto_equip(id); // an EMPTY matching slot claims it
+                    // add_item + the courtesy equip, atomically: a full bag still yields
+                    // when an empty slot can wear the drop (takeable gated on exactly this).
+                    let slotted = inv.take_drop(id, qty).unwrap_or(false);
                     let name = crate::items::get(id).map_or(id, |d| d.name);
                     let label = format!("{}{}", name.to_uppercase(), if slotted { " (EQUIPPED)" } else { "" });
                     log.add(id, &label, qty, crate::app::rewards::toast_color(id), false, false);
