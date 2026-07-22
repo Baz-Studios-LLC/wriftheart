@@ -85,6 +85,7 @@ impl Plugin for PlayPlugin {
                         .run_if(not(in_state(super::screen::Screen::Dead)))
                         .run_if(|p: Res<super::dungeon::PitFalling>| p.0.is_none()),
                     charge_aura.after(sync_player_sprite).run_if(super::screen::playing),
+                    charge_hold.after(sync_player_sprite).run_if(super::screen::playing),
                     relabel_coords,
                     worn_refresh,
                     apply_tree_hp,
@@ -226,6 +227,7 @@ pub struct Player {
     pub dash_cd: u32, // frames until the next dash
     pub charge: Option<ChargePlay>, // a held weapon winding its hold move
     pub spin: Option<SpinPlay>,     // the sword's 360 in flight
+    pub slam: Option<SlamPlay>,     // an axe/pick chop falling
     pub bash_t: u32, // frames left of the bash's little shield punch (draw-only)
     pub hop_z: f32,               // the leap's draw-height offset (js p.hopZ)
     pub vx: f32,                  // carried velocity (only meaningful on slippery ice, js p.vx/vy)
@@ -251,6 +253,16 @@ fn bash_tick(mut commands: Commands, mut boxes: Query<(Entity, &mut BashBox)>) {
 pub struct ChargePlay {
     pub slot: usize,
     pub t: u32,
+    pub tool: crate::combat::Tool,
+    pub dmg: i32,
+    pub tier: i32,
+    pub tier_img: Option<Handle<Image>>,
+}
+
+/// An overhead CHOP falling (axe cleave / pick slam): the weapon hung trembling
+/// overhead through the charge; on release it comes DOWN — impact on frame 3.
+pub struct SlamPlay {
+    pub t: u8,
     pub tool: crate::combat::Tool,
     pub dmg: i32,
     pub tier: i32,
@@ -524,6 +536,7 @@ fn setup(
             dash_cd: 0,
             charge: None,
             spin: None,
+            slam: None,
             bash_t: 0,
         },
         Combatant { team: Team::Player, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
@@ -791,6 +804,32 @@ pub fn tick(
             }
         }
     }
+    if p.slam.is_some() {
+        // The chop FALLS: impact on frame 3 (the swing art + hitbox land there).
+        let sl = p.slam.as_mut().unwrap();
+        sl.t += 1;
+        let (t, tool, dmg, tier, img) = (sl.t, sl.tool, sl.dmg, sl.tier, sl.tier_img.clone());
+        if t == 3 {
+            let swing = commands
+                .spawn((swing_bundle(p.facing as usize, tool, dmg, tier, &attack_art, img), RoomActor, PIXEL_LAYER))
+                .id();
+            match tool {
+                crate::combat::Tool::Axe => {
+                    commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 8.0);
+                    commands.entity(swing).entry::<Combatant>().and_modify(|mut c| c.knock += 2.5);
+                    uses.sfx.write(super::sfx::Sfx("wood"));
+                }
+                _ => {
+                    commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 20.0);
+                    super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 9.0), 0xc0c0cc, 8);
+                    uses.sfx.write(super::sfx::Sfx("stone"));
+                }
+            }
+        }
+        if t >= 6 {
+            p.slam = None;
+        }
+    }
     if let Some(ch) = &p.charge {
         let ch_action = [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4][ch.slot];
         if state.held(ch_action) {
@@ -819,23 +858,15 @@ pub fn tick(
                         p.lock_timer = p.lock_timer.max(10);
                     }
                     crate::combat::Tool::Axe => {
-                        // OVERHEAD CLEAVE: one heavy forward blow, 2.5x, wider bite, big shove.
-                        let swing = commands
-                            .spawn((swing_bundle(p.facing as usize, crate::combat::Tool::Axe, (ch.dmg * 5 / 2).max(1), ch.tier, &attack_art, ch.tier_img), RoomActor, PIXEL_LAYER))
-                            .id();
-                        commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 8.0);
-                        commands.entity(swing).entry::<Combatant>().and_modify(|mut c| c.knock += 2.5);
-                        uses.sfx.write(super::sfx::Sfx("wood"));
+                        // OVERHEAD CLEAVE: the axe held trembling overhead now FALLS —
+                        // 2.5x, wider bite, big shove, impact 3 frames after release.
+                        p.slam = Some(SlamPlay { t: 0, tool: crate::combat::Tool::Axe, dmg: (ch.dmg * 5 / 2).max(1), tier: ch.tier, tier_img: ch.tier_img });
                         p.lock_timer = p.lock_timer.max(18);
                     }
                     crate::combat::Tool::Pick => {
-                        // STONE SHATTER: a burst all around — bites every node in reach.
-                        let swing = commands
-                            .spawn((swing_bundle(p.facing as usize, crate::combat::Tool::Pick, (ch.dmg * 3 / 2).max(1), ch.tier, &attack_art, ch.tier_img), RoomActor, PIXEL_LAYER))
-                            .id();
-                        commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 20.0);
-                        super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 9.0), 0xc0c0cc, 8);
-                        uses.sfx.write(super::sfx::Sfx("stone"));
+                        // STONE SHATTER: the pick comes down and the ground answers —
+                        // 1.5x all around, bites every node in reach.
+                        p.slam = Some(SlamPlay { t: 0, tool: crate::combat::Tool::Pick, dmg: (ch.dmg * 3 / 2).max(1), tier: ch.tier, tier_img: ch.tier_img });
                         p.lock_timer = p.lock_timer.max(14);
                     }
                 }
@@ -1460,6 +1491,62 @@ fn charge_aura(
         let mut spr = Sprite::from_image(outline);
         spr.color = Color::srgba(0.55, 0.85, 1.0, a);
         commands.spawn((spr, tf, PIXEL_LAYER, RoomActor, ChargeAura));
+    }
+}
+
+/// The OVERHEAD HOLD (Baz: "hold above his head and shake, chop down on release"):
+/// while an axe/pick charges, the weapon hangs above the hero's head trembling —
+/// harder as the charge fills — then FALLS through the first slam frames.
+#[derive(Component)]
+struct ChargeHold;
+
+#[allow(clippy::type_complexity)]
+fn charge_hold(
+    mut commands: Commands,
+    art: Res<AttackArt>,
+    clock: Res<FrameClock>,
+    players: Query<&Player, Without<ChargeHold>>,
+    mut holds: Query<(Entity, &mut Sprite, &mut Transform), With<ChargeHold>>,
+    inv: Res<crate::inventory::PlayerInv>,
+) {
+    let Ok(p) = players.single() else { return };
+    // What hangs overhead: the charging axe/pick, or the first beats of its fall.
+    let show = match (&p.charge, &p.slam) {
+        (Some(ch), _) if ch.tool != crate::combat::Tool::Sword => Some((ch.tool, ch.t, ch.slot, None)),
+        (_, Some(sl)) if sl.t < 3 => Some((sl.tool, 30, 0, Some(sl.t))),
+        _ => None,
+    };
+    let Some((tool, t, slot, falling)) = show else {
+        for (e, ..) in &holds {
+            commands.entity(e).despawn();
+        }
+        return;
+    };
+    let (img, size) = {
+        let tier_img = inv.slots[slot].and_then(|uid| inv.id_of(uid)).and_then(|id| art.tiered.get(id)).cloned();
+        match tool {
+            crate::combat::Tool::Axe => (tier_img.unwrap_or_else(|| art.tool_axe.clone()), art.tool_axe_size),
+            _ => (tier_img.unwrap_or_else(|| art.tool_pick.clone()), art.tool_pick_size),
+        }
+    };
+    // The TREMBLE: harder as it fills; still at rest until the wind-up starts.
+    let shake = if falling.is_none() && t > 4 {
+        let amp = 1.0 + (t.min(30) as f32 / 30.0);
+        (((clock.0 / 2) % 2) as f32 * 2.0 - 1.0) * amp * 0.6
+    } else {
+        0.0
+    };
+    // Overhead at rest; the fall drops it fast toward the facing side.
+    let (fx, fy) = p.facing.offset();
+    let drop = falling.map_or(0.0, |ft| (ft as f32 + 1.0) * 5.0);
+    let hx = p.x + 8.0 - size.x / 2.0 + shake + fx * drop;
+    let hy = p.y - size.y + 2.0 + drop * (1.0 + fy).max(0.4);
+    let tf = at(PLAY_X + hx, PLAY_Y + hy, size.x, size.y, actor_z(p.y + 16.0) + 0.02);
+    if let Ok((_, mut spr, mut htf)) = holds.single_mut() {
+        spr.image = img;
+        *htf = tf;
+    } else {
+        commands.spawn((Sprite::from_image(img), tf, PIXEL_LAYER, RoomActor, ChargeHold));
     }
 }
 
