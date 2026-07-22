@@ -25,7 +25,10 @@ pub(super) fn attacks_tick(
     for (e, mut s, mut hb, mut tf) in &mut swings {
         let (nhb, rot, pivot, alive) = swing_tick(&mut s, ppos.x, ppos.y);
         *hb = nhb;
-        *tf = at(PLAY_X + pivot.x, PLAY_Y + pivot.y, 0.0, 0.0, swing_z(s.facing, actor_z(ppos.y + 16.0)));
+        // ROUNDED y, matching sync_player_sprite's own z: the +-0.5 subpixel gap is
+        // nearly twice swing_z's 0.005 tuck, so an unrounded base let an up-swing's
+        // blade paste over the hero's face at half the standing spots (Baz).
+        *tf = at(PLAY_X + pivot.x, PLAY_Y + pivot.y, 0.0, 0.0, swing_z(s.facing, actor_z(ppos.y.round() + 16.0)));
         tf.rotation = Quat::from_rotation_z(-rot); // canvas cw -> bevy ccw
         if !alive {
             commands.entity(e).despawn();
@@ -44,7 +47,7 @@ pub(super) fn attacks_tick(
         if let Some(nhb) = nhb {
             *hb = nhb;
         }
-        *tf = at(PLAY_X + pivot.x, PLAY_Y + pivot.y, 0.0, 0.0, axe_z(a.fy, actor_z(a.oy + 16.0)));
+        *tf = at(PLAY_X + pivot.x, PLAY_Y + pivot.y, 0.0, 0.0, axe_z(a.fy, actor_z(a.oy.round() + 16.0))); // rounded like the goblin's own z
         tf.rotation = Quat::from_rotation_z(-rot);
         if !alive {
             commands.entity(e).despawn();
