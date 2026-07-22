@@ -25,8 +25,9 @@ pub struct StorySurvivor;
 #[derive(Component)]
 pub struct StoryElder;
 
-/// Her identity seed — fixed so she wears the same face every visit.
-pub const SURVIVOR_SEED: u32 = 40177;
+/// Her identity seed — fixed so she is the same person every visit: WREN
+/// (people::name_for), the burnt village's last voice.
+pub const SURVIVOR_SEED: u32 = 41112;
 
 /// The room the thread points at right now — the map's blue '!' (and the pin
 /// that keeps it in frame). Steps 0 and 3 point nowhere.
@@ -62,17 +63,19 @@ fn dress_lines(
         if v.line != line {
             v.line = line.to_string();
         }
+        if v.stock_line != line {
+            v.stock_line = line.to_string(); // greetings build on her plea, not on ""
+        }
     }
+    // The elder only wears the offer while the thread waits on them; the restore
+    // to their own words happens once, at the gift (story_talks) — stomping the
+    // line here forever would eat their greetings.
     for mut v in &mut elders {
         if story.0 == 1 {
             let line = "FROM THE ASHES? POOR SOUL. TAKE MY OLD AXE AND PICK - AND I WILL MARK THE SHARD BEASTS DEN.";
             if v.line != line {
                 v.line = line.to_string();
             }
-        } else if v.line != v.stock_line {
-            // Gift given — back to their own words.
-            let stock = v.stock_line.clone();
-            v.line = stock;
         }
     }
 }
@@ -122,7 +125,7 @@ fn story_talks(
     mut banners: ResMut<super::banners::Banners>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
     survivors: Query<&Villager, With<StorySurvivor>>,
-    elders: Query<&Villager, With<StoryElder>>,
+    mut elders: Query<&mut Villager, (With<StoryElder>, Without<StorySurvivor>)>,
     mut prev: Local<(u32, u32)>,
 ) {
     let s_chat = survivors.iter().next().map(|v| v.chat_t).unwrap_or(0);
@@ -150,6 +153,10 @@ fn story_talks(
             }
             banners.note("THE KEEPERS PARTING GIFT", "- A SHARD DEN MARKED ON YOUR MAP -");
             sfx.write(super::sfx::Sfx("itemget"));
+            for mut v in &mut elders {
+                let stock = v.stock_line.clone();
+                v.line = stock; // gift given — back to their own words
+            }
         }
     }
     *prev = (s_chat, e_chat);

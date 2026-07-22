@@ -44,6 +44,9 @@ fn qhash(world_seed: u32, a: i32, b: i32, c: i32) -> u32 {
 
 /// Is this town NPC (stable seed) a quest giver? Deterministic per world seed.
 pub fn is_giver(world_seed: u32, seed: u32) -> bool {
+    if seed == crate::app::story::SURVIVOR_SEED {
+        return false; // the survivor's '!' is the story thread's, never the board's
+    }
     qhash(world_seed, seed as i32, 0, 7) % 100 < GIVER_PCT
 }
 

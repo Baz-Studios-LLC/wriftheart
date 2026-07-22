@@ -427,8 +427,11 @@ fn spawn_ruined_village(
         Sprite::default(), // sync_villagers dresses her from the sprite bank
         at(PLAY_X + 150.0, PLAY_Y + 92.0, 16.0, 16.0, actor_z(92.0 + 16.0)),
     );
-    let mut v = crate::actors::villager::Villager::new(150.0, 92.0, super::story::SURVIVOR_SEED, String::new());
-    v.pname = Some("THE SURVIVOR".to_string());
+    let seed = super::story::SURVIVOR_SEED;
+    let mut v = crate::actors::villager::Villager::new(150.0, 92.0, seed, String::new());
+    // A REAL person (WREN): the pkey makes her talkable (talk_tick skips key-less
+    // villagers) and joins her to the relationship ledger like anyone else.
+    v.identify(format!("{},{}:{}", HOME_VILLAGE.0, HOME_VILLAGE.1, seed), crate::people::name_for(seed).to_string());
     v.hold_post(); // she keeps her vigil — no wandering through the dead
     commands.entity(ve).insert((v, super::story::StorySurvivor));
 
