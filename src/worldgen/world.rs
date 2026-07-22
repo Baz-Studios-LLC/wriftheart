@@ -313,6 +313,25 @@ impl World {
         if value_noise(self.seed, gx as f64 * DIRT_FREQ, gy as f64 * DIRT_FREQ, SALT_DIRT)
             > b.alt_lvl
         {
+            // LAVA holds back from FOREIGN seams (Baz): within its own biome it
+            // flows room to room exactly like water, but at a biome border it
+            // stops 3 tiles short of the edge so a transition never cuts a
+            // molten field mid-stream. (ground_name is the one source of truth —
+            // the tile paint, the liquid overlay, the burn, the bubbles, and the
+            // glow all follow this decision.)
+            if b.alt == "lava" {
+                let (rx, ry) = (gx.div_euclid(COLS), gy.div_euclid(ROWS));
+                let (c, r) = (gx.rem_euclid(COLS), gy.rem_euclid(ROWS));
+                let me = self.biome_key_at(rx, ry);
+                let foreign = |nx: i32, ny: i32| self.biome_key_at(nx, ny) != me;
+                if (c < 3 && foreign(rx - 1, ry))
+                    || (c >= COLS - 3 && foreign(rx + 1, ry))
+                    || (r < 3 && foreign(rx, ry - 1))
+                    || (r >= ROWS - 3 && foreign(rx, ry + 1))
+                {
+                    return b.ground;
+                }
+            }
             return b.alt;
         }
         b.ground
