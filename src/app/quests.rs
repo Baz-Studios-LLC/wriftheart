@@ -1,5 +1,5 @@
 //! quests.rs — town NPCs hand out jobs (port of js/quests.js + the game.js quest state):
-//! ~45% of town folk are QUEST GIVERS ('!' overhead; '-' in progress, '?' ready). Four
+//! ~20% of town folk are QUEST GIVERS ('!' overhead; '-' in progress, '?' ready). Four
 //! kinds: CLEAR a nearby encounter camp, BOUNTY a named elite lairing in a marked room,
 //! SLAY a quota of a common creature anywhere, FETCH a quota of materials. A 3-slot log;
 //! coin + XP (sometimes an item) on turn-in, +1.5 hearts with the giver.
@@ -24,7 +24,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub const QUEST_MAX: usize = 3;
-const GIVER_PCT: u32 = 45;
+const GIVER_PCT: u32 = 20; // was the js 45 — half the town wore a '!' (Baz)
 const MIN_RANGE: i32 = 3;
 const ENC_RANGE: i32 = 12;
 const SALT: u32 = 0x5177e3a1;

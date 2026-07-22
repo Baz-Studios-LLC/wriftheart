@@ -49,17 +49,23 @@ const SHIELD_EDGE_L: [&str; 12] = [
     ".KK.", "KADK", "KADK", "KaDK", "KADK", "KPDK", "KPDK", "KADK", "KaDK", "KADK", "KADK", ".KK.",
 ];
 
+/// A shot the shield already turned away — harmless, briefly airborne, never
+/// re-deflected.
+#[derive(Component)]
+pub struct Deflected;
+
 /// Enemy shots a raised shield turns away (arrow, bolt, web).
 type IncomingShots<'w, 's> = Query<
     'w,
     's,
-    (Entity, &'static Hitbox),
-    (Or<(With<EnemyArrow>, With<EBolt>, With<WebBolt>)>, Without<Player>),
+    (Entity, &'static Hitbox, Option<&'static mut EnemyArrow>, Option<&'static mut EBolt>, Option<&'static mut WebBolt>),
+    (Or<(With<EnemyArrow>, With<EBolt>, With<WebBolt>)>, Without<Player>, Without<Deflected>),
 >;
 
 /// A raised shield deflects the shot before combat can land it (js resolveCombat's
-/// projectile-block arm): the shot dies in a spark, the shield wears one notch, and
-/// on the last notch it shatters — that shot still blocked, its last stand.
+/// projectile-block arm): the shot RICOCHETS away from the hero at its own speed,
+/// gone neutral with a heartbeat of life left (js projectile.block()); the shield
+/// wears one notch, and on the last notch it shatters — that shot still blocked.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 pub fn shield_block(
     mut commands: Commands,
@@ -68,17 +74,36 @@ pub fn shield_block(
     mut log: ResMut<super::rewards::LootLog>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
     mut players: Query<(&mut Player, &Hitbox)>,
-    shots: IncomingShots,
+    mut shots: IncomingShots,
 ) {
     let Ok((mut p, phb)) = players.single_mut() else { return };
     if !p.blocking {
         return;
     }
-    for (e, hb) in &shots {
+    for (e, hb, arrow, bolt, web) in &mut shots {
         if !hb.overlaps(phb) {
             continue;
         }
-        commands.entity(e).despawn();
+        // The bounce direction: away from the hero's centre, at the shot's own pace.
+        let d = Vec2::new(hb.x + hb.w / 2.0 - (p.x + 8.0), hb.y + hb.h / 2.0 - (p.y + 8.0));
+        let dir = if d.length() > 0.01 { d.normalize() } else { Vec2::X };
+        if let Some(mut a) = arrow {
+            let sp = Vec2::new(a.vx, a.vy).length().max(2.0);
+            (a.vx, a.vy) = (dir.x * sp, dir.y * sp);
+            a.life = a.life.min(22);
+        }
+        if let Some(mut b) = bolt {
+            let sp = Vec2::new(b.vx, b.vy).length().max(2.0);
+            (b.vx, b.vy) = (dir.x * sp, dir.y * sp);
+            b.life = b.life.min(22);
+        }
+        if let Some(mut w) = web {
+            let sp = Vec2::new(w.vx, w.vy).length().max(2.0);
+            (w.vx, w.vy) = (dir.x * sp, dir.y * sp);
+            w.life = w.life.min(22);
+        }
+        // Neutralised: no team, no bite, no second deflect.
+        commands.entity(e).remove::<crate::combat::Combatant>().insert(Deflected);
         spawn_burst(&mut commands, &mut rng, Vec2::new(hb.x + hb.w / 2.0, hb.y + hb.h / 2.0), 0xd8e8ff, 5);
         if wear_shield(&mut commands, &mut rng, &mut inv, &mut log, &mut sfx, &mut p) {
             return; // it shattered — nothing left to block with this tick
@@ -230,7 +255,7 @@ fn bubble_deflect(
         return;
     }
     let Ok(phb) = players.single() else { return };
-    for (e, hb) in &shots {
+    for (e, hb, ..) in &shots {
         if !hb.overlaps(phb) {
             continue;
         }
