@@ -763,28 +763,46 @@ pub fn tick(
     // the triggers only tab inside menus, so RT is free in the field). The dash
     // owns the feet below; swings stay available mid-dash, so dash-then-strike
     // flows. Mercy frames make it a real defensive answer.
-    if state.pressed(Action::Dodge)
-        && p.dash.is_none()
-        && p.dash_cd == 0
-        && !p.blocking
-        && p.grapple.is_none()
-        && p.hop.is_none()
-        && modes.pulled.0.is_none()
-    {
-        let dir = {
-            let v = Vec2::new((r as i32 - l as i32) as f32, (d as i32 - u as i32) as f32);
-            if v == Vec2::ZERO {
+    // With the guard UP the same button is the SHIELD BASH instead (Baz: you
+    // can't dodge while blocking, so the trigger was idle there) — one button,
+    // two defensive answers, sharing the dash cooldown.
+    if state.pressed(Action::Dodge) && p.dash.is_none() && p.dash_cd == 0 {
+        if p.blocking {
+            // SHIELD BASH (the third verb): a short shove that barely cuts (1)
+            // but throws hard and leaves the foe STAGGERED (uniques' reel).
+            if p.lock_timer == 0 {
                 let (fx, fy) = p.facing.offset();
-                Vec2::new(fx, fy)
-            } else {
-                v.normalize()
+                let (bx, by) = (p.x + 2.0 + fx * 12.0, p.y + 3.0 + fy * 12.0);
+                commands.spawn((
+                    BashBox(5),
+                    Combatant { team: Team::Player, hurt_team: Some(Team::Enemy), damage: Some(1), persistent: false, knock: 4.0 },
+                    crate::combat::HitOnce::default(),
+                    Hitbox { x: bx, y: by, w: 12.0, h: 13.0 },
+                    super::uniques::StaggerHit(45),
+                    RoomActor,
+                ));
+                super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(bx + 6.0, by + 6.0), 0xe8e8f0, 5);
+                uses.sfx.write(super::sfx::Sfx("stone"));
+                p.dash_cd = 26;
+                p.lock_timer = p.lock_timer.max(10);
+                p.bash_t = 6; // the shield itself punches forward and back (draw)
             }
-        };
-        p.dash = Some((dir, 8));
-        p.dash_cd = 40;
-        health.invuln = health.invuln.max(10);
-        uses.sfx.write(super::sfx::Sfx("cast"));
-        super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xcfc8b8, 4);
+        } else if p.grapple.is_none() && p.hop.is_none() && modes.pulled.0.is_none() {
+            let dir = {
+                let v = Vec2::new((r as i32 - l as i32) as f32, (d as i32 - u as i32) as f32);
+                if v == Vec2::ZERO {
+                    let (fx, fy) = p.facing.offset();
+                    Vec2::new(fx, fy)
+                } else {
+                    v.normalize()
+                }
+            };
+            p.dash = Some((dir, 8));
+            p.dash_cd = 40;
+            health.invuln = health.invuln.max(10);
+            uses.sfx.write(super::sfx::Sfx("cast"));
+            super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xcfc8b8, 4);
+        }
     }
 
     // --- HOLD MOVES (LttP model): the press swings instantly and a held button
@@ -877,28 +895,6 @@ pub fn tick(
         let Some(uid) = inv.slots[i] else { continue };
         let Some(def) = inv.def_of(uid) else { continue };
         if def.weapon {
-            // SHIELD BASH (Baz, the third verb): press a weapon button with the
-            // guard UP — a short shove that barely cuts (1) but throws hard and
-            // leaves the foe STAGGERED (uniques' reel; re-stagger guarded).
-            if p.blocking && !weapon_fired && p.lock_timer == 0 && p.cooldowns[i] == 0 && state.pressed(action) {
-                let (fx, fy) = p.facing.offset();
-                let (bx, by) = (p.x + 2.0 + fx * 12.0, p.y + 3.0 + fy * 12.0);
-                commands.spawn((
-                    BashBox(5),
-                    Combatant { team: Team::Player, hurt_team: Some(Team::Enemy), damage: Some(1), persistent: false, knock: 4.0 },
-                    crate::combat::HitOnce::default(),
-                    Hitbox { x: bx, y: by, w: 12.0, h: 13.0 },
-                    super::uniques::StaggerHit(45),
-                    RoomActor,
-                ));
-                super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(bx + 6.0, by + 6.0), 0xe8e8f0, 5);
-                uses.sfx.write(super::sfx::Sfx("stone"));
-                p.cooldowns[i] = 26;
-                p.lock_timer = p.lock_timer.max(10);
-                p.bash_t = 6; // the shield itself punches forward and back (draw)
-                weapon_fired = true;
-                continue;
-            }
             // The charge contract (LttP; Baz: press-swings must feel instant): the
             // press swings NOW, and holding on through it winds the special —
             // release at full to unleash, release early and the swing was it.

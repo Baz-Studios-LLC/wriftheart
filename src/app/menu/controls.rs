@@ -17,7 +17,7 @@ const ROWS: [(Action, &str); 30] = [
     (Action::Slot3, "ABILITY 3"),
     (Action::Slot4, "ABILITY 4"),
     (Action::Interact, "INTERACT"),
-    (Action::Dodge, "DODGE"),
+    (Action::Dodge, "DODGE OR BASH"),
     (Action::Inventory, "INVENTORY"),
     (Action::SkillTree, "SKILL TREE"),
     (Action::TabPrev, "PREV TAB"),
