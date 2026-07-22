@@ -67,6 +67,7 @@ impl Plugin for PlayPlugin {
                         .run_if(super::battle::not_sliding),
                     // Presses are consumed ONCE per fixed tick (the JS endFrame contract).
                     // Every UI system that reads presses must be ordered before this.
+                    bash_tick,
                     clear_pressed.after(tick).after(super::menu::menu_tick).in_set(EndTick),
                 ),
             )
@@ -227,6 +228,20 @@ pub struct Player {
     pub hop_z: f32,               // the leap's draw-height offset (js p.hopZ)
     pub vx: f32,                  // carried velocity (only meaningful on slippery ice, js p.vx/vy)
     pub vy: f32,
+}
+
+/// The shield bash's brief forward hitbox (frames left) — resolve_combat lands
+/// the shove; uniques' StaggerHit stamps the reel.
+#[derive(Component)]
+pub struct BashBox(pub u32);
+
+fn bash_tick(mut commands: Commands, mut boxes: Query<(Entity, &mut BashBox)>) {
+    for (e, mut b) in &mut boxes {
+        b.0 -= 1;
+        if b.0 == 0 {
+            commands.entity(e).despawn();
+        }
+    }
 }
 
 /// A weapon charge in flight: hold past the tap swing and the weapon winds its
@@ -850,6 +865,27 @@ pub fn tick(
         let Some(uid) = inv.slots[i] else { continue };
         let Some(def) = inv.def_of(uid) else { continue };
         if def.weapon {
+            // SHIELD BASH (Baz, the third verb): press a weapon button with the
+            // guard UP — a short shove that barely cuts (1) but throws hard and
+            // leaves the foe STAGGERED (uniques' reel; re-stagger guarded).
+            if p.blocking && !weapon_fired && p.lock_timer == 0 && p.cooldowns[i] == 0 && state.pressed(action) {
+                let (fx, fy) = p.facing.offset();
+                let (bx, by) = (p.x + 2.0 + fx * 12.0, p.y + 3.0 + fy * 12.0);
+                commands.spawn((
+                    BashBox(5),
+                    Combatant { team: Team::Player, hurt_team: Some(Team::Enemy), damage: Some(1), persistent: false, knock: 4.0 },
+                    crate::combat::HitOnce::default(),
+                    Hitbox { x: bx, y: by, w: 12.0, h: 13.0 },
+                    super::uniques::StaggerHit(45),
+                    RoomActor,
+                ));
+                super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(bx + 6.0, by + 6.0), 0xe8e8f0, 5);
+                uses.sfx.write(super::sfx::Sfx("stone"));
+                p.cooldowns[i] = 26;
+                p.lock_timer = p.lock_timer.max(10);
+                weapon_fired = true;
+                continue;
+            }
             // A raised shield holds every swing (js: `!p.blocking` gates the attack block).
             if p.blocking || weapon_fired || p.lock_timer > 0 || p.cooldowns[i] > 0 || !state.pressed(action) {
                 continue;

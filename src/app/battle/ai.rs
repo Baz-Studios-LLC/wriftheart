@@ -35,7 +35,7 @@ pub(super) fn goblin_ai(
             continue;
         }
         // FROZEN SOLID (the frost beam): goblinkind freezes like any beast.
-        if aff.is_some_and(|a| a.freeze > 0) {
+        if aff.is_some_and(|a| a.freeze > 0 || a.stagger > 0) {
             *hb = goblin_hitbox(&g);
             continue;
         }
@@ -110,7 +110,7 @@ pub(super) fn mobs_ai(
         }
         // FROZEN SOLID (the frost beam): an ice statue — no thinking, no stepping,
         // no contact bite — until it thaws (mobfx.rs paints the blue cast + mist).
-        if afflictions.is_some_and(|a| a.freeze > 0) {
+        if afflictions.is_some_and(|a| a.freeze > 0 || a.stagger > 0) {
             cb.damage = None;
             seat_hb(&m, d, &mut hb);
             continue;

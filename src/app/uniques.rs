@@ -56,7 +56,16 @@ pub struct MobAfflictions {
     /// Envenomed (the venom spray / its puddles) — a purple cast + a slow DoT.
     pub poison: i32,
     pub(crate) poison_clock: i32,
+    /// Reeling from a SHIELD BASH — no thinking, no bite, until it clears.
+    pub stagger: i32,
+    /// Re-stagger immunity — a foe can't be bash-locked forever.
+    pub(crate) stagger_guard: i32,
 }
+
+/// On an attack entity: its landed hit STAGGERS the foe for this many frames
+/// (the shield bash; guards prevent chain-stunning).
+#[derive(Component)]
+pub struct StaggerHit(pub i32);
 
 /// Enemy bolts the wisp can swat (a type alias keeps the query readable).
 type SwattableBolts<'w, 's> = Query<
@@ -140,7 +149,7 @@ fn swing_bonus_hits(
 }
 
 /// Landed proc hits mark the foe; the timers live on the mob (js e.slowT / burning).
-#[allow(clippy::type_complexity)] // the Or-filter (mobs AND goblinkind) is the point
+#[allow(clippy::type_complexity, clippy::too_many_arguments)] // the Or-filter + one query per proc kind
 fn proc_hits(
     mut commands: Commands,
     mut hits: MessageReader<HitLanded>,
@@ -148,6 +157,7 @@ fn proc_hits(
     scorches: Query<&ScorchHit>,
     freezes: Query<&FreezeHit>,
     poisons: Query<&PoisonHit>,
+    staggers: Query<&StaggerHit>,
     mut mobs: Query<(Entity, Option<&mut MobAfflictions>), Or<(With<Mob>, With<crate::actors::goblin::Goblin>)>>,
 ) {
     for hit in hits.read() {
@@ -157,7 +167,8 @@ fn proc_hits(
             freezes.get(hit.attacker).ok(),
             poisons.get(hit.attacker).ok(),
         );
-        if chill.is_none() && scorch.is_none() && freeze.is_none() && poison.is_none() {
+        let stagger = staggers.get(hit.attacker).ok();
+        if chill.is_none() && scorch.is_none() && freeze.is_none() && poison.is_none() && stagger.is_none() {
             continue;
         }
         let Ok((me, aff)) = mobs.get_mut(hit.target) else { continue };
@@ -167,13 +178,27 @@ fn proc_hits(
             freeze.map_or(0, |f| f.0),
             poison.map_or(0, |p| p.0),
         );
+        // The bash's stagger respects the re-stagger guard (no chain-stunning).
+        let st = stagger.map_or(0, |s| s.0);
         if let Some(mut a) = aff {
             a.chill = a.chill.max(c);
             a.burn = a.burn.max(b);
             a.freeze = a.freeze.max(f);
             a.poison = a.poison.max(v);
+            if st > 0 && a.stagger_guard == 0 {
+                a.stagger = st;
+                a.stagger_guard = st + 90;
+            }
         } else {
-            commands.entity(me).insert(MobAfflictions { chill: c, burn: b, freeze: f, poison: v, ..Default::default() });
+            commands.entity(me).insert(MobAfflictions {
+                chill: c,
+                burn: b,
+                freeze: f,
+                poison: v,
+                stagger: st,
+                stagger_guard: if st > 0 { st + 90 } else { 0 },
+                ..Default::default()
+            });
         }
     }
 }
@@ -188,6 +213,12 @@ fn affliction_tick(
     for (mut a, mut h) in &mut mobs {
         if a.chill > 0 {
             a.chill -= 1;
+        }
+        if a.stagger > 0 {
+            a.stagger -= 1;
+        }
+        if a.stagger_guard > 0 {
+            a.stagger_guard -= 1;
         }
         if a.freeze > 0 {
             a.freeze -= 1;
