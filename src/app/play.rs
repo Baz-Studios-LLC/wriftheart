@@ -1086,15 +1086,6 @@ pub fn tick(
             p.cooldowns[i] = ((def.cooldown as f64 / (1.0 + tstats.haste)).round() as u32).max(4);
             p.lock_timer = def.lock_frames;
             weapon_fired = true;
-            // Keep holding past this tap and the weapon WINDS UP its hold move.
-            p.charge = Some(ChargePlay {
-                slot: i,
-                t: 0,
-                tool,
-                dmg,
-                tier: def.tool_tier,
-                tier_img: attack_art.tiered.get(def.id).cloned(),
-            });
         } else if def.consumable && state.pressed(action) && p.cooldowns[i] == 0 {
             if matches!(def.id, "chicken" | "cow" | "coop" | "barn") {
                 // Farm items validate + consume in their own handler (js use() veto).
