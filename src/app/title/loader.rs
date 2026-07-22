@@ -123,8 +123,9 @@ pub fn handle_load_slot(
             extras.tmaps.0.clear();
             extras.side_looted.0.clear();
             extras.guards.0 = false;
-            extras.victory.won = false;
-            extras.rune.0 = "arcane";
+            extras.misc.victory.won = false;
+            extras.misc.rune.0 = "arcane";
+            extras.misc.story.0 = 0;
             // The rest of SaveExtras leaked the OLD slot into a new game (Baz died
             // and respawned at a house he never built): a fresh start owns NONE of
             // the last life's house, spawn point, stash, blueprints, pins, or goblin.

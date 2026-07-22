@@ -419,6 +419,19 @@ fn spawn_ruined_village(
         }
     }
 
+    // THE SURVIVOR — the first-hour thread's opening voice (story.rs). She stands
+    // in the ashes at every step; her words and her '!' follow StoryThread.
+    let ve = child(
+        commands,
+        root,
+        Sprite::default(), // sync_villagers dresses her from the sprite bank
+        at(PLAY_X + 150.0, PLAY_Y + 92.0, 16.0, 16.0, actor_z(92.0 + 16.0)),
+    );
+    let mut v = crate::actors::villager::Villager::new(150.0, 92.0, super::story::SURVIVOR_SEED, String::new());
+    v.pname = Some("THE SURVIVOR".to_string());
+    v.hold_post(); // she keeps her vigil — no wandering through the dead
+    commands.entity(ve).insert((v, super::story::StorySurvivor));
+
     // The Emberfall fragments lie where they fell (js authored spots; read ones stay
     // gone): the survivor's plea by the hero's ruin, the slate by the inn, the miller's
     // letter by the bakery, and the Lantern Order's roll at the centre.

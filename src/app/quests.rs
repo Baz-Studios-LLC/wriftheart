@@ -396,6 +396,40 @@ pub fn giver_key(rx: i32, ry: i32, seed: u32) -> String {
 
 // --- Live systems -----------------------------------------------------------------
 
+/// A SCALE-2 glyph on a dark plate (js drawQuestMarkers) — the WoW-style overhead
+/// read; the scale-1 plateless glyph read as a stray speck. Shared with the story
+/// thread's mark. Returns (glyph entity, plate entity, texture width, ink width) —
+/// the texture pads odd bakes with a blank RIGHT column, so centring uses INK.
+pub fn spawn_glyph_pair(
+    commands: &mut Commands,
+    images: &mut Assets<Image>,
+    ch: char,
+    col: u32,
+) -> (Entity, Entity, f32, f32) {
+    let (img, w) = font::bake_text(&ch.to_string(), col, images);
+    let iw2 = ((w + (w & 1)) * 2) as f32;
+    let ink2 = (w * 2) as f32; // (Baz: '!' sat off-centre when centred by texture)
+    let plate = commands
+        .spawn((
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(ink2 + 4.0, 12.0)),
+            crate::gfx::at(0.0, -40.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.005),
+            PIXEL_LAYER,
+            GlyphSprite,
+        ))
+        .id();
+    let mut spr = Sprite::from_image(img);
+    spr.custom_size = Some(Vec2::new(iw2, 12.0)); // 2x the 6px bake, integer-crisp
+    let ge = commands
+        .spawn((
+            spr,
+            crate::gfx::at(0.0, -40.0, iw2, 12.0, crate::gfx::layers::PROMPT + 0.02),
+            PIXEL_LAYER,
+            GlyphSprite,
+        ))
+        .id();
+    (ge, plate, iw2, ink2)
+}
+
 /// The floating '!' / '-' / '?' over quest givers, tracking them as they wander.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 fn giver_glyph_tick(
@@ -434,29 +468,7 @@ fn giver_glyph_tick(
                     commands.entity(og).despawn();
                     commands.entity(op).despawn();
                 }
-                // A SCALE-2 glyph on a dark plate (js drawQuestMarkers) — the WoW-style
-                // overhead read. The scale-1 plateless glyph read as a stray speck.
-                let (img, w) = font::bake_text(&ch.to_string(), col, &mut images);
-                let iw2 = ((w + (w & 1)) * 2) as f32; // texture width (odd bakes pad a blank RIGHT column)
-                let ink2 = (w * 2) as f32; // the visible glyph — centring uses THIS (Baz: '!' sat off-centre)
-                let plate = commands
-                    .spawn((
-                        Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(ink2 + 4.0, 12.0)),
-                        crate::gfx::at(0.0, -40.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.005),
-                        PIXEL_LAYER,
-                        GlyphSprite,
-                    ))
-                    .id();
-                let mut spr = Sprite::from_image(img);
-                spr.custom_size = Some(Vec2::new(iw2, 12.0)); // 2x the 6px bake, integer-crisp
-                let ge = commands
-                    .spawn((
-                        spr,
-                        crate::gfx::at(0.0, -40.0, iw2, 12.0, crate::gfx::layers::PROMPT + 0.02),
-                        PIXEL_LAYER,
-                        GlyphSprite,
-                    ))
-                    .id();
+                let (ge, plate, iw2, ink2) = spawn_glyph_pair(&mut commands, &mut images, ch, col);
                 live.insert(ve, (ch, ge, plate, iw2, ink2));
             }
             (None, Some((_, og, op, ..))) => {
@@ -617,7 +629,7 @@ fn bounty_spawn_tick(
 }
 
 #[derive(Component)]
-struct GlyphSprite;
+pub struct GlyphSprite;
 
 /// The bounty's NAME floats over its elite (js eliteName), tracking it as it prowls.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature

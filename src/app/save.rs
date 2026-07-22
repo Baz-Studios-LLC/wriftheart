@@ -130,6 +130,8 @@ pub struct SaveData {
     pub castle_guards_cleared: bool, // both gate knights fell (js)
     #[serde(default)]
     pub game_won: bool, // the Wriftheart has been mended (js gameWon)
+    /// The first-hour thread's step (story.rs): 0 fresh .. 3 retired.
+    pub story: u8,
     #[serde(default = "full_can")]
     pub can_water: i32, // the watering can's remaining pours (pre-farm saves: full)
 }
@@ -326,8 +328,16 @@ pub struct SaveExtras<'w> {
     pub tmaps: ResMut<'w, super::digging::TreasureMaps>,
     pub side_looted: ResMut<'w, super::sidescroll::SideLooted>,
     pub guards: ResMut<'w, super::darkknight::CastleGuards>,
+    pub misc: MiscExtras<'w>,
+}
+
+/// Third ring out: SaveExtras hit the 16-field cap too, so the small odd-shaped
+/// singletons (a rune, a flag, a step counter) nest here.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct MiscExtras<'w> {
     pub rune: ResMut<'w, super::wands::WandRune>,
     pub victory: ResMut<'w, super::dungeon::Victory>,
+    pub story: ResMut<'w, super::story::StoryThread>,
 }
 
 /// Restore every resource-side piece of the save (setup already consumed the world/room/
@@ -354,9 +364,10 @@ pub fn apply_to(d: &SaveData, ctx: &mut SaveCtx, extras: &mut SaveExtras) {
     extras.tmaps.0 = d.tmaps.clone();
     extras.side_looted.0 = d.side_looted.iter().cloned().collect();
     extras.guards.0 = d.castle_guards_cleared;
-    extras.victory.won = d.game_won;
+    extras.misc.victory.won = d.game_won;
+    extras.misc.story.0 = d.story;
     // The wand's socketed rune (pre-wand saves stored "": stay arcane).
-    extras.rune.0 = match d.wand_rune.as_str() {
+    extras.misc.rune.0 = match d.wand_rune.as_str() {
         "fire" => "fire",
         "frost" => "frost",
         "storm" => "storm",
@@ -476,7 +487,7 @@ pub fn collect(ctx: &SaveCtx, extras: &SaveExtras, player: &Player, health: &Hea
         money: ctx.inv.money,
         entries: ctx.inv.entries.iter().map(|e| (e.uid, e.id.to_string(), e.qty)).collect(),
         shield_dur: ctx.inv.entries.iter().filter_map(|e| e.dur.map(|d| (e.uid, d))).collect(),
-        wand_rune: extras.rune.0.to_string(),
+        wand_rune: extras.misc.rune.0.to_string(),
         bag: ctx.inv.bag.clone(),
         bag_rows: ctx.inv.bag_rows,
         slots: ctx.inv.slots,
@@ -573,7 +584,8 @@ pub fn collect(ctx: &SaveCtx, extras: &SaveExtras, player: &Player, health: &Hea
         crack_caves: extras.caves.0.clone(),
         tmaps: extras.tmaps.0.clone(),
         castle_guards_cleared: extras.guards.0,
-        game_won: extras.victory.won,
+        game_won: extras.misc.victory.won,
+        story: extras.misc.story.0,
         side_looted: {
             let mut v: Vec<String> = extras.side_looted.0.iter().cloned().collect();
             v.sort(); // deterministic file bytes
@@ -744,6 +756,7 @@ mod tests {
             side_looted: Default::default(),
             castle_guards_cleared: false,
             game_won: false,
+            story: 0,
         };
         let json = serde_json::to_string(&d).unwrap();
         let back: SaveData = serde_json::from_str(&json).unwrap();

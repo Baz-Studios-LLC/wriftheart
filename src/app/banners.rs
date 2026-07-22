@@ -139,6 +139,12 @@ impl Banners {
         self.biome = None; // the arena splash owns the moment (the threat rule)
         self.dirty = true;
     }
+    /// A story beat's announcement — the same big slot, minus the threat framing.
+    pub fn note(&mut self, title: &str, sub: &'static str) {
+        self.town = Some((title.to_string(), Some(sub), 0));
+        self.biome = None; // the beat owns the moment (the threat rule)
+        self.dirty = true;
+    }
     /// Stepping into a building raises its little title plaque (js interiorBanner).
     pub fn interior(&mut self, title: &str) {
         if !title.is_empty() {
