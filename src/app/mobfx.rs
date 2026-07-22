@@ -352,15 +352,23 @@ pub struct DrainOrb {
     pub vx: f32,
     pub vy: f32,
     pub life: i32,
+    pub frames: [Handle<Image>; 2],
 }
 
-pub fn spawn_drain_orb(commands: &mut Commands, x: f32, y: f32, vx: f32, vy: f32) {
+pub fn spawn_drain_orb(
+    commands: &mut Commands,
+    art: &crate::actors::mobs::MobArtBank,
+    x: f32,
+    y: f32,
+    vx: f32,
+    vy: f32,
+) {
     commands.spawn((
-        Sprite::from_color(Color::srgb_u8(0xc8, 0xd0, 0x60), Vec2::splat(8.0)),
+        Sprite::from_image(art.drain_orb[0].clone()),
         at(PLAY_X + x + 4.0, PLAY_Y + y + 4.0, 8.0, 8.0, actor_z(y + 8.0)),
         PIXEL_LAYER,
         RoomActor,
-        DrainOrb { x, y, vx, vy, life: 300 },
+        DrainOrb { x, y, vx, vy, life: 300, frames: [art.drain_orb[0].clone(), art.drain_orb[1].clone()] },
         // Hurts the player on touch AND can be POPPED by a swing (Health 1).
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
         Health { hp: 1, max: 1, defense: 0, invuln: 0, flash: 0 },
@@ -375,11 +383,12 @@ pub fn spawn_drain_orb(commands: &mut Commands, x: f32, y: f32, vx: f32, vy: f32
 fn drain_orb_tick(
     mut commands: Commands,
     players: Query<&Player>,
-    mut q: Query<(Entity, &mut DrainOrb, &mut Transform, &mut Hitbox, &Health)>,
+    mut q: Query<(Entity, &mut DrainOrb, &mut Transform, &mut Hitbox, &Health, &mut Sprite)>,
 ) {
     let p = players.single().ok();
-    for (e, mut o, mut tf, mut hb, h) in &mut q {
+    for (e, mut o, mut tf, mut hb, h, mut sprite) in &mut q {
         o.life -= 1;
+        sprite.image = o.frames[((o.life / 7) & 1) as usize].clone(); // the sick pulse
         if o.life <= 0 || h.hp <= 0 {
             commands.entity(e).despawn(); // faded, or popped by a swing
             continue;

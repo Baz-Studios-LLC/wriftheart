@@ -124,6 +124,33 @@ pub struct LootGoblin {
 pub struct LootGlow;
 
 /// Spawn the goblin at `hp` (a re-entered/relocated goblin keeps its wounds; 10 = fresh).
+/// The nearest goblin-sized clear spot to (x, y): a cross-room arrival could land
+/// ON a wall tile, and from inside a solid every step "collides" — so it strolled
+/// over walls (Baz). Spiral out by tiles until the feet box fits.
+fn clear_spot(grid: &crate::room::RoomGrid, x: f32, y: f32) -> (f32, f32) {
+    let fits = |tx: f32, ty: f32| !grid.box_hits_solid(tx + 3.0, ty + 5.0, 10.0, 9.0);
+    if fits(x, y) {
+        return (x, y);
+    }
+    for r in 1i32..=5 {
+        for dy in -r..=r {
+            for dx in -r..=r {
+                if dx.abs() != r && dy.abs() != r {
+                    continue;
+                }
+                let (tx, ty) = (x + dx as f32 * 16.0, y + dy as f32 * 16.0);
+                if tx < 0.0 || ty < 0.0 || tx > (crate::room::PX_W - 16) as f32 || ty > (crate::room::PX_H - 16) as f32 {
+                    continue;
+                }
+                if fits(tx, ty) {
+                    return (tx, ty);
+                }
+            }
+        }
+    }
+    (x, y)
+}
+
 pub fn spawn_lootgoblin(commands: &mut Commands, images: &mut Assets<Image>, x: f32, y: f32, hp: i32) -> Entity {
     let glow = crate::gfx::radial_glow_tex(images, 34);
     commands
@@ -343,6 +370,7 @@ fn lootgob_load(
     mut images: ResMut<Assets<Image>>,
     world: Res<GameWorld>,
     cur: Res<CurRoom>,
+    grid: Res<super::play::CurGrid>,
     clock: Res<FrameClock>,
     in_dungeon: Res<super::dungeon::InDungeon>,
     inside: Res<super::interior::Inside>,
@@ -374,6 +402,7 @@ fn lootgob_load(
         }
         let (x, y, hp) = (lg.x, lg.y, lg.hp);
         lg.deadline = None; // you're here now — it isn't "getting away" while you chase
+        let (x, y) = clear_spot(&grid.0, x, y); // never arrive ON a wall (Baz)
         spawn_lootgoblin(&mut commands, &mut images, x, y, hp);
         return;
     }
@@ -382,7 +411,7 @@ fn lootgob_load(
         && !cleared.0.contains(&(cur.rx, cur.ry))
         && let Some(e) = world.0.room_entities(cur.rx, cur.ry).iter().find(|e| e.kind == "mob" && e.sub == "lootgoblin")
     {
-        let (x, y) = (e.x as f32, e.y as f32);
+        let (x, y) = clear_spot(&grid.0, e.x as f32, e.y as f32);
         spawn_lootgoblin(&mut commands, &mut images, x, y, 10);
         lootgob.0 = Some(LootGobRec { room: (cur.rx, cur.ry), x, y, hp: 10, deadline: None, origin: (cur.rx, cur.ry) });
     }

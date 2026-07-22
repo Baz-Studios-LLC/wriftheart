@@ -180,6 +180,18 @@ pub(crate) const DEF_BASE: MobDef = MobDef {
 // The roster itself lives in mob_defs.rs (data-only; this file is the scaffold).
 pub use super::mob_defs::MOB_DEFS;
 
+/// The witherheart's stolen-life orb: a rot-green sphere round a pale sick core,
+/// shedding a fleck as it drifts (it drained the colour out of something).
+const ORB_A: &[&str] = &[
+    "..kkkk....", ".kggggk...", "kggppggk..", "kgpccpgk..", "kgpccpgk..",
+    "kggppggk..", ".kggggk...", "..kkkk....", "..........", "..........",
+];
+const ORB_B: &[&str] = &[
+    "..kkkk....", ".kgppgk...", "kgpccpgk..", "kgccccgk..", "kgccccgk..",
+    "kgpccpgk..", ".kgppgk...", "..kkkk..g.", ".........g", "..........",
+];
+const ORB_PAL: &[(char, u32)] = &[('k', 0x3a4020), ('g', 0x96a050), ('p', 0xb8c070), ('c', 0xe8f0b0)];
+
 
 /// The uppercase display name for a mob kind (js BESTIARY[kind].name) — the elite name
 /// tag's base; unknown kinds fall back. (Lives here, not the GENERATED mobs_art, so an
@@ -323,6 +335,8 @@ pub struct MobArtBank {
     pub wolf: [[Baked; 2]; 4], // down/up/right/left x 2 frames
     pub thorn_dorm: Baked,
     pub mound: Handle<Image>,
+    /// The witherheart's drain orb, 2 pulse frames (it shipped as a flat square).
+    pub drain_orb: [Handle<Image>; 2],
     pub web: Handle<Image>,
     pub rock: Handle<Image>,
     pub arrow: Handle<Image>,
@@ -368,6 +382,7 @@ impl MobArtBank {
             ],
             thorn_dorm: bake_frame(images, &mobs_art::THORN_DORM, false),
             mound: images.add(bake(MOUND, MOUND_PAL)),
+            drain_orb: [images.add(bake(ORB_A, ORB_PAL)), images.add(bake(ORB_B, ORB_PAL))],
             web: images.add(bake(WEB, WEB_PAL)),
             rock: images.add(bake(ROCK, ROCK_PAL)),
             arrow: bake_frame(images, &mobs_art::ARROW_SPR, false).0,

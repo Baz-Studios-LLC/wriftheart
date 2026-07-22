@@ -43,6 +43,8 @@ impl Plugin for DebugShotPlugin {
             "stages" => app.add_systems(PostStartup, (super::title::cleanup_title, spawn_stages).chain()),
             "slideout" | "skills" | "craft" => app.add_systems(PostStartup, (set_play, open_slideout_shot).chain()),
             "drops" => app.add_systems(PostStartup, (set_play, spawn_drops).chain()),
+            // A staged wanderer mid-shout — the garbled-bubble hunt (Baz).
+            "shout" => app.add_systems(PostStartup, set_play).add_systems(Update, shout_stage),
             "roster" => app.add_systems(PostStartup, (super::title::cleanup_title, spawn_roster).chain()),
             "pause" => app.add_systems(PostStartup, set_play).add_systems(Update, pause_menu_stage),
             // The DUNGEON FLOOR MAP: a generated dungeon with a walked trail, codex open.
@@ -531,6 +533,39 @@ fn dungeon_stage(
         };
         state.hold_for_test(action);
     }
+}
+
+/// WRIFT_SHOT=shout: park a wanderer beside the hero with a long shout up, so the
+/// speech bubble's exact pixels can be inspected (the knight garble hunt).
+fn shout_stage(
+    mut done: Local<bool>,
+    mut commands: Commands,
+    screen: Res<bevy::prelude::State<super::screen::Screen>>,
+) {
+    if *done || *screen.get() != super::screen::Screen::Play {
+        return;
+    }
+    *done = true;
+    commands.spawn((
+        Sprite::default(),
+        crate::gfx::at(
+            crate::app::room_render::PLAY_X + 140.0,
+            crate::app::room_render::PLAY_Y + 100.0,
+            16.0,
+            16.0,
+            crate::app::room_render::actor_z(116.0),
+        ),
+        crate::gfx::PIXEL_LAYER,
+        super::encounters::Wanderer {
+            x: 140.0,
+            y: 100.0,
+            role: "knight",
+            title: "DYING KNIGHT",
+            seed: 7,
+            facing: 0,
+            shout: Some(("GO... TAKE IT AND GO. LET ME REST.".to_string(), 100000)),
+        },
+    ));
 }
 
 /// WRIFT_SHOT=fanfare: fire the item-get cutscene (default a KEY; WRIFT_FAN=ornatekey|

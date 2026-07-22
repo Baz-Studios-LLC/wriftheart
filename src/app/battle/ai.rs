@@ -294,7 +294,7 @@ pub(super) fn mobs_ai(
                         crate::app::mobfx::spawn_beam(&mut commands, x, y, tx, ty);
                     }
                     Some(MobAct::DrainOrb { x, y, vx, vy }) => {
-                        crate::app::mobfx::spawn_drain_orb(&mut commands, x, y, vx, vy);
+                        crate::app::mobfx::spawn_drain_orb(&mut commands, &art, x, y, vx, vy);
                     }
                     Some(MobAct::Tongue { ax, ay, ux, uy, len }) => {
                         crate::app::mobfx::spawn_frog_tongue(&mut commands, ax, ay, ux, uy, len);

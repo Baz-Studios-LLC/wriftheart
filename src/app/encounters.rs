@@ -778,7 +778,7 @@ fn spec(kind: &str) -> Option<DecorSpec> {
         "ritual" => DecorSpec { grid: art::RITUAL, base_y: 0.0, hitbox: None },
         "bones" => DecorSpec { grid: art::BONES, base_y: 0.0, hitbox: None },
         "crate" => DecorSpec { grid: art::CRATE, base_y: 8.0, hitbox: Some((3.0, 3.0, 6.0, 5.0)) },
-        "tent" => DecorSpec { grid: art::TENT, base_y: 12.0, hitbox: Some((1.0, 8.0, 14.0, 4.0)) },
+        "tent" => DecorSpec { grid: art::TENT, base_y: 13.0, hitbox: Some((1.0, 9.0, 16.0, 5.0)) },
         "banner" => DecorSpec { grid: art::BANNER_ART, base_y: 13.0, hitbox: Some((3.0, 10.0, 3.0, 3.0)) },
         "gold" => DecorSpec { grid: art::GOLD, base_y: 0.0, hitbox: None },
         "crystal" => DecorSpec { grid: art::CRYSTAL_ART, base_y: 10.0, hitbox: Some((4.0, 6.0, 8.0, 4.0)) },
@@ -1606,7 +1606,7 @@ pub fn shout_labels(
     wanderers: Query<(Entity, &Wanderer)>,
     mut labels: Query<(&mut Transform, &mut Visibility), With<ShoutLabel>>,
     chat: Query<(&Transform, &Sprite), (With<crate::app::talk::ChatUi>, Without<ShoutLabel>)>,
-    mut live: Local<bevy::platform::collections::HashMap<Entity, (String, Entity, f32)>>,
+    mut live: Local<bevy::platform::collections::HashMap<Entity, (String, Entity, f32, f32)>>,
 ) {
     let mut seen: Vec<Entity> = Vec::new();
     // Bubbles NEVER overlap (Baz): every placed rect this frame — seeded with the
@@ -1625,41 +1625,45 @@ pub fn shout_labels(
     let mut place = |commands: &mut Commands,
                      images: &mut Assets<Image>,
                      labels: &mut Query<(&mut Transform, &mut Visibility), With<ShoutLabel>>,
-                     live: &mut bevy::platform::collections::HashMap<Entity, (String, Entity, f32)>,
+                     live: &mut bevy::platform::collections::HashMap<Entity, (String, Entity, f32, f32)>,
                      owner: Entity,
                      shout: Option<&str>,
                      x: f32,
                      y: f32| {
-        match (shout, live.get(&owner).cloned()) {
-            (Some(text), have) if have.as_ref().map(|(t, ..)| t.as_str()) != Some(text) => {
-                if let Some((_, old, _)) = have {
-                    commands.entity(old).despawn();
-                }
-                // ONE speech-bubble look for every talker (Baz) — the shared
-                // ui::speech_bubble recipe the town chat uses too.
-                let (e, bw) = crate::ui::speech_bubble(commands, images, text, 0.0, -40.0, crate::gfx::layers::CHAT);
-                commands.entity(e).insert(ShoutLabel);
-                live.insert(owner, (text.to_string(), e, bw));
-            }
-            (None, Some((_, old, _))) => {
+        let Some(text) = shout else {
+            if let Some((_, old, ..)) = live.remove(&owner) {
                 commands.entity(old).despawn();
-                live.remove(&owner);
             }
-            _ => {}
+            return;
+        };
+        // The bubble floats where the town bubbles float (talk.rs by = y - 13),
+        // clamped into the play field so a shore-side shout never clips off —
+        // then HOPS UPWARD past any bubble it would cover (Baz: never overlap).
+        let mw = crate::gfx::font::measure(text);
+        let bw = (mw + (mw & 1)) as f32 + 8.0;
+        let bx = (PLAY_X + x + 8.0 - bw / 2.0).round().clamp(PLAY_X + 2.0, PLAY_X + crate::room::PX_W as f32 - bw - 2.0);
+        let mut by = (PLAY_Y + y - 13.0).round();
+        while placed.iter().any(|&(ox, oy, ow)| bx < ox + ow && bx + bw > ox && by < oy + 11.0 && by + 11.0 > oy) {
+            by -= 13.0;
         }
-        if let Some((_, e, bw)) = live.get(&owner)
-            && let Ok((mut tf, mut vis)) = labels.get_mut(*e)
-        {
-            // The bubble floats where the town bubbles float (talk.rs by = y - 13),
-            // clamped into the play field so a shore-side shout never clips off —
-            // then HOPS UPWARD past any bubble it would cover (Baz: never overlap).
-            let bx = (PLAY_X + x + 8.0 - bw / 2.0).round().clamp(PLAY_X + 2.0, PLAY_X + crate::room::PX_W as f32 - bw - 2.0);
-            let mut by = (PLAY_Y + y - 13.0).round();
-            while placed.iter().any(|&(ox, oy, ow)| bx < ox + ow && bx + *bw > ox && by < oy + 11.0 && by + 11.0 > oy) {
-                by -= 13.0;
+        placed.push((bx, by, bw));
+        // Spawn AT the final spot and respawn on any change — the town-chat rule.
+        // (The old spawn-then-reposition path is what garbled the knight's line.)
+        let fresh = match live.get(&owner) {
+            Some((t, _, ox, oy)) => t != text || *ox != bx || *oy != by,
+            None => true,
+        };
+        if fresh {
+            if let Some((_, old, ..)) = live.remove(&owner) {
+                commands.entity(old).despawn();
             }
-            placed.push((bx, by, *bw));
-            *tf = at(bx, by, *bw, 11.0, crate::gfx::layers::CHAT);
+            let (e, _) = crate::ui::speech_bubble(commands, images, text, bx, by, crate::gfx::layers::CHAT);
+            commands.entity(e).insert(ShoutLabel);
+            live.insert(owner, (text.to_string(), e, bx, by));
+        }
+        if let Some((_, e, ..)) = live.get(&owner)
+            && let Ok((_, mut vis)) = labels.get_mut(*e)
+        {
             *vis = if sliding.0 { Visibility::Hidden } else { Visibility::Inherited };
         }
         seen.push(owner);
@@ -1670,7 +1674,7 @@ pub fn shout_labels(
     for (e, w) in &wanderers {
         place(&mut commands, &mut images, &mut labels, &mut live, e, w.shout.as_ref().map(|(t, _)| t.as_str()), w.x, w.y);
     }
-    live.retain(|owner, (_, e, _)| {
+    live.retain(|owner, (_, e, ..)| {
         if seen.contains(owner) {
             true
         } else {

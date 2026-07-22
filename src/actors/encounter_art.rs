@@ -70,10 +70,10 @@ pub const CRATE: &[&str] = &[
     "................",
 ];
 pub const TENT: &[&str] = &[
-    ".......K........", "......KDK.......", ".....KDDDK......", "....KDDDDDK.....",
-    "...KDDDDDDDK....", "..KDDDDDDDDDK...", ".KDDDDKKKDDDDK..", ".KDDDKnnnKDDDK..",
-    "KDDDDKnnnKDDDDK.", "KDDDDKnnnKDDDDK.", "KDDDDKnnnKDDDDK.", "KKKKKKKKKKKKKKK.",
-    "................",
+    "........KK........", ".......KDDK.......", "......KDDDDK......", ".....KDDDDDDK.....",
+    "....KDDDDDDDDK....", "...KDDDDDDDDDDK...", "..KDDDDDDDDDDDDK..", ".KDDDDDKKKKDDDDDK.",
+    ".KDDDDKnnnnKDDDDK.", "KDDDDDKnnnnKDDDDDK", "KDDDDDKnnnnKDDDDDK", "KDDDDDKnnnnKDDDDDK",
+    "KDDDDDKnnnnKDDDDDK", "KKKKKKKKKKKKKKKKKK",
 ];
 pub const BANNER_ART: &[&str] = &[
     "....P...........", "...PKP..........", "....rK..........", "...KrrK.........",
