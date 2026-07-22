@@ -447,8 +447,8 @@ pub fn spawn_glyph_pair(
     let ink2 = (w * 2) as f32; // (Baz: '!' sat off-centre when centred by texture)
     let plate = commands
         .spawn((
-            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(ink2 + 4.0, 12.0)),
-            crate::gfx::at(0.0, -40.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.14),
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.5), Vec2::new(ink2 + 2.0, 12.0)),
+            crate::gfx::at(0.0, -40.0, ink2 + 2.0, 12.0, crate::gfx::layers::PROMPT + 0.14),
             PIXEL_LAYER,
             GlyphSprite,
         ))
@@ -539,7 +539,7 @@ fn giver_glyph_tick(
                 *vis = Visibility::Inherited;
             }
             if let Ok((mut tf, mut vis)) = sprites.get_mut(plate) {
-                *tf = crate::gfx::at(gx - 2.0, gy - 1.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.14);
+                *tf = crate::gfx::at(gx - 1.0, gy - 1.0, ink2 + 2.0, 12.0, crate::gfx::layers::PROMPT + 0.14);
                 *vis = Visibility::Inherited;
             }
         }
