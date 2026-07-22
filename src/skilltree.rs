@@ -305,6 +305,30 @@ pub fn nav(cur: usize, dx: f64, dy: f64) -> Option<usize> {
 }
 
 /// Tooltip stat lines: (text, is-downside) — the keystone's price printed honestly.
+/// FORKS ARE CHOICES (Baz, 2026-07-22): each branch's two-lane loop is either/or.
+/// The rival lane of a lane node (a1/a2 <-> b1/b2), by id suffix; None elsewhere.
+pub fn rival_lane(idx: usize) -> Option<[usize; 2]> {
+    let ns = nodes();
+    let id = &ns[idx].id;
+    if id.len() < 2 {
+        return None;
+    }
+    let (key, sfx) = id.split_at(id.len() - 2);
+    let rival = match sfx {
+        "a1" | "a2" => 'b',
+        "b1" | "b2" => 'a',
+        _ => return None,
+    };
+    let find = |want: String| ns.iter().position(|n| n.id == want);
+    Some([find(format!("{key}{rival}1"))?, find(format!("{key}{rival}2"))?])
+}
+
+/// Is `idx` sealed because the branch's OTHER lane is already walked? The seal
+/// lifts on its own if the chosen lane is fully refunded.
+pub fn lane_sealed(taken: &HashSet<usize>, idx: usize) -> bool {
+    rival_lane(idx).is_some_and(|r| r.iter().any(|i| taken.contains(i)))
+}
+
 pub fn stat_lines(n: &Node) -> Vec<(String, bool)> {
     let pct = |v: f64| format!("{}{}%", if v > 0.0 { "+" } else { "" }, js_round(v * 100.0));
     let flat = |v: f64| format!("{}{}", if v > 0.0 { "+" } else { "" }, js_round(v));

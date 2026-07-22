@@ -125,6 +125,9 @@ pub struct SkillArt {
     /// A vertical edge-fade strip, LINEAR-sampled: stretched along a rotated link quad it
     /// gives the soft anti-aliased line edges the canvas has (MSAA is off — see canvas.rs).
     line: Handle<Image>,
+    /// Two WRIFT star-dust sheets (the map backdrop's own seeds), panel + one tile
+    /// wide so the scroll window always stays inside them.
+    wrift: [Handle<Image>; 2],
 }
 
 /// SUPERSAMPLED shape rasterizer: 4x4 coverage per pixel becomes the alpha, giving the
@@ -204,6 +207,11 @@ impl SkillArt {
                 let t = (1.0 - dx.hypot(dy) / 48.0).max(0.0);
                 t * t * 0.5
             }),
+            wrift: {
+                let sw = PANEL_W as u32 + crate::gfx::wrift::WRIFT_T;
+                let sh = (CANVAS_H as f32 - AREA_TOP) as u32 + crate::gfx::wrift::WRIFT_T;
+                [images.add(crate::gfx::wrift::wrift_sheet(0x57a11, sw, sh)), images.add(crate::gfx::wrift::wrift_sheet(0x57a12, sw, sh))]
+            },
         }
     }
     fn node(&self, kind: &str) -> (Handle<Image>, Handle<Image>, f32) {
@@ -224,6 +232,16 @@ pub struct CursorRing;
 /// A twinkling backdrop star (its index seeds the phase).
 #[derive(Component)]
 pub struct Twinkle(pub usize);
+
+/// A parallax star-dust sheet behind the constellation (Baz: the map's WRIFT
+/// backdrop, here too). The sprite sits FIXED over the panel; the scroll lives in
+/// its texture rect - the map can translate its layers because the codex owns the
+/// whole screen, but here anything oversized would bleed over the sidebar.
+#[derive(Component)]
+pub struct WriftLayer {
+    k: f32,
+    drift: Vec2,
+}
 
 /// Run condition: slide-out open on the SKILLS tab.
 pub fn active(screen: Res<State<Screen>>, so: Res<SlideOut>) -> bool {
@@ -319,6 +337,7 @@ pub fn skills_input(
         && cur != skilltree::start()
         && alloc.points >= n.cost as i32
         && skilltree::linked_to_tree(&alloc.taken, cur)
+        && !skilltree::lane_sealed(&alloc.taken, cur)
     {
         alloc.taken.insert(cur);
         alloc.points -= n.cost as i32;
@@ -346,7 +365,8 @@ pub fn skills_anim(
     mut st: ResMut<SkillsState>,
     mut root: Query<&mut Transform, (With<TreeRoot>, Without<CursorRing>)>,
     mut ring: Query<&mut Transform, (With<CursorRing>, Without<TreeRoot>)>,
-    mut stars: Query<(&Twinkle, &mut Sprite)>,
+    mut stars: Query<(&Twinkle, &mut Sprite), Without<WriftLayer>>,
+    mut wrift: Query<(&WriftLayer, &mut Sprite), Without<Twinkle>>,
 ) {
     let cur = &nodes()[st.cursor];
     let target = Vec2::new(cur.x as f32, cur.y as f32);
@@ -361,6 +381,15 @@ pub fn skills_anim(
         tf.translation.y = base.translation.y + st.cam.y.round();
     }
     let t = time.elapsed_secs();
+    let t_px = crate::gfx::wrift::WRIFT_T as f32;
+    for (l, mut s) in &mut wrift {
+        let sx = (((st.cam.x * l.k + t * l.drift.x) % t_px + t_px) % t_px).round();
+        let sy = (((st.cam.y * l.k + t * l.drift.y) % t_px + t_px) % t_px).round();
+        if let Some(r) = s.rect.as_mut() {
+            let (w0, h0) = (r.width(), r.height());
+            *r = Rect::new(sx, sy, sx + w0, sy + h0);
+        }
+    }
     let pulse = 0.5 + 0.5 * (t * 6.7).sin();
     if let Ok(mut tf) = ring.single_mut() {
         tf.scale = Vec3::splat(1.0 + 0.25 * pulse);
@@ -414,6 +443,20 @@ pub fn draw(
         PIXEL_LAYER,
         tag(),
     ));
+    // THE WRIFT: two dust sheets sliding at 0.35x / 0.65x of the tree pan (the
+    // map's exact layers), under the fixed twinkle stars, over the void base.
+    for (li, k, drift) in [(0usize, 0.35f32, Vec2::new(0.8, 0.45)), (1, 0.65, Vec2::new(1.4, 0.8))] {
+        let mut s = Sprite::from_image(art.wrift[li].clone());
+        s.custom_size = Some(Vec2::new(w, h - AREA_TOP));
+        s.rect = Some(Rect::new(0.0, 0.0, w, h - AREA_TOP));
+        commands.spawn((
+            s,
+            at(x0, AREA_TOP, w, h - AREA_TOP, Z + 0.12 + li as f32 * 0.02),
+            PIXEL_LAYER,
+            WriftLayer { k, drift },
+            tag(),
+        ));
+    }
     for i in 0..90usize {
         let sx = (i as f32 * 97.0 + 31.0) % w;
         let sy = AREA_TOP + (i as f32 * 61.0 + 17.0) % (h - AREA_TOP);
@@ -485,7 +528,8 @@ pub fn draw(
     // Nodes over links: halo (allocated / affordable), fill, ring, cursor.
     for (i, n) in ns.iter().enumerate() {
         let al = allocated(i);
-        let can = !al && alloc.points >= n.cost as i32 && skilltree::linked_to_tree(&alloc.taken, i);
+        let sealed = !al && skilltree::lane_sealed(&alloc.taken, i);
+        let can = !al && !sealed && alloc.points >= n.cost as i32 && skilltree::linked_to_tree(&alloc.taken, i);
         let c = branch_color(&n.id);
         let (fill_img, ring_img, r) = art.node(n.kind);
         if al || can {
@@ -499,6 +543,8 @@ pub fn draw(
             tint(c, 1.0)
         } else if n.kind == "start" {
             Color::srgb_u8(0xff, 0xd8, 0x65)
+        } else if sealed {
+            Color::srgb_u8(0x12, 0x15, 0x1c) // the road not taken goes dark
         } else {
             Color::srgb_u8(0x23, 0x2a, 0x38)
         };
@@ -508,6 +554,8 @@ pub fn draw(
             Color::srgb_u8(0xff, 0xf2, 0xc8)
         } else if can {
             Color::srgb_u8(0xaa, 0xd7, 0xff)
+        } else if sealed {
+            tint(c, 0.22)
         } else {
             tint(c, 0.55)
         };
@@ -528,7 +576,8 @@ pub fn draw(
     let pts = format!("PTS {}", alloc.points);
     label(commands, images, &pts, x0 + PAD, AREA_TOP + 5.0, if alloc.points > 0 { 0x9aff9a } else { 0x8a94a0 }, Z + 0.9, tag());
     let al = allocated(st.cursor);
-    let can = !al && alloc.points >= cur.cost as i32 && skilltree::linked_to_tree(&alloc.taken, st.cursor);
+    let sealed_cur = !al && skilltree::lane_sealed(&alloc.taken, st.cursor);
+    let can = !al && !sealed_cur && alloc.points >= cur.cost as i32 && skilltree::linked_to_tree(&alloc.taken, st.cursor);
     let hint = if al && st.cursor != skilltree::start() && skilltree::leaf_safe(&alloc.taken, st.cursor) {
         format!("{} REFUND {REFUND_COST}C", bindings.prompt(Action::Slot3, pad))
     } else if can {
@@ -557,6 +606,8 @@ pub fn draw(
     ));
     let cost_tag = if al || st.cursor == skilltree::start() {
         if al && st.cursor != skilltree::start() { " - TAKEN".to_string() } else { String::new() }
+    } else if sealed_cur {
+        " - OTHER PATH WALKED".to_string()
     } else {
         format!("  {} {}", cur.cost, if cur.cost == 1 { "PT" } else { "PTS" })
     };

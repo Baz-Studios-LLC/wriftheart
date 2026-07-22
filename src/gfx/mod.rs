@@ -12,6 +12,7 @@ pub mod weather_fx_material;
 pub mod water_material;
 pub mod tile_textures;
 pub mod tiles_art;
+pub mod wrift;
 
 pub use bake::{bake, flip_h};
 pub use canvas::{at, radial_glow_tex, PixelCanvasPlugin, PIXEL_LAYER};

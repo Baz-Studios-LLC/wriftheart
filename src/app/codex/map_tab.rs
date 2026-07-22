@@ -287,47 +287,7 @@ pub fn run(
     }
 }
 
-/// One tile of the WRIFT — the void the fold floats on: dim star-dust with the
-/// rare teal / violet shard glint. Deterministic per layer seed; tiles seamlessly.
-const WRIFT_T: u32 = 96;
-fn wrift_tile(seed: u32) -> Image {
-    let t = WRIFT_T;
-    let mut rng = crate::worldgen::rng::Mulberry32::new(seed);
-    let mut buf = vec![0u8; (t * t * 4) as usize];
-    let mut put = |x: u32, y: u32, c: u32| {
-        let i = (((y % t) * t + (x % t)) * 4) as usize;
-        buf[i] = (c >> 16) as u8;
-        buf[i + 1] = (c >> 8) as u8;
-        buf[i + 2] = c as u8;
-        buf[i + 3] = 255;
-    };
-    for _ in 0..26 {
-        // Faint dust.
-        let (x, y) = ((rng.next_f64() * t as f64) as u32, (rng.next_f64() * t as f64) as u32);
-        put(x, y, 0x1e1e2a);
-    }
-    for _ in 0..9 {
-        // Brighter motes.
-        let (x, y) = ((rng.next_f64() * t as f64) as u32, (rng.next_f64() * t as f64) as u32);
-        put(x, y, 0x33314a);
-    }
-    for _ in 0..3 {
-        // Shard glints: a 2x2 fleck of the rift's teal or violet.
-        let (x, y) = ((rng.next_f64() * t as f64) as u32, (rng.next_f64() * t as f64) as u32);
-        let c = if rng.next_f64() < 0.5 { 0x2e4a52 } else { 0x443257 };
-        put(x, y, c);
-        put(x + 1, y, c);
-        put(x, y + 1, c);
-        put(x + 1, y + 1, c);
-    }
-    Image::new(
-        Extent3d { width: t, height: t, depth_or_array_layers: 1 },
-        TextureDimension::D2,
-        buf,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::default(),
-    )
-}
+use crate::gfx::wrift::{wrift_tile, WRIFT_T};
 
 /// A parallax layer of the WRIFT behind the map fold: follows the camera at a
 /// fraction, plus a slow idle drift so the void never quite sleeps.
