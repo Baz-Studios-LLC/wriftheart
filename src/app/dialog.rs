@@ -226,6 +226,7 @@ fn dialog_tick(
                                 log: &qx.log.0,
                                 rx: cur_room.rx,
                                 ry: cur_room.ry,
+                                today,
                             };
                             let mut q = super::quests::generate(&gctx, v.seed, done);
                             q.giver_key = key;

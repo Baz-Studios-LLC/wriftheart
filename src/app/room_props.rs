@@ -339,12 +339,10 @@ pub fn spawn_room_props(
             _ => {} // mobs -> battle.rs; interactive/set-piece props -> their own ports
         }
     }
-    // An un-beaten encounter dresses its scene over the natural room (decor rebuilds
-    // identically every visit; the foes are spawn_room_mobs' business).
-    if !cleared.0.contains(&room)
-        && let Some((def, _)) = super::encounters::for_room(world, room.0, room.1)
-    {
-        let scene = super::encounters::build(def, world, room.0, room.1);
+    // The room's LIVE encounter dresses its scene over the natural room (decor
+    // rebuilds identically every visit; the foes are spawn_room_mobs' business).
+    if let Some((def, h)) = super::encounters::live_at(world, cleared, room.0, room.1, today) {
+        let scene = super::encounters::build(def, world, room.0, room.1, h);
         super::encounters::spawn_decor(commands, images, art, root, &scene, &mut blockers);
         super::encounters::spawn_wanderers(commands, root, &scene);
     }

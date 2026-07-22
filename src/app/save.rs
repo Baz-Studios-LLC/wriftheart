@@ -87,7 +87,11 @@ pub struct SaveData {
     pub relics: Vec<String>, // claimed shard biomes (js relics Set — THE WIN COUNTER)
     pub dungeons: Vec<(String, super::dungeon::DgSave)>, // banked dungeon progress per entrance
     pub farm: Vec<FarmRow>, // tilled soil + crops (js Farm.serialize)
-    pub cleared_encounters: Vec<(i32, i32)>, // beaten set-piece rooms (peaceful forever)
+    pub cleared_encounters: Vec<(i32, i32)>, // LEGACY beaten rooms (kept for rollback compat)
+    /// The cleared LEDGER (room x, y, day cleared, clears so far) — the fallow /
+    /// re-tenancy model (beaten ground re-rolls after half a season).
+    #[serde(default)]
+    pub cleared_led: Vec<(i32, i32, i64, u32)>,
     pub quests: Vec<super::quests::Quest>, // the active 3-slot log
     pub quest_giver_done: Vec<(String, i32)>, // per-giver completed tallies
     pub quest_counter: u32, // monotonic quest-id source
@@ -442,7 +446,11 @@ pub fn apply_to(d: &SaveData, ctx: &mut SaveCtx, extras: &mut SaveExtras) {
     ctx.social.farm.prune(super::gather::farm_day(d.clock)); // wild plots that decayed while away
     ctx.social.can_water.0 = d.can_water;
     ctx.social.farm_day.0 = super::gather::farm_day(d.clock); // today is already accounted for
-    ctx.social.cleared.0 = d.cleared_encounters.iter().copied().collect();
+    *ctx.social.cleared = super::encounters::ClearedEncounters::from_save(
+        &d.cleared_led,
+        &d.cleared_encounters,
+        super::gather::farm_day(d.clock),
+    );
     ctx.social.quests.0 = d.quests.clone();
     ctx.social.giver_done.0 = d.quest_giver_done.iter().cloned().collect();
     ctx.social.quest_counter.0 = d.quest_counter;
@@ -548,7 +556,13 @@ pub fn collect(ctx: &SaveCtx, extras: &SaveExtras, player: &Player, health: &Hea
         },
         can_water: ctx.social.can_water.0,
         cleared_encounters: {
-            let mut v: Vec<(i32, i32)> = ctx.social.cleared.0.iter().copied().collect();
+            let mut v: Vec<(i32, i32)> = ctx.social.cleared.0.keys().copied().collect();
+            v.sort_unstable(); // deterministic file bytes (legacy mirror, rollback compat)
+            v
+        },
+        cleared_led: {
+            let mut v: Vec<(i32, i32, i64, u32)> =
+                ctx.social.cleared.0.iter().map(|((x, y), (d, n))| (*x, *y, *d, *n)).collect();
             v.sort_unstable(); // deterministic file bytes
             v
         },
@@ -732,6 +746,7 @@ mod tests {
             farm: vec![(2, 2, 5, 6, false, 3, 3, Some(("turnip".into(), 1, 0)))],
             can_water: 7,
             cleared_encounters: vec![(4, -2)],
+            cleared_led: vec![(4, -2, 0, 1)],
             quests: vec![],
             quest_giver_done: vec![("1,2,777".into(), 2)],
             quest_counter: 5,

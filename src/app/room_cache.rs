@@ -158,15 +158,15 @@ pub fn spawn_or_restore(
     let Some(snap) = cache.0.get(&room).filter(|s| s.day == today) else {
         // YOUR home room is a SAFE ZONE (Baz): the natural roster never rolls there.
         if !home_safe {
-            spawn_room_mobs(commands, images, rng, human_art, world, cleared, armed, ents, room);
+            spawn_room_mobs(commands, images, rng, human_art, world, cleared, armed, ents, room, today);
         }
         return;
     };
     // A same-day return to an encounter room: every restored foe is the camp's (the
     // encounter replaced the natural roll), so re-mark + re-arm — killing the last
     // survivor still clears the camp. Zero survivors restored = it clears next tick.
-    let enc_room = !cleared.0.contains(&room)
-        && super::encounters::for_room(world, room.0, room.1).is_some_and(|(d, _)| !d.friendly);
+    let enc_room =
+        super::encounters::live_at(world, cleared, room.0, room.1, today).is_some_and(|(d, _)| !d.friendly);
     if enc_room {
         armed.0 = Some(room);
     }

@@ -117,6 +117,7 @@ struct SceneCtx<'w, 's> {
     /// The walking hoard's light (js collectLights 'lootgoblin') — nested here,
     /// update_overlay sits AT the 16-param cap.
     lootgobs: Query<'w, 's, &'static crate::combat::Hitbox, With<super::lootgoblin::LootGoblin>>,
+    cleared: Res<'w, super::encounters::ClearedEncounters>,
 }
 
 /// Rebuild the darkness buffer: ambient fill, then every light multiplies the alpha down
@@ -224,10 +225,11 @@ fn update_overlay(
         }
         // Encounter camp light (js collectLights: campfire r44, crystal r30) — the
         // scene is deterministic, so it bakes once per room into a local cache.
+        let today = super::gather::farm_day(clock.0);
         if camp_cache.as_ref().map(|(room, _)| *room) != Some((cur.rx, cur.ry)) {
             let mut v = Vec::new();
-            if let Some((def, _)) = super::encounters::for_room(&world.0, cur.rx, cur.ry) {
-                let scene = super::encounters::build(def, &world.0, cur.rx, cur.ry);
+            if let Some((def, h)) = super::encounters::live_at(&world.0, &scene.cleared, cur.rx, cur.ry, today) {
+                let scene = super::encounters::build(def, &world.0, cur.rx, cur.ry, h);
                 for d in &scene.decor {
                     match d.kind {
                         "campfire" => v.push((d.x as i32 + 8, d.y as i32 + 4, 44)),

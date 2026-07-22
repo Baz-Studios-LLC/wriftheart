@@ -479,10 +479,11 @@ fn setup(
         .0
         .as_ref()
         .map_or_else(super::farm::FarmTiles::default, |d| super::save::farm_from_save(&d.farm));
-    // ...and its beaten camps stay beaten (encounter decor + rosters skip them).
-    let cleared = super::encounters::ClearedEncounters(
-        loaded.0.as_ref().map_or_else(Default::default, |d| d.cleared_encounters.iter().copied().collect()),
-    );
+    // ...and its beaten camps lie fallow where the ledger says (encounters::live_at).
+    let today0 = super::gather::farm_day(loaded.0.as_ref().map_or(0, |d| d.clock));
+    let cleared = loaded.0.as_ref().map_or_else(Default::default, |d| {
+        super::encounters::ClearedEncounters::from_save(&d.cleared_led, &d.cleared_encounters, today0)
+    });
     let caves = super::caves::CrackCaves(
         loaded.0.as_ref().map_or_else(Default::default, |d| d.crack_caves.clone()),
     );
@@ -563,7 +564,7 @@ fn setup(
     let world = GameWorld(world);
     let grid = CurGrid(grid);
     let mut human_art = crate::actors::goblin::HumanArt::default();
-    spawn_room_mobs(&mut commands, &mut images, &mut rng, &mut human_art, &world.0, &cleared, &mut armed, &ents, (rx, ry));
+    spawn_room_mobs(&mut commands, &mut images, &mut rng, &mut human_art, &world.0, &cleared, &mut armed, &ents, (rx, ry), today0);
     commands.insert_resource(human_art); // seeds the session cache (replaces the plugin default)
     commands.insert_resource(cleared);
     commands.insert_resource(world);

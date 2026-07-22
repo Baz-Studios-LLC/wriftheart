@@ -212,9 +212,51 @@ pub static ENCOUNTERS: &[EncDef] = &[
             a.wanderer(cx, cy - 2.0, "herbalist", "HERBALIST"); } },
 ];
 
-/// Rooms whose encounter has been wiped out — beaten once, gone forever (saved).
+/// Camps the hero has wiped, and WHEN (room -> (day of last clear, clears so
+/// far)) — saved. Beaten ground lies FALLOW for half a season, then the world
+/// moves on: the room re-rolls a fresh tenancy with new dice — maybe a different
+/// camp, maybe quiet wilderness (Baz retired the js "cleared forever": rooms
+/// should feel alive, like things keep happening out there).
 #[derive(Resource, Default)]
-pub struct ClearedEncounters(pub HashSet<(i32, i32)>);
+pub struct ClearedEncounters(pub bevy::platform::collections::HashMap<(i32, i32), (i64, u32)>);
+
+/// How long beaten ground stays quiet before the world moves on (half a season).
+pub const FALLOW_DAYS: i64 = 14;
+
+impl ClearedEncounters {
+    /// Still quiet from the last clear?
+    pub fn fallow(&self, room: (i32, i32), today: i64) -> bool {
+        matches!(self.0.get(&room), Some((day, _)) if today < day + FALLOW_DAYS)
+    }
+    /// The room's tenancy index (0 = the original scene, then 1, 2, ... as camps
+    /// come and go), or None while the ground lies fallow.
+    pub fn tenancy(&self, room: (i32, i32), today: i64) -> Option<u32> {
+        match self.0.get(&room) {
+            None => Some(0),
+            Some((day, n)) => (today >= *day + FALLOW_DAYS).then_some(*n),
+        }
+    }
+    /// Bank a wipe: quiet from today; the NEXT tenancy rolls new dice.
+    pub fn record(&mut self, room: (i32, i32), today: i64) {
+        let n = self.0.get(&room).map_or(1, |(_, n)| n + 1);
+        self.0.insert(room, (today, n));
+    }
+    /// Save round-trip. Legacy saves stored bare rooms ("cleared forever") —
+    /// they thaw FALLOW_DAYS after the day they load.
+    pub fn from_save(led: &[(i32, i32, i64, u32)], legacy: &[(i32, i32)], today: i64) -> Self {
+        let mut m = bevy::platform::collections::HashMap::default();
+        if led.is_empty() {
+            for &(x, y) in legacy {
+                m.insert((x, y), (today, 1));
+            }
+        } else {
+            for &(x, y, d, n) in led {
+                m.insert((x, y), (d, n));
+            }
+        }
+        Self(m)
+    }
+}
 
 /// Armed when encounter foes spawn in the current room; the clear watcher retires it.
 #[derive(Resource, Default)]
@@ -247,7 +289,7 @@ fn dry_enough(world: &World, rx: i32, ry: i32) -> bool {
 
 /// Which encounter (if any) owns this room — deterministic from seed + coords
 /// (js forRoom). None on shard grounds, towns, dry-fail, or the 90% quiet rooms.
-pub fn for_room(world: &World, rx: i32, ry: i32) -> Option<(&'static EncDef, u32)> {
+pub fn for_room(world: &World, rx: i32, ry: i32, cycle: u32) -> Option<(&'static EncDef, u32)> {
     if world.shard_dungeon_at(rx, ry).is_some() || world.is_town(rx, ry) {
         return None;
     }
@@ -264,7 +306,8 @@ pub fn for_room(world: &World, rx: i32, ry: i32) -> Option<(&'static EncDef, u32
     if list.is_empty() {
         return None;
     }
-    let h = hash(world.seed, rx, ry, SALT);
+    // Each tenancy salts the dice — the camp that moves in later may differ.
+    let h = hash(world.seed ^ cycle.wrapping_mul(0x9E37_79B9), rx, ry, SALT);
     if (h % 1000) as f64 / 1000.0 >= BASE_CHANCE {
         return None;
     }
@@ -284,14 +327,27 @@ pub fn for_room(world: &World, rx: i32, ry: i32) -> Option<(&'static EncDef, u32
     Some((def, h))
 }
 
+/// The room's LIVE encounter today: fallow ground is quiet, and each tenancy
+/// rolls its own dice. THE entry point — callers should not pair for_room with
+/// their own cleared checks.
+pub fn live_at(
+    world: &World,
+    cleared: &ClearedEncounters,
+    rx: i32,
+    ry: i32,
+    today: i64,
+) -> Option<(&'static EncDef, u32)> {
+    for_room(world, rx, ry, cleared.tenancy((rx, ry), today)?)
+}
+
 /// Stage the def into a concrete scene (js build — decor + foe list, clamped in-room).
-pub fn build(def: &'static EncDef, world: &World, rx: i32, ry: i32) -> Scene {
+pub fn build(def: &'static EncDef, world: &World, rx: i32, ry: i32, seed: u32) -> Scene {
     let mut s = Scene {
         cx: CX,
         cy: CY,
         biome: world.biome_key_at(rx, ry),
         tier: World::threat_tier(rx, ry),
-        seed: for_room(world, rx, ry).map_or(0, |(_, h)| h),
+        seed,
         decor: vec![],
         foes: vec![],
         victims: vec![],
@@ -397,6 +453,7 @@ fn campfire_flicker(clock: Res<FrameClock>, mut fires: Query<(&Campfire, &mut Sp
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 fn encounter_clear_tick(
     cur: Res<CurRoom>,
+    clock: Res<FrameClock>,
     sliding: Res<super::play::SlideActive>,
     mut armed: ResMut<ArmedEncounter>,
     mut cleared: ResMut<ClearedEncounters>,
@@ -415,7 +472,7 @@ fn encounter_clear_tick(
     }
     if foes.is_empty() {
         armed.0 = None;
-        cleared.0.insert(room);
+        cleared.record(room, super::gather::farm_day(clock.0));
         stats.bump("encounters", 1.0);
         log.add("encounter", "AREA CLEARED", 1, 0x7ee08a, false, true);
         // A clear quest pointed here is now READY (js onEncounterCleared).
@@ -968,6 +1025,7 @@ pub fn threat_banner_tick(
     in_dungeon: Res<super::dungeon::InDungeon>,
     world: Res<super::play::GameWorld>,
     cleared: Res<ClearedEncounters>,
+    clock: Res<FrameClock>,
     mut banners: ResMut<super::banners::Banners>,
     mut last: Local<Option<(i32, i32)>>,
 ) {
@@ -979,10 +1037,7 @@ pub fn threat_banner_tick(
         return;
     }
     *last = Some(room);
-    if cleared.0.contains(&room) {
-        return;
-    }
-    if let Some((def, _)) = for_room(&world.0, room.0, room.1)
+    if let Some((def, _)) = live_at(&world.0, &cleared, room.0, room.1, super::gather::farm_day(clock.0))
         && !def.friendly
     {
         banners.threat(def.name);

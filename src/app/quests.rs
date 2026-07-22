@@ -265,6 +265,7 @@ fn find_room(cx: i32, cy: i32, min_rad: i32, max_rad: i32, ok: impl Fn(i32, i32)
 pub struct GenCtx<'a> {
     pub world: &'a World,
     pub cleared: &'a ClearedEncounters,
+    pub today: i64,
     pub log: &'a [Quest],
     pub rx: i32,
     pub ry: i32,
@@ -299,14 +300,13 @@ fn build_type(qtype: &str, ctx: &GenCtx, rng: &mut Mulberry32) -> Option<Quest> 
         "clear" => {
             let min_r = MIN_RANGE + (rng.next_f64() * 7.0) as i32; // vary 3..9 so rewards differ
             let spot = find_room(ctx.rx, ctx.ry, min_r, ENC_RANGE, |x, y| {
-                if ctx.cleared.0.contains(&(x, y)) || taken.contains(&format!("clear:{x},{y}")) || ctx.world.is_town(x, y)
-                {
+                if taken.contains(&format!("clear:{x},{y}")) || ctx.world.is_town(x, y) {
                     return false;
                 }
-                // Hostile camps only (DEVIATION: the js also matched friendly ones).
-                encounters::for_room(ctx.world, x, y).is_some_and(|(d, _)| !d.friendly)
+                // Hostile LIVE camps only (fallow ground and friendly folk don't count).
+                encounters::live_at(ctx.world, ctx.cleared, x, y, ctx.today).is_some_and(|(d, _)| !d.friendly)
             })?;
-            let (def, _) = encounters::for_room(ctx.world, spot.0, spot.1)?;
+            let (def, _) = encounters::live_at(ctx.world, ctx.cleared, spot.0, spot.1, ctx.today)?;
             let place = def.name.to_lowercase();
             let dir = dir_word(spot.0 - ctx.rx, spot.1 - ctx.ry);
             let dist = (spot.0 - ctx.rx).abs().max((spot.1 - ctx.ry).abs());
@@ -776,7 +776,7 @@ mod tests {
     fn generation_is_deterministic_and_dedups() {
         let world = World::new(1337);
         let cleared = ClearedEncounters::default();
-        let ctx = GenCtx { world: &world, cleared: &cleared, log: &[], rx: -4, ry: -10 };
+        let ctx = GenCtx { world: &world, cleared: &cleared, log: &[], rx: -4, ry: -10, today: 0 };
         let a = generate(&ctx, 12345, 0);
         let b = generate(&ctx, 12345, 0);
         assert_eq!(a.title, b.title, "same giver + done count -> same offer");
@@ -786,7 +786,7 @@ mod tests {
         assert!(c.reward.coin > 0 && a.reward.coin > 0);
         // With the first quest active, the next offer avoids its exact signature.
         let log = vec![a.clone()];
-        let ctx2 = GenCtx { world: &world, cleared: &cleared, log: &log, rx: -4, ry: -10 };
+        let ctx2 = GenCtx { world: &world, cleared: &cleared, log: &log, rx: -4, ry: -10, today: 0 };
         let d = generate(&ctx2, 999, 0);
         assert_ne!(d.sig(), a.sig(), "no two quests at the same target");
     }
