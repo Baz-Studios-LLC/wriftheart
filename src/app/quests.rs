@@ -108,6 +108,10 @@ pub enum QuestKind {
     Slay { kind: String, need: i32, have: i32 },
     /// Bring `need` of a material (checked live against the bag).
     Fetch { item: String, need: i32 },
+    /// The first-hour STORY thread's legs (story.rs): stage 1 reach the town's
+    /// keeper, stage 2 claim a relic from the marked den. Resolves in the field
+    /// (never `ready`, no hand-in) and never counts against the 3-slot log.
+    Story { stage: u8, rx: i32, ry: i32 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -135,9 +139,15 @@ impl Quest {
     /// The room this quest pins on the map, if any (js q.marker).
     pub fn marker(&self) -> Option<(i32, i32)> {
         match &self.kind {
-            QuestKind::Clear { rx, ry, .. } | QuestKind::Bounty { rx, ry, .. } => Some((*rx, *ry)),
+            QuestKind::Clear { rx, ry, .. } | QuestKind::Bounty { rx, ry, .. } | QuestKind::Story { rx, ry, .. } => {
+                Some((*rx, *ry))
+            }
             _ => None,
         }
+    }
+    /// Story-thread legs are slot-exempt and never hand in (story.rs).
+    pub fn is_story(&self) -> bool {
+        matches!(self.kind, QuestKind::Story { .. })
     }
     /// js questSig — the "same target" signature offers dedup against.
     pub fn sig(&self) -> String {
@@ -146,6 +156,7 @@ impl Quest {
             QuestKind::Slay { kind, .. } => format!("slay:{kind}"),
             QuestKind::Fetch { item, .. } => format!("fetch:{item}"),
             QuestKind::Clear { rx, ry, .. } => format!("clear:{rx},{ry}"),
+            QuestKind::Story { stage, .. } => format!("story:{stage}"),
         }
     }
     fn type_key(&self) -> &'static str {
@@ -154,6 +165,7 @@ impl Quest {
             QuestKind::Bounty { .. } => "bounty",
             QuestKind::Slay { .. } => "slay",
             QuestKind::Fetch { .. } => "fetch",
+            QuestKind::Story { .. } => "story",
         }
     }
     /// js questReady — finished and waiting on the hand-in.
@@ -386,7 +398,7 @@ pub fn giver_glyph(
     if let Some(q) = log.0.iter().find(|q| q.giver_key == key) {
         return Some(if q.ready(inv) { ('?', 0xffd34d) } else { ('-', 0xb4b4bc) });
     }
-    if is_giver(world_seed, v.seed) && log.0.len() < QUEST_MAX {
+    if is_giver(world_seed, v.seed) && log.0.iter().filter(|q| !q.is_story()).count() < QUEST_MAX {
         return Some(('!', 0xffd34d));
     }
     None
@@ -444,7 +456,13 @@ fn giver_glyph_tick(
     log: Res<QuestLog>,
     inv: Res<crate::inventory::PlayerInv>,
     clock: Res<super::room_render::FrameClock>,
-    villagers: Query<(Entity, &Villager)>,
+    story: Res<crate::app::story::StoryThread>,
+    villagers: Query<(
+        Entity,
+        &Villager,
+        bevy::ecs::query::Has<crate::app::story::StorySurvivor>,
+        bevy::ecs::query::Has<crate::app::story::StoryElder>,
+    )>,
     mut sprites: Query<(&mut Transform, &mut Visibility), With<GlyphSprite>>,
     // (char, glyph entity, plate entity, glyph width at 2x)
     mut live: Local<HashMap<Entity, GlyphRow>>,
@@ -458,12 +476,15 @@ fn giver_glyph_tick(
         return;
     }
     let mut seen: Vec<Entity> = Vec::new();
-    for (ve, v) in &villagers {
+    for (ve, v, is_survivor, is_elder) in &villagers {
         if v.pkey.is_none() {
             continue;
         }
         let key = giver_key(cur.rx, cur.ry, v.seed);
-        let want = giver_glyph(world.0.seed, v, &key, &log, &inv);
+        // The story thread's mark outranks the board: the survivor's offer at
+        // step 0, the crowned elder's handoff at step 1 (story.rs).
+        let story_want = ((is_survivor && story.0 == 0) || (is_elder && story.0 == 1)).then_some(('!', 0xffd34d));
+        let want = story_want.or_else(|| giver_glyph(world.0.seed, v, &key, &log, &inv));
         let have = live.get(&ve).map(|(c, g, p, w, i)| (*c, *g, *p, *w, *i));
         match (want, have) {
             (Some((ch, col)), have) if have.map(|(c, ..)| c) != Some(ch) => {

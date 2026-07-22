@@ -1,19 +1,23 @@
-//! story.rs — THE FIRST-HOUR THREAD: one gentle breadcrumb trail from the ashes
-//! of Emberfall to the first shard, then it bows out forever.
+//! story.rs — THE FIRST-HOUR THREAD: a real two-leg quest line from the ashes of
+//! Emberfall to the first shard, then it bows out forever.
 //!
-//! Step 0: a lone SURVIVOR stands in the burnt village — talk to her and the
-//! nearest living town lands on your map. Step 1: that town's keeper wears the
-//! story mark — talking gifts the first AXE + PICK and pins the nearest shard
-//! den. Step 2: claim any relic and the thread retires (step 3, saved for good).
-//! Nothing is gated behind it: skip every beat and the world plays as before.
+//! Leg 1 (THE LAST EMBER): WREN, the burnt village's last voice, offers it through
+//! the normal QUEST window — reach the nearest living town and speak to its keeper.
+//! It resolves at the keeper: the first AXE + PICK, and leg 2 (THE FIRST SHARD)
+//! takes its place — claim a relic from the marked den, paying out on pickup.
+//! Both legs live in the quest log (gold '!' pins, reopenable at their givers)
+//! but are SLOT-EXEMPT: they never eat one of the 3 side-quest slots, never show
+//! a hand-in '?', and abandoning is allowed (leg 1 re-offers; leg 2 lets go).
+//! Nothing is gated behind the thread: skip it and the world plays as before.
 
 use bevy::prelude::*;
 
+use super::quests::{giver_key, Quest, QuestKind, QuestLog, Reward};
 use super::screen::playing;
 use crate::actors::villager::Villager;
 
-/// Where the hero stands on the thread (saved): 0 fresh, 1 town marked,
-/// 2 tools gifted + den marked, 3 retired.
+/// Where the hero stands on the thread (saved): 0 fresh, 1 leg 1 accepted,
+/// 2 tools gifted + leg 2 active, 3 retired.
 #[derive(Resource, Default)]
 pub struct StoryThread(pub u8);
 
@@ -29,8 +33,8 @@ pub struct StoryElder;
 /// (people::name_for), the burnt village's last voice.
 pub const SURVIVOR_SEED: u32 = 41112;
 
-/// The room the thread points at right now — the map's blue '!' (and the pin
-/// that keeps it in frame). Steps 0 and 3 point nowhere.
+/// The room a thread leg points at: leg 1 the nearest town to home, leg 2 the
+/// shard den nearest that town. Deterministic per world seed.
 pub fn story_pin(world: &crate::worldgen::World, step: u8) -> Option<(i32, i32)> {
     let home = super::room_props::HOME_VILLAGE;
     match step {
@@ -47,6 +51,42 @@ pub fn story_pin(world: &crate::worldgen::World, step: u8) -> Option<(i32, i32)>
     }
 }
 
+/// Leg 1, ready for the offer window (dialog.rs stamps the id at accept).
+pub fn town_quest(world: &crate::worldgen::World) -> Option<Quest> {
+    let (rx, ry) = story_pin(world, 1)?;
+    let home = super::room_props::HOME_VILLAGE;
+    Some(Quest {
+        id: 0,
+        kind: QuestKind::Story { stage: 1, rx, ry },
+        done: false,
+        title: "THE LAST EMBER".to_string(),
+        goal: "SPEAK TO THE TOWNS KEEPER".to_string(),
+        desc: "A TOWN STILL STANDS PAST THE ASHES. FIND ITS KEEPER - THEY WILL NOT SEND A HERO OUT EMPTY HANDED.".to_string(),
+        reward: Reward::default(), // the keeper's tools — granted at the handoff
+        giver_key: giver_key(home.0, home.1, SURVIVOR_SEED),
+        giver_rx: home.0,
+        giver_ry: home.1,
+    })
+}
+
+/// Leg 2, issued by the keeper at the handoff (story_talks stamps the id).
+pub fn den_quest(world: &crate::worldgen::World, elder_seed: u32) -> Option<Quest> {
+    let (rx, ry) = story_pin(world, 2)?;
+    let town = story_pin(world, 1)?;
+    Some(Quest {
+        id: 0,
+        kind: QuestKind::Story { stage: 2, rx, ry },
+        done: false,
+        title: "THE FIRST SHARD".to_string(),
+        goal: "CLAIM A RELIC FROM THE SHARD DEN".to_string(),
+        desc: "A SHARD BEAST DENS IN THE WILD NEARBY. CUT YOUR WAY DOWN, FACE IT, AND TAKE ITS RELIC. THE WRIFT MUST BE MENDED.".to_string(),
+        reward: Reward { coin: 150, xp: 40, item: None },
+        giver_key: giver_key(town.0, town.1, elder_seed),
+        giver_rx: town.0,
+        giver_ry: town.1,
+    })
+}
+
 /// The survivor's plea (and the elder's offer) follow the step — lines are
 /// dressed live so the spawns stay dumb and the words stay in one place.
 fn dress_lines(
@@ -56,7 +96,7 @@ fn dress_lines(
 ) {
     for mut v in &mut survivors {
         let line = match story.0 {
-            0 => "THEY CAME AT NIGHT AND TOOK EVERYTHING. A TOWN STILL STANDS - LET ME MARK YOUR MAP.",
+            0 => "THEY CAME AT NIGHT AND TOOK EVERYTHING. ASK OF MY TASK - THE ROAD MUST NOT END HERE.",
             1 => "SEEK THE TOWN KEEPER. THEY WILL NOT SEND YOU OUT EMPTY HANDED.",
             _ => "THE ASHES REMEMBER. MAY THE ROAD KEEP YOU.",
         };
@@ -114,42 +154,72 @@ fn mark_elder(
     }
 }
 
-/// The beats themselves — a talk (chat_t snapping up) advances the thread.
+/// The log is the truth — this watcher keeps the step in step with it: accepting
+/// leg 1 (dialog.rs' normal accept path) starts the thread; abandoning a leg
+/// steps back (leg 1 re-offers at WREN) or lets go (leg 2, tools already given).
+fn log_watch(
+    mut story: ResMut<StoryThread>,
+    log: Res<QuestLog>,
+    mut banners: ResMut<super::banners::Banners>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+) {
+    let has = |stage: u8| log.0.iter().any(|q| matches!(q.kind, QuestKind::Story { stage: s, .. } if s == stage));
+    match story.0 {
+        0 if has(1) => {
+            story.0 = 1;
+            banners.note("A TOWN STILL STANDS", "- MARKED ON YOUR MAP -");
+            sfx.write(super::sfx::Sfx("songmatch"));
+        }
+        1 if !has(1) => story.0 = 0, // abandoned — WREN will ask again
+        2 if !has(2) => story.0 = 3, // abandoned after the gift — the thread lets go
+        _ => {}
+    }
+}
+
+/// The handoff — talking to the crowned keeper (chat_t snapping up) resolves
+/// leg 1: the first AXE + PICK, and leg 2 takes its place in the log.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 fn story_talks(
     mut story: ResMut<StoryThread>,
     mut inv: ResMut<crate::inventory::PlayerInv>,
-    mut log: ResMut<super::rewards::LootLog>,
+    mut loot: ResMut<super::rewards::LootLog>,
     mut fanfare: ResMut<super::fanfare::Fanfare>,
     discovered: Res<super::codex::items_tab::Discovered>,
     mut banners: ResMut<super::banners::Banners>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
-    survivors: Query<&Villager, With<StorySurvivor>>,
-    mut elders: Query<&mut Villager, (With<StoryElder>, Without<StorySurvivor>)>,
-    mut prev: Local<(u32, u32)>,
+    mut quests: ResMut<QuestLog>,
+    mut counter: ResMut<super::quests::QuestCounter>,
+    world: Res<super::play::GameWorld>,
+    mut elders: Query<&mut Villager, With<StoryElder>>,
+    mut prev: Local<u32>,
 ) {
-    let s_chat = survivors.iter().next().map(|v| v.chat_t).unwrap_or(0);
-    let e_chat = elders.iter().next().map(|v| v.chat_t).unwrap_or(0);
-    if story.0 == 0 && s_chat > prev.0 {
-        story.0 = 1;
-        banners.note("A TOWN STILL STANDS", "- MARKED ON YOUR MAP -");
-        sfx.write(super::sfx::Sfx("songmatch"));
-    }
-    if story.0 == 1 && e_chat > prev.1 {
+    let (e_chat, e_seed) = elders.iter().next().map(|v| (v.chat_t, v.seed)).unwrap_or((0, 0));
+    if story.0 == 1 && e_chat > *prev {
         let got_axe = inv.add_item("axe", 1);
         let got_pick = inv.add_item("pick", 1);
         if !got_axe && !got_pick {
             // A full pack on the first hour is a feat — but don't eat the gift.
             banners.note("YOUR PACK IS FULL", "- MAKE ROOM AND ASK AGAIN -");
         } else {
+            if let Some(i) = quests.0.iter().position(|q| matches!(q.kind, QuestKind::Story { stage: 1, .. })) {
+                let q = quests.0.remove(i);
+                loot.add("quest", &format!("QUEST COMPLETE: {}", q.title), 1, 0x7ee08a, false, true);
+            }
             story.0 = 2;
             for (got, id, label) in [(got_axe, "axe", "AXE"), (got_pick, "pick", "PICK")] {
                 if got {
-                    log.add(id, label, 1, super::rewards::toast_color(id), false, false);
+                    loot.add(id, label, 1, super::rewards::toast_color(id), false, false);
                 }
             }
             if super::fanfare::should_play("axe", &discovered) {
                 super::fanfare::begin(&mut fanfare, "axe");
+            }
+            // The keeper's own charge takes leg 1's place in the log.
+            if let Some(mut q) = den_quest(&world.0, e_seed) {
+                counter.0 += 1;
+                q.id = counter.0;
+                loot.add("quest", &format!("QUEST ACCEPTED: {}", q.title), 1, 0xa8e0ff, false, true);
+                quests.0.push(q);
             }
             banners.note("THE KEEPERS PARTING GIFT", "- A SHARD DEN MARKED ON YOUR MAP -");
             sfx.write(super::sfx::Sfx("itemget"));
@@ -159,75 +229,39 @@ fn story_talks(
             }
         }
     }
-    *prev = (s_chat, e_chat);
+    *prev = e_chat;
 }
 
-/// The pay-off — the first relic in hand ends the thread. If the hero found a
-/// shard on their own before the elder's gift, it retires silently instead.
+/// The pay-off — a relic in hand resolves leg 2 in the field: reward, banner,
+/// and the thread retires for good.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 fn relic_watch(
     mut story: ResMut<StoryThread>,
     relics: Res<super::dungeon::Relics>,
     mut banners: ResMut<super::banners::Banners>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
+    mut quests: ResMut<QuestLog>,
+    mut inv: ResMut<crate::inventory::PlayerInv>,
+    mut progress: ResMut<super::rewards::Progress>,
+    mut alloc: ResMut<super::slideout::TreeAlloc>,
+    tstats: Res<super::slideout::TreeStats>,
+    mut loot: ResMut<super::rewards::LootLog>,
 ) {
-    if story.0 >= 3 || relics.0.is_empty() {
+    if story.0 != 2 || relics.0.is_empty() {
         return;
     }
-    let engaged = story.0 == 2;
     story.0 = 3;
-    if engaged {
-        banners.note("THE FIRST SHARD SINGS", "- NINE MORE SLUMBER IN THE DEEP -");
-        sfx.write(super::sfx::Sfx("songmatch"));
+    if let Some(i) = quests.0.iter().position(|q| matches!(q.kind, QuestKind::Story { stage: 2, .. })) {
+        let q = quests.0.remove(i);
+        let coin = (q.reward.coin as f64 * (1.0 + tstats.coin)).round() as i64;
+        inv.money += coin;
+        super::rewards::gain_xp(&mut progress, &mut alloc, q.reward.xp);
+        loot.add("quest", &format!("QUEST COMPLETE: {}", q.title), 1, 0x7ee08a, false, true);
+        loot.add("quest", &format!("REWARD: {}C  {}XP", coin, q.reward.xp), 1, 0xfce0a8, false, true);
     }
-}
-
-/// The gold '!' over whoever the thread waits on — the survivor at step 0, the
-/// elder at step 1. Rides the quest glyph gear (plate + bake + slide-hide).
-#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
-fn story_glyph_tick(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    story: Res<StoryThread>,
-    sliding: Res<super::play::SlideActive>,
-    clock: Res<super::room_render::FrameClock>,
-    survivors: Query<&Villager, With<StorySurvivor>>,
-    elders: Query<&Villager, With<StoryElder>>,
-    mut sprites: Query<(&mut Transform, &mut Visibility), With<super::quests::GlyphSprite>>,
-    mut live: Local<Option<(Entity, Entity, f32, f32)>>,
-) {
-    if sliding.0 {
-        return; // quests' tick hides every GlyphSprite mid-slide, ours included
-    }
-    let target = match story.0 {
-        0 => survivors.iter().next(),
-        1 => elders.iter().next(),
-        _ => None,
-    };
-    match (target.is_some(), *live) {
-        (true, None) => {
-            *live = Some(super::quests::spawn_glyph_pair(&mut commands, &mut images, '!', 0xffd34d));
-        }
-        (false, Some((ge, pe, ..))) => {
-            commands.entity(ge).despawn();
-            commands.entity(pe).despawn();
-            *live = None;
-        }
-        _ => {}
-    }
-    if let (Some(v), Some((ge, pe, iw2, ink2))) = (target, *live) {
-        // Centred by INK over their head, bobbing — the quest glyph's exact ride.
-        let bob = (clock.0 as f32 / 14.0 + v.x).sin().round() - 11.0;
-        let gx = (super::room_render::PLAY_X + v.x + 8.0 - ink2 / 2.0).round();
-        let gy = (super::room_render::PLAY_Y + v.y.round() + bob).round();
-        if let Ok((mut tf, mut vis)) = sprites.get_mut(ge) {
-            *tf = crate::gfx::at(gx, gy, iw2, 12.0, crate::gfx::layers::PROMPT + 0.02);
-            *vis = Visibility::Inherited;
-        }
-        if let Ok((mut tf, mut vis)) = sprites.get_mut(pe) {
-            *tf = crate::gfx::at(gx - 2.0, gy - 1.0, ink2 + 4.0, 12.0, crate::gfx::layers::PROMPT + 0.005);
-            *vis = Visibility::Inherited;
-        }
-    }
+    let sub = if relics.0.len() == 1 { "- NINE MORE SLUMBER IN THE DEEP -" } else { "- THE WRIFT STIRS -" };
+    banners.note("THE FIRST SHARD SINGS", sub);
+    sfx.write(super::sfx::Sfx("songmatch"));
 }
 
 pub struct StoryPlugin;
@@ -236,7 +270,7 @@ impl Plugin for StoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StoryThread>().add_systems(
             Update,
-            (dress_lines, mark_elder, story_talks, relic_watch, story_glyph_tick).run_if(playing),
+            (dress_lines, mark_elder, log_watch, story_talks, relic_watch).run_if(playing),
         );
     }
 }

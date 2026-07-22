@@ -214,6 +214,7 @@ pub(crate) fn talk_tick(
     cur: Res<CurRoom>,
     clock: Res<FrameClock>,
     quest_log: Res<super::quests::QuestLog>,
+    story: Res<super::story::StoryThread>,
     old: Query<Entity, With<ChatUi>>,
     mut last: Local<Option<String>>,
 ) {
@@ -254,7 +255,8 @@ pub(crate) fn talk_tick(
         let gkey = super::quests::giver_key(cur.rx, cur.ry, v.seed);
         let questable = quest_log.0.iter().any(|q| q.giver_key == gkey)
             || (super::quests::is_giver(world.0.seed, v.seed)
-                && quest_log.0.len() < super::quests::QUEST_MAX);
+                && quest_log.0.iter().filter(|q| !q.is_story()).count() < super::quests::QUEST_MAX)
+            || (v.seed == super::story::SURVIVOR_SEED && story.0 == 0); // WREN's one task
         let mut opts = vec![("TALK".into(), super::dialog::ChoiceAct::Talk)];
         if giftable {
             opts.push(("GIVE".into(), super::dialog::ChoiceAct::Gift));

@@ -373,6 +373,7 @@ fn hud_quests(
             ),
             QuestKind::Bounty { name, .. } => (format!("Hunt {name}"), String::new()),
             QuestKind::Clear { enc_name, .. } => (enc_name.clone(), String::new()),
+            QuestKind::Story { .. } => (q.title.clone(), String::new()),
         };
         // Clip the name, never the count (js clip()).
         let max_w = (INNER_W - 6.0) as i32 - font::measure(&suffix);

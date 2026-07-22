@@ -78,6 +78,7 @@ pub struct QuestCtx<'w, 's> {
     pub alloc: ResMut<'w, super::slideout::TreeAlloc>,
     pub tstats: Res<'w, super::slideout::TreeStats>,
     pub players: Query<'w, 's, &'static super::play::Player>,
+    pub story: Res<'w, super::story::StoryThread>,
 }
 
 #[derive(Component)]
@@ -213,7 +214,11 @@ fn dialog_tick(
                         meet_person(&mut cx, &mut commands, &mut images, &v, &world.0, cur_room.rx, cur_room.ry, today);
                         let key = super::quests::giver_key(cur_room.rx, cur_room.ry, v.seed);
                         let active = qx.log.0.iter().find(|q| q.giver_key == key).map(|q| q.id);
-                        let offer = if active.is_none() {
+                        let offer = if v.seed == super::story::SURVIVOR_SEED {
+                            // The survivor's task IS the story thread (story.rs) —
+                            // one offer at step 0, nothing once it's moving.
+                            if active.is_none() && qx.story.0 == 0 { super::story::town_quest(&world.0) } else { None }
+                        } else if active.is_none() {
                             let done = qx.giver_done.0.get(&key).copied().unwrap_or(0);
                             let gctx = super::quests::GenCtx {
                                 world: &world.0,
@@ -271,7 +276,7 @@ fn dialog_tick(
             } else if let Some(off) = offer {
                 // A fresh offer: accept fills a log slot (js acceptQuest).
                 if (state.pressed(Action::Slot1) || state.pressed(Action::Interact))
-                    && qx.log.0.len() < super::quests::QUEST_MAX
+                    && (off.is_story() || qx.log.0.iter().filter(|q| !q.is_story()).count() < super::quests::QUEST_MAX)
                 {
                     let mut q = off.clone();
                     qx.counter.0 += 1;
@@ -522,9 +527,12 @@ fn draw_quest(
         let name = crate::items::get(id).map_or(id.as_str(), |d| d.name);
         rew.push_str(&format!("   +{qty} {name}"));
     }
+    if let super::quests::QuestKind::Story { stage: 1, .. } = q.kind {
+        rew = "REWARD: THE KEEPERS OLD TOOLS".to_string();
+    }
     label(commands, images, &rew, bx + pad, yy, 0xfce0a8, Z + 0.04, DialogUi);
     let prompt = if is_offer {
-        if qx.log.0.len() < super::quests::QUEST_MAX {
+        if q.is_story() || qx.log.0.iter().filter(|q| !q.is_story()).count() < super::quests::QUEST_MAX {
             format!("{a} ACCEPT   {b} DECLINE")
         } else {
             format!("LOG FULL   {b} CLOSE")

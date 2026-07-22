@@ -106,14 +106,13 @@ pub fn run(
             Local<f32>,
             Query<Entity, With<RecenterBtn>>,
         ),
-        // Where you FELL + the clock that expires it — and the story thread's step.
-        (Res<crate::app::death::LastDeath>, Res<crate::app::room_render::FrameClock>, Res<crate::app::story::StoryThread>),
+        // Where you FELL + the clock that expires it with the day's room reset.
+        (Res<crate::app::death::LastDeath>, Res<crate::app::room_render::FrameClock>),
     ),
     mut dmap_key: Local<Option<(i32, i32, i32, u32, i32)>>,
 ) {
     let (towns, phouse, relics_res, players_q, in_dungeon, chant, mouse, fell) = marks;
     let death_room = fell.0 .0.filter(|(_, day)| *day == crate::app::gather::farm_day(fell.1 .0)).map(|(r, _)| r);
-    let story_room = crate::app::story::story_pin(&world.0, fell.2 .0);
     let (ptr, mbtn, mut wheels, mut drag, mut wacc, btns) = mouse;
     // UNDERGROUND: the DUNGEON FLOOR MAP replaces the world map (js drawDungeonMap) —
     // auto-fit, no zoom/pan, rebuilt when the room/floor moves (or the chant meter ticks).
@@ -135,7 +134,7 @@ pub fn run(
         // Back on the surface with the codex still open — trip a world-map rebuild.
         *seen_gen = cx_state.generation.wrapping_sub(1);
     }
-    let pins = pin_rooms(&quests, &tmaps, story_room);
+    let pins = pin_rooms(&quests, &tmaps);
     let mut rebuild = false;
     if *seen_gen != cx_state.generation {
         *seen_gen = cx_state.generation;
@@ -261,7 +260,7 @@ pub fn run(
         let ppos = players_q.single().map(|p| (p.x, p.y)).unwrap_or((0.0, 0.0));
         spawn_map(
             &mut commands, &world, &visited, cur.as_ref(), &view, &mut cache, &mut images, &quests, &tmaps, &inv,
-            &towns, &phouse, relics_whole, ppos, death_room, story_room,
+            &towns, &phouse, relics_whole, ppos, death_room,
         );
     } else if let Ok((_, mut tf)) = root.single_mut() {
         *tf = root_transform(&visited, cur.as_ref(), &view, &pins);
@@ -269,15 +268,8 @@ pub fn run(
 }
 
 /// Rooms the quest pins keep in frame (js codex fold: markers + giver rooms).
-fn pin_rooms(
-    quests: &crate::app::quests::QuestLog,
-    tmaps: &crate::app::digging::TreasureMaps,
-    story_room: Option<(i32, i32)>,
-) -> Vec<(i32, i32)> {
+fn pin_rooms(quests: &crate::app::quests::QuestLog, tmaps: &crate::app::digging::TreasureMaps) -> Vec<(i32, i32)> {
     let mut out = Vec::new();
-    if let Some(m) = story_room {
-        out.push(m); // the thread's next stop stays in frame
-    }
     for m in &tmaps.0 {
         out.push((m.rx, m.ry)); // an X keeps its room in frame (js codex fold)
     }
@@ -354,14 +346,13 @@ fn spawn_map(
     relics_whole: bool,
     ppos: (f32, f32),
     death_room: Option<(i32, i32)>,
-    story_room: Option<(i32, i32)>,
 ) {
-    let b = bounds(visited, cur.rx, cur.ry, &pin_rooms(quests, tmaps, story_room));
+    let b = bounds(visited, cur.rx, cur.ry, &pin_rooms(quests, tmaps));
     let (cell_w, cell_h) = cell_size(view.ts);
     let (rw, rh) = ((COLS * view.ts) as f32, (ROWS * view.ts) as f32);
     let root = commands
         .spawn((
-            root_transform(visited, cur, view, &pin_rooms(quests, tmaps, story_room)),
+            root_transform(visited, cur, view, &pin_rooms(quests, tmaps)),
             Visibility::default(),
             MapRoot,
             CodexUi,
@@ -511,17 +502,17 @@ fn spawn_map(
         {
             pin(commands, images, m, "!", 0xffd34d); // go here
         }
-        // Turn in here (WoW-gold when ready).
-        pin(commands, images, (q.giver_rx, q.giver_ry), "?", if ready { 0xffd34d } else { 0x8aa0c0 });
+        // Turn in here (WoW-gold when ready) — story legs resolve in the field,
+        // so no '?' waits at their giver.
+        if !q.is_story() {
+            pin(commands, images, (q.giver_rx, q.giver_ry), "?", if ready { 0xffd34d } else { 0x8aa0c0 });
+        }
     }
     // Treasure X's (js codex: every undug chart keeps its mark).
     for m in &tmaps.0 {
         pin(commands, images, (m.rx, m.ry), "X", 0xa02020);
     }
-    // The story thread's next stop (story.rs): a sky-blue '!' apart from quest gold.
-    if let Some(m) = story_room {
-        pin(commands, images, m, "!", 0x7fd4ff);
-    }
+
 }
 
 /// The DUNGEON FLOOR MAP (js drawDungeonMap): an auto-fit grid of this floor's
