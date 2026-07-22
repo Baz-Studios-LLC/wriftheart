@@ -226,13 +226,11 @@ pub fn run(
                     view.cx -= (p.x - last.x) / full_w;
                     view.cy -= (p.y - last.y) / full_h;
                     *drag = Some(p);
-                } else if mbtn.just_pressed(MouseButton::Left)
-                    && p.x >= AX
-                    && p.x <= AX + vw
-                    && p.y >= AY
-                    && p.y <= AY + vh
-                    && !ptr.over(bx, by, bw, bh)
-                {
+                } else if p.x >= AX && p.x <= AX + vw && p.y >= AY && p.y <= AY + vh && !ptr.over(bx, by, bw, bh) {
+                    // Held inside the view with no anchor yet: arm HERE. (just_pressed
+                    // is frame-cleared and a zero-tick FixedUpdate frame ate the edge —
+                    // the drag randomly refused to start. The level state can't be missed;
+                    // release always clears the anchor below, so this IS the press edge.)
                     *drag = Some(p);
                 }
             }

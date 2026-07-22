@@ -32,6 +32,7 @@ pub mod hall_exterior;
 pub mod home;
 pub mod packup;
 pub mod story;
+pub mod riftspire;
 pub mod placing;
 pub mod fire;
 pub mod fishing;

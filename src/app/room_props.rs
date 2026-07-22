@@ -318,12 +318,10 @@ pub fn spawn_room_props(
                 blockers.push((fx - 20.0, fy - 36.0, 56.0, 48.0)); // the monument's solid mass
             }
             "rift" => {
-                // The RIFT SPIRE (js riftSpire): a black tower with a glowing maw —
+                // THE RIFT SPIRE (js riftSpire, painted layer for layer — riftspire.rs);
                 // press-to-enter + the endless descent live in app/dungeon.rs.
-                let img = images.add(crate::gfx::bake(&super::dungeon::RIFT_SPIRE_ART, super::dungeon::RIFT_SPIRE_PAL));
-                let tf = at(PLAY_X + fx - 14.0, PLAY_Y + fy - 36.0, 44.0, 52.0, actor_z(fy + TILE as f32));
-                child(commands, root, Sprite::from_image(img), tf);
-                blockers.push((fx - 12.0, fy - 30.0, 40.0, 44.0)); // the tower's mass
+                super::riftspire::spawn(commands, images, root, fx, fy);
+                blockers.push((fx + 8.0 - 34.0, fy - 14.0, 68.0, 28.0)); // the js hitbox: the tower's ground mass
             }
             "clutter" => {
                 if let Some(img) = art.clutter.get(e.sub.as_str()) {

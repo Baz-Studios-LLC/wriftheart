@@ -62,15 +62,17 @@ pub struct World {
     pub seed: u32,
     shard: ShardData,
     saltmaze: Option<(i32, i32)>,
+    rift: (i32, i32),
 }
 
 impl World {
     /// `setSeed` + the lazy caches, made eager: shard sites first, then the Saltmaze.
     pub fn new(seed: u32) -> Self {
         let seed = if seed == 0 { 1 } else { seed }; // JS: (s >>> 0) || 1
-        let mut w = World { seed, shard: ShardData { biomes: vec![], sites: vec![] }, saltmaze: None };
+        let mut w = World { seed, shard: ShardData { biomes: vec![], sites: vec![] }, saltmaze: None, rift: (0, 0) };
         w.shard = w.compute_shard();
         w.saltmaze = w.compute_saltmaze();
+        w.rift = w.compute_rift(); // after shard + saltmaze — the walk dodges both
         w
     }
 
@@ -225,15 +227,35 @@ impl World {
     }
 
     // --- Set-piece room predicates --------------------------------------------------------
-    /// A RIFT SPIRE tears open rarely in the deep lands (threat tier 3+), never on another
-    /// set-piece room — pure hash, port of `riftAt`.
+    /// THE RIFT SPIRE — one tear in all the world (Baz; the js scattered them
+    /// tier-3+ at 1-in-53). It stands in the FARTHEST ring: a seeded walk round
+    /// the max-tier ring lands on the first room free of other set-pieces.
+    fn compute_rift(&self) -> (i32, i32) {
+        let r = MAX_TIER * ZONE_RING + 2;
+        let per = 8 * r;
+        let start = (hash(self.seed, 0, 0, SALT_RIFT) % per as u32) as i32;
+        for i in 0..per {
+            let idx = (start + i) % per;
+            let (side, o) = (idx / (2 * r), idx % (2 * r));
+            let (ax, ay) = match side {
+                0 => (-r + o, -r),
+                1 => (r, -r + o),
+                2 => (r - o, r),
+                _ => (-r, r - o),
+            };
+            if !self.is_town(ax, ay)
+                && !Self::is_castle(ax, ay)
+                && self.shard_dungeon_at(ax, ay).is_none()
+                && !self.saltmaze_at(ax, ay)
+            {
+                return (ax, ay);
+            }
+        }
+        (r, 0) // unreachable — a whole ring can't be all set-pieces
+    }
+    /// Is this room THE rift spire's? (One per world.)
     pub fn rift_at(&self, ax: i32, ay: i32) -> bool {
-        Self::threat_tier(ax, ay) >= 3
-            && !self.is_town(ax, ay)
-            && !Self::is_castle(ax, ay)
-            && self.shard_dungeon_at(ax, ay).is_none()
-            && !self.saltmaze_at(ax, ay)
-            && hash(self.seed, ax, ay, SALT_RIFT) % 53 == 0
+        (ax, ay) == self.rift
     }
     /// Rooms whose terrain is flattened (water suppressed) — port of `flatRoom`.
     pub fn flat_room(&self, ax: i32, ay: i32) -> bool {

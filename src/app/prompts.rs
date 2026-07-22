@@ -96,7 +96,7 @@ pub(crate) fn prompt_tick(
                 .iter()
                 .filter_map(|e| match e.kind {
                     "town" | "shop" | "dungeon" => Some(((e.x - 4) as f32, (e.y + 8) as f32, 24.0, 18.0)),
-                    "rift" => Some(((e.x - 10) as f32, (e.y + 14) as f32, 36.0, 18.0)),
+                    "rift" => Some(((e.x - 2) as f32, (e.y + 18) as f32, 20.0, 12.0)), // the js maw door
                     "castle" => Some(((e.x - 16) as f32, (e.y + 5) as f32, 32.0, 33.0)),
                     "guildhall" => Some(((e.x + 46) as f32, (e.y + 16) as f32, 20.0, 14.0)),
                     _ => None,

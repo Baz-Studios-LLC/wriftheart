@@ -30,63 +30,6 @@ pub use rune::{RuneActivate, WarpRune};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 
-/// The RIFT SPIRE (js riftSpire, redrawn as a grid): a black tiered tower, seams
-/// aglow, a maw at its base. Endless descent waits inside.
-pub(crate) const RIFT_SPIRE_ART: [&str; 52] = [
-    "..............bbbbbbbbbbbbbbbb..............",
-    "..............bBBBBBBBBBBBBBBe..............",
-    "..............bBBBBBBBBBBBBBBe..............",
-    "..............bBBBBBBBBBBBBBBe..............",
-    "..............bBBBBBBBBBBBBBBe..............",
-    "..............bBBBBBBBBBBBBBBe..............",
-    "..............bBBBBBBBBBBBBBBe..............",
-    "..............bBBBBBBBBBBBBBBe..............",
-    "..........bbVbbbbVbbbbVbbbbVbbbbbb..........",
-    "..........bBBBBBBBBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBBBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBBBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBVBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBBBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBVBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBBBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBVBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBBBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBVBBBBBBBBBBBBBBBe..........",
-    "..........bBBBBBBBBBBBBBBBBBBBBBBe..........",
-    "......bbVbbbbVbbbVVbbbbVbbbbVbbbbVbbbb......",
-    "......bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe......",
-    "......bBBBBBBBBBBVBBBBBBBBBBBBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe......",
-    "......bBBBBBBBBBBVBBBBBBBBBBVBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe......",
-    "......bBBBBBBBBBBVBBBBBBBBBBVBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe......",
-    "......bBBBBBBBBBBVBBBBBBBBBBVBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBVBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBVBBBBBBBBe......",
-    "......bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe......",
-    ".bbVbbbbVbbbbVbbbbVbbbbVbbbbVbbbbVbbbbVbbbb.",
-    ".bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBVBBBBBBBBBBBBBBBBBVBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBVBBBBBBBBBBBBBBBBBVBBBBBBVBBBBBBe.",
-    ".bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBVBBBBBBBBBBBBBBBBBVBBBBBBVBBBBBBe.",
-    ".bBBBBBBBBBBBBBBVVVVVVVVVVVVBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBVBBBBBVDDDDDDDDDDVVBBBBBBVBBBBBBe.",
-    ".bBBBBBBBBBBBBBBVDDDDDDDDDDVBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBVBBBBBVDDDDDDDDDDVBBBBBBBVBBBBBBe.",
-    ".bBBBBBBBBBBBBBBVDDDDDDDDDDVBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBVBBBBBVDDDDDDDDDDVBBBBBBBVBBBBBBe.",
-    ".bBBBBBBBBBBBBBBVDDDDDDDDDDVBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBBBBBBBVDDDDDDDDDDVBBBBBBBVBBBBBBe.",
-    ".bBBBBBBBBBBBBBBVDDDDDDDDDDVBBBBBBBBBBBBBBe.",
-    ".bBBBBBBBBBBBBBBVDDDDDDDDDDVBBBBBBBBBBBBBBe.",
-    "............................................",
-];
-pub(crate) const RIFT_SPIRE_PAL: &[(char, u32)] = &[('B', 0x1a1426), ('b', 0x2e2440), ('e', 0x0c0a12), ('V', 0xa06eff), ('D', 0x080610)];
 
 /// js THEME_BY_BIOME — every land's dungeon wears its land's interior.
 const THEME_BY_BIOME: &[(&str, &str)] = &[
@@ -1719,7 +1662,7 @@ fn enter_dungeon(
         }
         if e.kind == "rift" {
             // THE RIFT SPIRE (js): press at the maw -> floor 1 of the endless descent.
-            let door = ((e.x - 10) as f32, (e.y + 14) as f32, 36.0, 18.0);
+            let door = ((e.x - 2) as f32, (e.y + 18) as f32, 20.0, 12.0); // the js maw door
             if !overlap(hitbox, door) {
                 continue;
             }

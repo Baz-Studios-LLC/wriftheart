@@ -66,6 +66,7 @@ fn main() {
         .add_plugins(wriftheart::app::cooking::CookingPlugin)
         .add_plugins(wriftheart::app::packup::PackupPlugin)
         .add_plugins(wriftheart::app::story::StoryPlugin)
+        .add_plugins(wriftheart::app::riftspire::RiftSpirePlugin)
         .add_plugins(wriftheart::app::placing::PlacingPlugin)
         .add_plugins(wriftheart::app::caves::CavesPlugin)
         .add_plugins(wriftheart::app::digging::DiggingPlugin)
