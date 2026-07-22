@@ -37,6 +37,7 @@ const BOX_W: f32 = 12.0;
 const BOX_H: f32 = 8.0;
 const EDGE_REACH: f32 = 12.0;
 pub const HP_BASE: i32 = 3; // max HP at level 1 with no Vitality (js/player.js)
+const CHARGE_FULL: u32 = 30; // frames of hold before a weapon's special is wound
 
 pub struct PlayPlugin;
 
@@ -786,9 +787,9 @@ pub fn tick(
         super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xcfc8b8, 4);
     }
 
-    // --- HOLD MOVES (Baz): a held melee weapon charges after its tap swing — full
-    // at 30 frames (a ping + gold sparks), release to unleash the weapon's OWN move.
-    const CHARGE_FULL: u32 = 30;
+    // --- HOLD MOVES (Baz): a melee press WINDS UP instead of swinging — the
+    // release decides: under full (30f) it's the ordinary tap swing, at full
+    // (ping + aura + the overhead tremble) it's the weapon's OWN special.
     if let Some(sp) = &mut p.spin {
         // The sword's SPIN: one quarter-turn swing every 2 frames, clockwise.
         sp.timer += 1;
@@ -830,48 +831,18 @@ pub fn tick(
             p.slam = None;
         }
     }
-    if let Some(ch) = &p.charge {
+    // The wind-up clock only — RELEASE resolves inside the slot loop, where the
+    // weapon's def is live. A slot emptied mid-wind drops the charge.
+    if let Some(ch) = &mut p.charge {
         let ch_action = [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4][ch.slot];
-        if state.held(ch_action) {
-            let ch = p.charge.as_mut().unwrap();
+        if inv.slots[ch.slot].is_none() {
+            p.charge = None;
+        } else if state.held(ch_action) {
             ch.t += 1;
             if ch.t == CHARGE_FULL {
                 uses.sfx.write(super::sfx::Sfx("songmatch")); // wound and ready
             }
-            // (the visual is the blue AURA — charge_aura draws it in Update)
-        } else {
-            let ch = p.charge.take().unwrap();
-            if ch.t >= CHARGE_FULL && !p.blocking && p.spin.is_none() {
-                match ch.tool {
-                    crate::combat::Tool::Sword => {
-                        // SPIN SLASH: all four quarters, 1.75x, starting where you face.
-                        let order = [0usize, 3, 1, 2]; // Up, Right, Down, Left — clockwise
-                        let start = order.iter().position(|f| *f == p.facing as usize).unwrap_or(0);
-                        p.spin = Some(SpinPlay {
-                            seq: std::array::from_fn(|k| order[(start + k) % 4]),
-                            step: 0,
-                            timer: 2, // the first quarter fires next tick
-                            dmg: (ch.dmg * 7 / 4).max(1),
-                            tier: ch.tier,
-                            tier_img: ch.tier_img,
-                        });
-                        p.lock_timer = p.lock_timer.max(10);
-                    }
-                    crate::combat::Tool::Axe => {
-                        // OVERHEAD CLEAVE: the axe held trembling overhead now FALLS —
-                        // 2.5x, wider bite, big shove, impact 3 frames after release.
-                        p.slam = Some(SlamPlay { t: 0, tool: crate::combat::Tool::Axe, dmg: (ch.dmg * 5 / 2).max(1), tier: ch.tier, tier_img: ch.tier_img });
-                        p.lock_timer = p.lock_timer.max(18);
-                    }
-                    crate::combat::Tool::Pick => {
-                        // STONE SHATTER: the pick comes down and the ground answers —
-                        // 1.5x all around, bites every node in reach.
-                        p.slam = Some(SlamPlay { t: 0, tool: crate::combat::Tool::Pick, dmg: (ch.dmg * 3 / 2).max(1), tier: ch.tier, tier_img: ch.tier_img });
-                        p.lock_timer = p.lock_timer.max(14);
-                    }
-                }
-                p.cooldowns[ch.slot] = 30; // a heavy blow rests longer than a tap
-            }
+            // (the visuals are the AURA + the overhead hold — Update systems)
         }
     }
 
@@ -922,9 +893,80 @@ pub fn tick(
                 weapon_fired = true;
                 continue;
             }
-            // A raised shield holds every swing (js: `!p.blocking` gates the attack block).
-            if p.blocking || weapon_fired || p.lock_timer > 0 || p.cooldowns[i] > 0 || !state.pressed(action) {
-                continue;
+            // The wind-up contract (Baz: no swing BEFORE the charge): a press ARMS
+            // the wind instead of swinging; the release decides — under full it's
+            // the normal tap swing (below), at full it's the weapon's special.
+            let charging_this = p.charge.as_ref().is_some_and(|c| c.slot == i);
+            if charging_this {
+                if state.held(action) {
+                    continue; // still winding (the pre-loop clock ticks it)
+                }
+                let ch = p.charge.take().unwrap();
+                if ch.t >= CHARGE_FULL && !p.blocking && p.spin.is_none() && p.slam.is_none() {
+                    match ch.tool {
+                        crate::combat::Tool::Sword => {
+                            // SPIN SLASH: all four quarters, 1.75x, starting where you face.
+                            let order = [0usize, 3, 1, 2]; // Up, Right, Down, Left — clockwise
+                            let start = order.iter().position(|f| *f == p.facing as usize).unwrap_or(0);
+                            p.spin = Some(SpinPlay {
+                                seq: std::array::from_fn(|k| order[(start + k) % 4]),
+                                step: 0,
+                                timer: 2, // the first quarter fires next tick
+                                dmg: (ch.dmg * 7 / 4).max(1),
+                                tier: ch.tier,
+                                tier_img: ch.tier_img,
+                            });
+                            p.lock_timer = p.lock_timer.max(10);
+                        }
+                        crate::combat::Tool::Axe => {
+                            // OVERHEAD CLEAVE: the trembling axe FALLS — 2.5x, wider
+                            // bite, big shove, impact 3 frames after release.
+                            p.slam = Some(SlamPlay { t: 0, tool: crate::combat::Tool::Axe, dmg: (ch.dmg * 5 / 2).max(1), tier: ch.tier, tier_img: ch.tier_img });
+                            p.lock_timer = p.lock_timer.max(18);
+                        }
+                        crate::combat::Tool::Pick => {
+                            // STONE SHATTER: the pick comes down and the ground answers.
+                            p.slam = Some(SlamPlay { t: 0, tool: crate::combat::Tool::Pick, dmg: (ch.dmg * 3 / 2).max(1), tier: ch.tier, tier_img: ch.tier_img });
+                            p.lock_timer = p.lock_timer.max(14);
+                        }
+                    }
+                    p.cooldowns[i] = 30; // a heavy blow rests longer than a tap
+                    weapon_fired = true;
+                    continue;
+                }
+                // Released under full: fall through — the tap swing fires NOW
+                // (unless the guard came up mid-wind; a shield swallows it).
+                if p.blocking {
+                    continue;
+                }
+            } else {
+                // A raised shield holds every swing (js: `!p.blocking` gates the attack block).
+                if p.blocking || weapon_fired || p.lock_timer > 0 || p.cooldowns[i] > 0 || !state.pressed(action) || p.charge.is_some() {
+                    continue;
+                }
+                if let Some(tool) = def.tool {
+                    // A melee press WINDS UP; the special's numbers are fixed here.
+                    let spec = swing_spec(tool);
+                    let is_gen = def.id.starts_with('~');
+                    let base_dmg = if is_gen {
+                        crate::items::def_stat(def, "dmg")
+                    } else if def.id == "kingsplitter" {
+                        4.0
+                    } else {
+                        spec.damage as f64
+                    };
+                    let dmg = ((base_dmg * (1.0 + tstats.melee + modes.statuses.sum(|m| m.melee))) + 0.5).floor().max(1.0) as i32;
+                    p.charge = Some(ChargePlay {
+                        slot: i,
+                        t: 0,
+                        tool,
+                        dmg,
+                        tier: def.tool_tier,
+                        tier_img: attack_art.tiered.get(def.id).cloned(),
+                    });
+                    continue;
+                }
+                // Non-melee weapons (bow, wand, hooks...) fire on the press as ever.
             }
             if def.id == "bow" && state.pressed(action) && p.cooldowns[i] == 0 {
                 // js use(): the quiver pays first; a dry bag is just the click (no
