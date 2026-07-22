@@ -54,6 +54,7 @@ pub mod room_cache;
 pub mod room_props;
 pub mod save;
 pub mod fanfare;
+pub mod shard_fanfare;
 pub mod services;
 pub mod sfx;
 pub mod shield;

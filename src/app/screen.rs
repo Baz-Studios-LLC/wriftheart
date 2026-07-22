@@ -41,8 +41,10 @@ pub fn playing(
     state: Res<State<Screen>>,
     sleeping: Option<Res<super::services::Sleeping>>,
     fanfare: Option<Res<super::fanfare::Fanfare>>,
+    shard_rite: Option<Res<super::shard_fanfare::ShardFanfare>>,
 ) -> bool {
     *state.get() == Screen::Play
         && sleeping.is_none_or(|s| s.0.is_none())
         && fanfare.is_none_or(|f| f.0.is_none()) // the item-get cutscene freezes the world too (js)
+        && shard_rite.is_none_or(|f| f.0.is_none()) // ...and so does the shard rite
 }

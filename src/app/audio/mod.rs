@@ -180,6 +180,18 @@ fn render_sfx(key: &str) -> Option<Vec<f32>> {
             tone(&mut b, 0.46, 1319.0, 0.6, Wave::Triangle, 0.24, None);
             tone(&mut b, 0.60, 1568.0, 0.4, Wave::Square, 0.12, None);
         }
+        "shardget" => {
+            // The shard rite: a deep toll under a rising minor arpeggio, resolving
+            // into a long open-fifth shimmer with glitter on top.
+            tone(&mut b, 0.0, 131.0, 0.9, Wave::Triangle, 0.22, Some(65.0));
+            for (i, f) in [523.0, 622.0, 784.0, 1047.0, 1245.0, 1568.0].into_iter().enumerate() {
+                tone(&mut b, 0.25 + i as f32 * 0.09, f, 0.22, Wave::Triangle, 0.20, None);
+            }
+            tone(&mut b, 0.85, 1047.0, 1.2, Wave::Sine, 0.16, None);
+            tone(&mut b, 0.85, 1568.0, 1.2, Wave::Sine, 0.14, None);
+            tone(&mut b, 0.85, 2093.0, 1.0, Wave::Triangle, 0.10, None);
+            noise(&mut b, 0.85, 0.5, 0.05, Filter::Highpass, 3200.0);
+        }
         "dig" => {
             tone(&mut b, 0.0, 110.0, 0.09, Wave::Square, 0.22, Some(70.0));
             noise(&mut b, 0.0, 0.14, 0.30, Filter::Lowpass, 460.0);
@@ -220,10 +232,10 @@ fn render_sfx(key: &str) -> Option<Vec<f32>> {
 }
 
 /// Bake every voice the game can ask for (a few hundred ms of CPU, once).
-const SFX_KEYS: [&str; 38] = [
+const SFX_KEYS: [&str; 39] = [
     "swing", "hit", "enemyDie", "hurt", "wood", "stone", "leaf", "tink", "coin", "pickup", "craft", "levelup",
     "menuMove", "menuConfirm", "open", "warpCharge", "warpTick", "warpGo", "warpFail", "sleep", "wake", "block",
-    "thunder", "heartbeat", "cast", "splash", "reel", "itemget", "dig", "cluck", "moo", "songmatch", "bellring",
+    "thunder", "heartbeat", "cast", "splash", "reel", "itemget", "shardget", "dig", "cluck", "moo", "songmatch", "bellring",
     "noteU", "noteD", "noteL", "noteR", "noteChiff",
 ];
 

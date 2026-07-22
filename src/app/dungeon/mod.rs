@@ -1777,6 +1777,7 @@ fn navigate(
         MessageWriter<super::sfx::Sfx>,
         ResMut<DungeonKeys>,
         Res<super::home::PlayerHouse>,
+        ResMut<super::shard_fanfare::ShardFanfare>,
     ),
 ) {
     if swap.in_dungeon.0.is_none() {
@@ -1792,7 +1793,7 @@ fn navigate(
     };
     let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
     // Capture the room's facts up front (the arena/stairs branches need &mut run).
-    let (bosses, shards, mut rune_go, gates, mut mirror_step, mut side, side_looted, mut side_exits, mut descend, mut sfx, mut keys, house) = hunt;
+    let (bosses, shards, mut rune_go, gates, mut mirror_step, mut side, side_looted, mut side_exits, mut descend, mut sfx, mut keys, house, mut shard_rite) = hunt;
     // --- A stair descent in flight (js updateDescent): fade out while the hero keeps
     //     stepping into the steps, swap the floor at full black, fade back in. Control
     //     is locked (play::tick early-returns on Descending, like a pit fall). ---
@@ -1992,12 +1993,12 @@ fn navigate(
         }
         commands.entity(e).despawn();
         ctx.social.relics.0.insert(shard.biome.clone());
-        if let Some(r) = crate::relics_data::by_biome(&shard.biome) {
-            log.add("shard", &format!("THE {} IS YOURS", r.name.to_uppercase()), 1, r.col, false, true);
-        }
         let have = ctx.social.relics.0.len();
         let goal = swap.world.0.shard_biomes().len();
+        let (name, col) = crate::relics_data::by_biome(&shard.biome).map_or(("SHARD".to_string(), 0xc850ff), |r| (r.name.to_uppercase(), r.col));
+        log.add("shard", &format!("THE {name} IS YOURS"), 1, col, false, true);
         log.add("shardcount", &format!("{have} OF {goal} SHARDS"), 1, 0xe0b8ff, false, true);
+        shard_rite.begin(name, col, have, goal, shard.x, shard.y); // THE SHARD RITE — the world stops for this
     }
     // --- The rift gate: touch to fall DEEPER (regenerated floor, same way home). ---
     if cooldown.0 == 0

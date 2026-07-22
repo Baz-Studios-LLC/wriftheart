@@ -53,6 +53,7 @@ fn main() {
         .add_plugins(wriftheart::app::HomePlugin)
         .add_plugins(wriftheart::app::ServicesPlugin)
         .add_plugins(wriftheart::app::fanfare::FanfarePlugin)
+        .add_plugins(wriftheart::app::shard_fanfare::ShardFanfarePlugin)
         .add_plugins(wriftheart::app::TalkPlugin)
         .add_plugins(wriftheart::app::DialogPlugin)
         .add_plugins(wriftheart::app::DevPlugin)
