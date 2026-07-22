@@ -136,6 +136,9 @@ pub struct SaveData {
     pub game_won: bool, // the Wriftheart has been mended (js gameWon)
     /// The first-hour thread's step (story.rs): 0 fresh .. 3 retired.
     pub story: u8,
+    /// Sidebar widget arrangement: (id, pin 0-top/1-bottom, shown), display order.
+    #[serde(default)]
+    pub hud: Vec<(String, u8, bool)>,
     #[serde(default = "full_can")]
     pub can_water: i32, // the watering can's remaining pours (pre-farm saves: full)
 }
@@ -342,6 +345,7 @@ pub struct MiscExtras<'w> {
     pub rune: ResMut<'w, super::wands::WandRune>,
     pub victory: ResMut<'w, super::dungeon::Victory>,
     pub story: ResMut<'w, super::story::StoryThread>,
+    pub hud: ResMut<'w, super::hud_widgets::HudConfig>,
 }
 
 /// Restore every resource-side piece of the save (setup already consumed the world/room/
@@ -370,6 +374,7 @@ pub fn apply_to(d: &SaveData, ctx: &mut SaveCtx, extras: &mut SaveExtras) {
     extras.guards.0 = d.castle_guards_cleared;
     extras.misc.victory.won = d.game_won;
     extras.misc.story.0 = d.story;
+    extras.misc.hud.load(&d.hud);
     // The wand's socketed rune (pre-wand saves stored "": stay arcane).
     extras.misc.rune.0 = match d.wand_rune.as_str() {
         "fire" => "fire",
@@ -600,6 +605,7 @@ pub fn collect(ctx: &SaveCtx, extras: &SaveExtras, player: &Player, health: &Hea
         castle_guards_cleared: extras.guards.0,
         game_won: extras.misc.victory.won,
         story: extras.misc.story.0,
+        hud: extras.misc.hud.rows_for_save(),
         side_looted: {
             let mut v: Vec<String> = extras.side_looted.0.iter().cloned().collect();
             v.sort(); // deterministic file bytes
@@ -772,6 +778,7 @@ mod tests {
             castle_guards_cleared: false,
             game_won: false,
             story: 0,
+            hud: Vec::new(),
         };
         let json = serde_json::to_string(&d).unwrap();
         let back: SaveData = serde_json::from_str(&json).unwrap();

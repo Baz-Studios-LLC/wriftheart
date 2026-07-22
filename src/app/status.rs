@@ -178,46 +178,44 @@ fn hud_icons(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     statuses: Res<Statuses>,
-    layout: Res<super::hud::SidebarLayout>,
     mut cache: Local<HashMap<&'static str, Handle<Image>>>,
-    mut icons: Query<(Entity, &StatusIcon, &mut Visibility)>,
+    mut last: Local<String>,
+    mut icons: Query<(Entity, &StatusIcon, &mut Sprite)>,
 ) {
-    // One icon entity per active effect, laid out in def order; despawn the expired.
+    // One icon entity per active effect, laid out in def order at the BUFFS widget's
+    // baseline (hud_widgets moves the whole set as a unit). Rebuild only when the SET
+    // changes — repositioning in place would fight the widget engine's captured bases.
     let mut want: Vec<&'static StatusDef> = DEFS.iter().filter(|d| statuses.has(d.id)).collect();
     want.truncate(8);
-    for (e, icon, _) in &icons {
-        if !want.iter().any(|d| d.id == icon.0) {
+    let key: String = want.iter().map(|d| d.id).collect::<Vec<_>>().join("|");
+    if *last != key {
+        *last = key;
+        for (e, ..) in &icons {
             commands.entity(e).despawn();
         }
+        for (i, d) in want.iter().enumerate() {
+            let x = 10.0 + (i % 4) as f32 * 13.0;
+            let y = super::hud_widgets::BUFFS_BASE + (i / 4) as f32 * 13.0;
+            let img = cache
+                .entry(d.id)
+                .or_insert_with(|| images.add(crate::gfx::bake(d.icon, &[('X', d.color)])))
+                .clone();
+            commands.spawn((
+                Sprite::from_image(img),
+                crate::gfx::at(x, y, 10.0, 10.0, 32.0),
+                crate::gfx::PIXEL_LAYER,
+                StatusIcon(d.id),
+                super::hud_widgets::InWidget("buffs"),
+            ));
+        }
+        return;
     }
-    for (i, d) in want.iter().enumerate() {
-        // The widget STACK hands us our y (below the quest list, sliding up when
-        // it's empty) — the hand-picked 130.0 overlapped a full quest log (Baz).
-        let x = 10.0 + (i % 4) as f32 * 13.0;
-        let y = layout.buffs_y + (i / 4) as f32 * 13.0;
-        let existing = icons.iter_mut().find(|(_, ic, _)| ic.0 == d.id);
-        let blink = statuses
-            .active
-            .get(d.id)
-            .map(|(t, _)| *t < 180 && (*t / 8) % 2 == 0)
-            .unwrap_or(false);
-        match existing {
-            Some((e, _, mut vis)) => {
-                *vis = if blink { Visibility::Hidden } else { Visibility::Inherited };
-                commands.entity(e).insert(crate::gfx::at(x, y, 10.0, 10.0, 32.0));
-            }
-            None => {
-                let img = cache
-                    .entry(d.id)
-                    .or_insert_with(|| images.add(crate::gfx::bake(d.icon, &[('X', d.color)])))
-                    .clone();
-                commands.spawn((
-                    Sprite::from_image(img),
-                    crate::gfx::at(x, y, 10.0, 10.0, 32.0),
-                    crate::gfx::PIXEL_LAYER,
-                    StatusIcon(d.id),
-                ));
-            }
+    // The last-three-seconds blink — via sprite ALPHA, never Visibility (the widget
+    // engine owns Visibility for hide/show; two writers would fight).
+    for (_, ic, mut spr) in &mut icons {
+        if let Some((t, _)) = statuses.active.get(ic.0) {
+            let blink = *t < 180 && (*t / 8) % 2 == 0;
+            spr.color = spr.color.with_alpha(if blink { 0.0 } else { 1.0 });
         }
     }
     let _ = RoomActor; // icons are UI, not room cast — they persist across slides
@@ -280,7 +278,7 @@ impl Plugin for StatusPlugin {
                     .before(super::play::EndTick)
                     .run_if(super::screen::playing),
             )
-            .add_systems(Update, hud_icons);
+            .add_systems(Update, hud_icons.in_set(super::hud::HudContent));
     }
 }
 

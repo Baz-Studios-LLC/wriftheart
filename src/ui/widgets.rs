@@ -136,15 +136,17 @@ pub fn bar<M: Bundle>(
     spec: &BarSpec,
     frac: f32,
     marker: M,
+    tag: impl Bundle + Clone,
 ) -> Entity {
-    label(commands, images, spec.label, spec.x, spec.y + ((spec.h - 5.0) / 2.0).round(), 0x9a9a9a, spec.z + 1.0, ());
+    label(commands, images, spec.label, spec.x, spec.y + ((spec.h - 5.0) / 2.0).round(), 0x9a9a9a, spec.z + 1.0, tag.clone());
     let bx = spec.x + 13.0;
     commands.spawn((
         Sprite::from_color(Color::srgb_u8(0x0e, 0x0e, 0x12), Vec2::new(spec.w, spec.h)),
         at(bx, spec.y, spec.w, spec.h, spec.z),
         PIXEL_LAYER,
+        tag.clone(),
     ));
-    frame_rect(commands, bx, spec.y, spec.w, spec.h, spec.border, spec.z + 0.3, ());
+    frame_rect(commands, bx, spec.y, spec.w, spec.h, spec.border, spec.z + 0.3, tag.clone());
     let fc = Color::srgb_u8((spec.fill >> 16) as u8, (spec.fill >> 8) as u8, spec.fill as u8);
     commands
         .spawn((
@@ -153,6 +155,7 @@ pub fn bar<M: Bundle>(
             at(bx + 1.0, spec.y + 1.0, 0.0, spec.h - 2.0, spec.z + 0.2),
             PIXEL_LAYER,
             marker,
+            tag,
         ))
         .id()
 }

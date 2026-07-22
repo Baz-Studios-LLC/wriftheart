@@ -5,7 +5,7 @@ use super::{Area, Draw, GOLD, MUTED, TEXT_Z};
 use crate::gfx::font;
 use crate::settings::Settings;
 
-pub const TITLES: [&str; 4] = ["GAME", "VIDEO", "SOUND", "CONTROLS"];
+pub const TITLES: [&str; 5] = ["GAME", "WIDGETS", "VIDEO", "SOUND", "CONTROLS"];
 
 fn on_off(v: bool) -> &'static str {
     if v { "ON" } else { "OFF" }
@@ -21,7 +21,7 @@ pub fn list_rows(tab: usize, s: &Settings, saved_flash: u32) -> Vec<String> {
             "QUIT TO TITLE".into(),
             "EXIT GAME".into(),
         ],
-        1 => vec![
+        2 => vec![
             format!("PIXEL PERFECT: {}", on_off(s.pixel)),
             format!("SCREEN SHAKE: {}", s.shake_label()),
             format!("BRIGHTNESS: {}", s.bright_label()),
@@ -36,12 +36,12 @@ pub fn list_rows(tab: usize, s: &Settings, saved_flash: u32) -> Vec<String> {
 /// rows need screen/save access and live in mod.rs).
 pub fn confirm_setting(tab: usize, index: usize, s: &mut Settings) {
     match (tab, index) {
-        (1, 0) => s.pixel = !s.pixel,
-        (1, 1) => s.shake = (s.shake + 1) % 3, // OFF -> LOW -> FULL
-        (1, 2) => s.bright = (s.bright + 1) % 5, // DEFAULT -> +1..+4
-        (1, 3) => s.flash = !s.flash,
-        (1, 4) => s.fullscreen = !s.fullscreen,
-        (2, 0) => s.sound = !s.sound,
+        (2, 0) => s.pixel = !s.pixel,
+        (2, 1) => s.shake = (s.shake + 1) % 3, // OFF -> LOW -> FULL
+        (2, 2) => s.bright = (s.bright + 1) % 5, // DEFAULT -> +1..+4
+        (2, 3) => s.flash = !s.flash,
+        (2, 4) => s.fullscreen = !s.fullscreen,
+        (3, 0) => s.sound = !s.sound,
         _ => {}
     }
 }

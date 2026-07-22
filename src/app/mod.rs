@@ -40,6 +40,7 @@ pub mod flute;
 pub mod debug_shot;
 pub mod gather;
 pub mod hud;
+pub mod hud_widgets;
 pub mod identity;
 pub mod interior;
 pub mod lighting;
