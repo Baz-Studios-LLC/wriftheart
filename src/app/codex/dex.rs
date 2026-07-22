@@ -38,6 +38,26 @@ pub fn dex_nav(state: &ActionState, count: usize, cur: usize, cols: usize) -> us
     c.clamp(0, count as i32 - 1) as usize
 }
 
+/// Mouse: the entry under a click in the grid (Baz: click a cell to select it) —
+/// the same scroll window draw_grid shows. Returns the clicked entry, or None.
+pub fn dex_click(ptr: &crate::input::Pointer, count: usize, cur: usize, cols: usize) -> Option<usize> {
+    if !ptr.click || count == 0 {
+        return None;
+    }
+    let p = ptr.pos?;
+    let (ax, ay, cell) = (DEX_AX, DEX_GY, DEX_CELL);
+    let rows = count.div_ceil(cols);
+    let vis_rows = (((CANVAS_H as f32 - ay - 14.0) / cell).floor() as usize).max(1);
+    let scroll = (cur / cols).saturating_sub(vis_rows / 2).min(rows.saturating_sub(vis_rows));
+    let c = ((p.x - ax) / cell).floor();
+    let r = ((p.y - ay) / cell).floor();
+    if c < 0.0 || c >= cols as f32 || r < 0.0 || r >= vis_rows as f32 {
+        return None;
+    }
+    let i = (scroll + r as usize) * cols + c as usize;
+    (i < count).then_some(i)
+}
+
 /// js dexBlit's scale rule: oversized art shrinks to FIT `target`; smaller art
 /// integer-upscales for crispness. Returns the drawn size for an art of `native` px.
 pub fn blit_size(native: f32, target: f32) -> f32 {

@@ -77,6 +77,7 @@ pub fn run(
     cx_state: Res<CodexState>,
     gather: Res<GatherState>,
     mut lx: ResMut<LoreDex>,
+    ptr: Res<crate::input::Pointer>,
     mut images: ResMut<Assets<Image>>,
     old: Query<Entity, With<LoreUi>>,
     mut seen_gen: Local<u32>,
@@ -130,6 +131,7 @@ pub fn run(
     }
 
     let cur = dex::dex_nav(&state, BOOKS.len(), lx.cur, TOME_COLS);
+    let cur = dex::dex_click(&ptr, BOOKS.len(), cur, TOME_COLS).unwrap_or(cur);
     if cur != lx.cur {
         lx.cur = cur;
         lx.page = 0; // a new shelf pick previews from page 1

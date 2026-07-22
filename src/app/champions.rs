@@ -155,7 +155,7 @@ pub fn promote(
         }
         if elite {
             m.speed_mul *= 1.4;
-            m.size_mul = 2.0;
+            m.size_mul = (m.size_mul * 2.0).min(3.2); // scaled kinds keep their bulk edge
         }
     });
     commands.entity(ent).insert(Promoted { elite, affixes: keys, color });

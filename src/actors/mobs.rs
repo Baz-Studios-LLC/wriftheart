@@ -164,6 +164,8 @@ pub struct MobDef {
     pub splits: bool,     // slain -> two small children (slimes)
     pub ghost: bool,      // drawn at 0.8 alpha (wraith)
     pub volatile: bool,   // explodes on ANY death (js e.volatile — the emberling's whole idea)
+    /// Inherent draw scale (feet-anchored, hitbox follows) — the sandmaw's bulk.
+    pub scale: f32,
     pub ai: Ai,
 }
 
@@ -171,7 +173,7 @@ pub struct MobDef {
 pub(crate) const DEF_BASE: MobDef = MobDef {
     kind: "", hp: 1, damage: 1, xp: 1, blood: 0xd82800, defense: 0, knock_resist: 0.0, afflicts: ("", 0),
     fly: false, hb: (3.0, 4.0, 10.0, 9.0), coin: Coin::Default, potion: 0.0, drops: None,
-    down_revive: 0, splits: false, ghost: false, volatile: false, ai: Ai::Walker { spd: 0.5, range: 1e9 },
+    down_revive: 0, splits: false, ghost: false, volatile: false, scale: 1.0, ai: Ai::Walker { spd: 0.5, range: 1e9 },
 };
 
 /// The base roster — stats verbatim from the js factories.
@@ -226,7 +228,7 @@ pub fn mob_bundle(def_idx: usize, x: f32, y: f32) -> impl Bundle {
         Mob {
             def: def_idx, x, y, facing: 0, anim: 0, st: 0, t: 0, cd: 0,
             cvx: 0.0, cvy: 0.0, tx: 0.0, ty: 0.0, has_target: false, dart_t: 0, aggro: false,
-            downed: false, down_t: 0, small: false, sleep: 0, speed_mul: 1.0, size_mul: 1.0,
+            downed: false, down_t: 0, small: false, sleep: 0, speed_mul: 1.0, size_mul: d.scale,
         },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(d.damage), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: d.defense, invuln: 0, flash: 0 },

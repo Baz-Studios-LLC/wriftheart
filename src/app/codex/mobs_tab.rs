@@ -53,6 +53,7 @@ pub fn run(
     mob_art: Res<MobArtBank>,
     bestiary: Res<Bestiary>,
     mut dex_state: ResMut<MobDex>,
+    ptr: Res<crate::input::Pointer>,
     mut images: ResMut<Assets<Image>>,
     old: Query<Entity, With<MobsUi>>,
     mut seen_gen: Local<u32>,
@@ -61,6 +62,7 @@ pub fn run(
     let mut dirty = *seen_gen != cx_state.generation;
     *seen_gen = cx_state.generation;
     let cur = dex::dex_nav(&state, entries.len(), dex_state.cur, dex::DEX_COLS);
+    let cur = dex::dex_click(&ptr, entries.len(), cur, dex::DEX_COLS).unwrap_or(cur);
     if cur != dex_state.cur {
         dex_state.cur = cur;
         dirty = true;

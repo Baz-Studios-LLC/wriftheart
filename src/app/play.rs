@@ -813,10 +813,11 @@ pub fn tick(
     // keeps winding through the swipe — full at 30f (ping + aura + the overhead
     // tremble), release then for the weapon's OWN special.
     if let Some(sp) = &mut p.spin {
-        // The sword's SPIN: one quarter-turn swing every 2 frames, clockwise —
-        // and the hero WHIRLS with the blade (Baz), back where he began at the end.
+        // The sword's SPIN: one quarter-turn swing every 4 frames, clockwise —
+        // and the hero WHIRLS with the blade, back where he began at the end.
+        // (Was every 2 — Baz: "he spins so fast that you barely see it".)
         sp.timer += 1;
-        if sp.timer >= 2 {
+        if sp.timer >= 4 {
             sp.timer = 0;
             let facing = sp.seq[sp.step as usize];
             let (dmg, tier, img) = (sp.dmg, sp.tier, sp.tier_img.clone());
@@ -928,7 +929,7 @@ pub fn tick(
                             p.spin = Some(SpinPlay {
                                 seq: std::array::from_fn(|k| order[(start + k) % 4]),
                                 step: 0,
-                                timer: 2, // the first quarter fires next tick
+                                timer: 3, // the first quarter fires next tick
                                 dmg: (ch.dmg * 7 / 4).max(1),
                                 tier: ch.tier,
                                 tier_img: ch.tier_img,

@@ -56,6 +56,7 @@ pub fn run(
     cx_state: Res<CodexState>,
     seen: Res<Discovered>,
     mut dex_state: ResMut<ItemDex>,
+    ptr: Res<crate::input::Pointer>,
     mut images: ResMut<Assets<Image>>,
     old: Query<Entity, With<ItemsUi>>,
     mut seen_gen: Local<u32>,
@@ -64,6 +65,7 @@ pub fn run(
     let mut dirty = *seen_gen != cx_state.generation;
     *seen_gen = cx_state.generation;
     let cur = dex::dex_nav(&state, ids.len(), dex_state.cur, dex::DEX_COLS);
+    let cur = dex::dex_click(&ptr, ids.len(), cur, dex::DEX_COLS).unwrap_or(cur);
     if cur != dex_state.cur {
         dex_state.cur = cur;
         dirty = true;
