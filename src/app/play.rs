@@ -787,9 +787,9 @@ pub fn tick(
         super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xcfc8b8, 4);
     }
 
-    // --- HOLD MOVES (Baz): a melee press WINDS UP instead of swinging — the
-    // release decides: under full (30f) it's the ordinary tap swing, at full
-    // (ping + aura + the overhead tremble) it's the weapon's OWN special.
+    // --- HOLD MOVES (LttP model): the press swings instantly and a held button
+    // keeps winding through the swipe — full at 30f (ping + aura + the overhead
+    // tremble), release then for the weapon's OWN special.
     if let Some(sp) = &mut p.spin {
         // The sword's SPIN: one quarter-turn swing every 2 frames, clockwise.
         sp.timer += 1;
@@ -899,9 +899,9 @@ pub fn tick(
                 weapon_fired = true;
                 continue;
             }
-            // The wind-up contract (Baz: no swing BEFORE the charge): a press ARMS
-            // the wind instead of swinging; the release decides — under full it's
-            // the normal tap swing (below), at full it's the weapon's special.
+            // The charge contract (LttP; Baz: press-swings must feel instant): the
+            // press swings NOW, and holding on through it winds the special —
+            // release at full to unleash, release early and the swing was it.
             let charging_this = p.charge.as_ref().is_some_and(|c| c.slot == i);
             if charging_this {
                 if state.held(action) {
@@ -940,39 +940,13 @@ pub fn tick(
                     weapon_fired = true;
                     continue;
                 }
-                // Released under full: fall through — the tap swing fires NOW
-                // (unless the guard came up mid-wind; a shield swallows it).
-                if p.blocking {
-                    continue;
-                }
-            } else {
-                // A raised shield holds every swing (js: `!p.blocking` gates the attack block).
-                if p.blocking || weapon_fired || p.lock_timer > 0 || p.cooldowns[i] > 0 || !state.pressed(action) || p.charge.is_some() {
-                    continue;
-                }
-                if let Some(tool) = def.tool {
-                    // A melee press WINDS UP; the special's numbers are fixed here.
-                    let spec = swing_spec(tool);
-                    let is_gen = def.id.starts_with('~');
-                    let base_dmg = if is_gen {
-                        crate::items::def_stat(def, "dmg")
-                    } else if def.id == "kingsplitter" {
-                        4.0
-                    } else {
-                        spec.damage as f64
-                    };
-                    let dmg = ((base_dmg * (1.0 + tstats.melee + modes.statuses.sum(|m| m.melee))) + 0.5).floor().max(1.0) as i32;
-                    p.charge = Some(ChargePlay {
-                        slot: i,
-                        t: 0,
-                        tool,
-                        dmg,
-                        tier: def.tool_tier,
-                        tier_img: attack_art.tiered.get(def.id).cloned(),
-                    });
-                    continue;
-                }
-                // Non-melee weapons (bow, wand, hooks...) fire on the press as ever.
+                // Released under full: nothing extra — the tap swing already
+                // fired at the press (snappy taps; the hold was just short).
+                continue;
+            }
+            // A raised shield holds every swing (js: `!p.blocking` gates the attack block).
+            if p.blocking || weapon_fired || p.lock_timer > 0 || p.cooldowns[i] > 0 || !state.pressed(action) || p.charge.is_some() {
+                continue;
             }
             if def.id == "bow" && state.pressed(action) && p.cooldowns[i] == 0 {
                 // js use(): the quiver pays first; a dry bag is just the click (no
@@ -1086,6 +1060,17 @@ pub fn tick(
             p.cooldowns[i] = ((def.cooldown as f64 / (1.0 + tstats.haste)).round() as u32).max(4);
             p.lock_timer = def.lock_frames;
             weapon_fired = true;
+            // Still holding past this swing? The weapon starts WINDING its special
+            // (the LttP charge: the swipe flows into the rise). Release under full
+            // costs nothing — the swing above was the tap.
+            p.charge = Some(ChargePlay {
+                slot: i,
+                t: 0,
+                tool,
+                dmg,
+                tier: def.tool_tier,
+                tier_img: attack_art.tiered.get(def.id).cloned(),
+            });
         } else if def.consumable && state.pressed(action) && p.cooldowns[i] == 0 {
             if matches!(def.id, "chicken" | "cow" | "coop" | "barn") {
                 // Farm items validate + consume in their own handler (js use() veto).
@@ -1553,7 +1538,7 @@ fn charge_hold(
     // A quick tap never shows the pose — the weapon only rises once the hold is
     // real (Baz: the tap flashed the axe overhead before its side swipe).
     let show = match (&p.charge, &p.slam) {
-        (Some(ch), _) if ch.tool != crate::combat::Tool::Sword && ch.t >= 6 => Some((ch.tool, ch.t, ch.slot, None)),
+        (Some(ch), _) if ch.tool != crate::combat::Tool::Sword && ch.t >= 14 => Some((ch.tool, ch.t, ch.slot, None)),
         (_, Some(sl)) if sl.t < 3 => Some((sl.tool, 30, 0, Some(sl.t))),
         _ => None,
     };
