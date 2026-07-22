@@ -75,7 +75,10 @@ impl Builder {
         let (px, py) = (-dy, dx);
         let p = |d: f64, s: f64| (dx * d + px * s, dy * d + py * s);
         // Max HP stays SPRINKLED on the notables (the js note): the spine of every
-        // build earns a little life on the way out.
+        // build earns a little life on the way out. HEART SCALE (Baz, 2026-07-22):
+        // HP_BASE is 3 and gear affixes give +-1, so tree HP is hearts, not pools —
+        // the old js numbers (+4/+6 here, +8/+14 in the blood branch) let any build
+        // grind into an unkillable tank.
         let hp_add = |s: &Vec<(&'static str, f64)>, h: f64| {
             let mut o = s.clone();
             if let Some(e) = o.iter_mut().find(|(k, _)| *k == "maxhp") {
@@ -90,12 +93,12 @@ impl Builder {
         };
         let m1i = n("m1", p(26.0, 0.0), "minor", m1.0, m1.1, 1);
         let m2i = n("m2", p(50.0, 0.0), "minor", m2.0, m2.1, 1);
-        let n1i = n("n1", p(76.0, 0.0), "notable", n1.0, hp_add(&n1.1, 4.0), 2);
+        let n1i = n("n1", p(76.0, 0.0), "notable", n1.0, hp_add(&n1.1, 1.0), 2);
         let a1i = n("a1", p(102.0, -22.0), "minor", a1.0, a1.1, 2);
         let a2i = n("a2", p(128.0, -22.0), "minor", a2.0, a2.1, 3);
         let b1i = n("b1", p(102.0, 22.0), "minor", b1.0, b1.1, 2);
         let b2i = n("b2", p(128.0, 22.0), "minor", b2.0, b2.1, 3);
-        let n2i = n("n2", p(152.0, 0.0), "notable", n2.0, hp_add(&n2.1, 6.0), 3);
+        let n2i = n("n2", p(152.0, 0.0), "notable", n2.0, hp_add(&n2.1, 1.0), 3);
         let m3i = n("m3", p(176.0, 0.0), "minor", m3.0, m3.1, 4);
         let ksi = n("ks", p(202.0, 0.0), "keystone", ks.0, ks.1, 5);
         let start = self.idx("start");
@@ -122,14 +125,14 @@ fn build() -> Vec<Node> {
         ("JUGGERNAUT", v(&[("melee", 0.35), ("knock", 0.5), ("move", -0.08)])));
     b.branch("bld", 45.0,
         ("SCAB", v(&[("regen", 1.0)])),
-        ("THICK BLOOD", v(&[("maxhp", 8.0)])),
+        ("THICK BLOOD", v(&[("maxhp", 2.0)])),
         ("SLOW PULSE", v(&[("regen", 2.0)])),
-        ("CLOTTING", v(&[("regen", 3.0), ("maxhp", 6.0)])),
+        ("CLOTTING", v(&[("regen", 3.0), ("maxhp", 1.0)])),
         ("RED SIP", v(&[("leech", 0.015)])),
         ("HUNGER", v(&[("leech", 0.025)])),
         ("OPEN VEINS", v(&[("leech", 0.02), ("melee", 0.04)])),
         ("RED FEAST", v(&[("leech", 0.03), ("regen", 2.0)])),
-        ("HEARTSBLOOD", v(&[("maxhp", 14.0)])),
+        ("HEARTSBLOOD", v(&[("maxhp", 3.0)])),
         ("VAMPIRE", v(&[("leech", 0.08), ("melee", 0.12), ("regen", -4.0)])));
     b.branch("for", 90.0,
         ("LUCKY PENNY", v(&[("coin", 0.08)])),
@@ -141,7 +144,7 @@ fn build() -> Vec<Node> {
         ("KEEN EYE", v(&[("luck", 0.1), ("magnet", 8.0)])),
         ("GOLDEN TOUCH", v(&[("coin", 0.2), ("luck", 0.08)])),
         ("FOUR LEAF", v(&[("luck", 0.12)])),
-        ("MIDAS", v(&[("coin", 0.5), ("luck", 0.25), ("maxhp", -12.0)])));
+        ("MIDAS", v(&[("coin", 0.5), ("luck", 0.25), ("maxhp", -2.0)])));
     b.branch("mag", 135.0,
         ("EMBER MIND", v(&[("spell", 0.05)])),
         ("DEEP WELL", v(&[("maxmana", 3.0)])),
@@ -152,7 +155,7 @@ fn build() -> Vec<Node> {
         ("ATTUNEMENT", v(&[("spell", 0.08), ("maxmana", 3.0)])),
         ("ARCHMAGE", v(&[("spell", 0.12), ("manaregen", 2.0)])),
         ("STARLIT WELL", v(&[("maxmana", 6.0)])),
-        ("ARCHON", v(&[("spell", 0.45), ("maxmana", 10.0), ("maxhp", -18.0)])));
+        ("ARCHON", v(&[("spell", 0.45), ("maxmana", 10.0), ("maxhp", -3.0)])));
     b.branch("wnd", 180.0,
         ("LIGHT STEP", v(&[("move", 0.03)])),
         ("STRIDE", v(&[("move", 0.04)])),
@@ -163,7 +166,7 @@ fn build() -> Vec<Node> {
         ("QUICKSTEP", v(&[("move", 0.05), ("haste", 0.04)])),
         ("TEMPEST", v(&[("haste", 0.08), ("move", 0.04)])),
         ("ZEPHYR", v(&[("move", 0.06)])),
-        ("GALESOUL", v(&[("haste", 0.18), ("move", 0.12), ("maxhp", -20.0)])));
+        ("GALESOUL", v(&[("haste", 0.18), ("move", 0.12), ("maxhp", -3.0)])));
     b.branch("pre", 225.0,
         ("STEADY AIM", v(&[("crit", 0.015)])),
         ("KNIFES EDGE", v(&[("critmult", 0.08)])),
@@ -190,7 +193,7 @@ fn build() -> Vec<Node> {
         ("CAREFUL HANDS", v(&[("craft", 0.05)])),
         ("SCRAP SENSE", v(&[("craft", 0.06)])),
         ("REINFORCE", v(&[("defense", 1.0)])),
-        ("PLATING", v(&[("defense", 1.0), ("maxhp", 6.0)])),
+        ("PLATING", v(&[("defense", 1.0), ("maxhp", 1.0)])),
         ("BARTER", v(&[("coin", 0.1)])),
         ("TRADE ROUTES", v(&[("coin", 0.12)])),
         ("TINKERER", v(&[("craft", 0.1), ("coin", 0.08)])),
