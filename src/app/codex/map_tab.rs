@@ -257,8 +257,22 @@ pub fn run(
             label(&mut commands, &mut images, "RECENTER", bx + 4.0, by + 3.0, 0xcfd8e4, CONTENT_Z + 0.57, tag);
         }
     }
-    view.cx = view.cx.clamp(0.0, 1.0);
-    view.cy = view.cy.clamp(0.0, 1.0);
+    // Clamp the camera fraction to the LIVE range — the span that actually maps to
+    // a visible offset. A plain 0..1 clamp left dead zones near the edges (off's
+    // pixel clamp swallowed them): recenter on an edge room and a held pan spent a
+    // full second crossing dead fraction before anything moved (Baz). When the map
+    // fits the view the fraction pins to centre.
+    {
+        let b = bounds(&visited, cur.rx, cur.ry, &pins);
+        let (cell_w, cell_h) = cell_size(view.ts);
+        let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
+        let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
+        let (vw, vh) = view_size();
+        let half_x = (vw / 2.0 / full_w).min(0.5);
+        let half_y = (vh / 2.0 / full_h).min(0.5);
+        view.cx = view.cx.clamp(half_x, 1.0 - half_x);
+        view.cy = view.cy.clamp(half_y, 1.0 - half_y);
+    }
 
     if rebuild {
         for (e, _) in &root {
