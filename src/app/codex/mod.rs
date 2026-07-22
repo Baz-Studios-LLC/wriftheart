@@ -117,6 +117,7 @@ impl Plugin for CodexPlugin {
                     codex_tick.after(super::menu::menu_tick),
                     map_tab::run.run_if(tab_active(TabId::Map)).after(codex_tick),
                     map_tab::edge_arrows.run_if(tab_active(TabId::Map)).after(map_tab::run),
+                    map_tab::void_backdrop.run_if(tab_active(TabId::Map)).after(map_tab::run),
                     calendar_tab::run.run_if(tab_active(TabId::Calendar)).after(codex_tick),
                     mobs_tab::run.run_if(tab_active(TabId::Mobs)).after(codex_tick),
                     items_tab::run.run_if(tab_active(TabId::Items)).after(codex_tick),

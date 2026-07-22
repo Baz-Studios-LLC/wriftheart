@@ -267,6 +267,118 @@ pub fn run(
     }
 }
 
+/// One tile of the WRIFT — the void the fold floats on: dim star-dust with the
+/// rare teal / violet shard glint. Deterministic per layer seed; tiles seamlessly.
+const WRIFT_T: u32 = 96;
+fn wrift_tile(seed: u32) -> Image {
+    let t = WRIFT_T;
+    let mut rng = crate::worldgen::rng::Mulberry32::new(seed);
+    let mut buf = vec![0u8; (t * t * 4) as usize];
+    let mut put = |x: u32, y: u32, c: u32| {
+        let i = (((y % t) * t + (x % t)) * 4) as usize;
+        buf[i] = (c >> 16) as u8;
+        buf[i + 1] = (c >> 8) as u8;
+        buf[i + 2] = c as u8;
+        buf[i + 3] = 255;
+    };
+    for _ in 0..26 {
+        // Faint dust.
+        let (x, y) = ((rng.next_f64() * t as f64) as u32, (rng.next_f64() * t as f64) as u32);
+        put(x, y, 0x1e1e2a);
+    }
+    for _ in 0..9 {
+        // Brighter motes.
+        let (x, y) = ((rng.next_f64() * t as f64) as u32, (rng.next_f64() * t as f64) as u32);
+        put(x, y, 0x33314a);
+    }
+    for _ in 0..3 {
+        // Shard glints: a 2x2 fleck of the rift's teal or violet.
+        let (x, y) = ((rng.next_f64() * t as f64) as u32, (rng.next_f64() * t as f64) as u32);
+        let c = if rng.next_f64() < 0.5 { 0x2e4a52 } else { 0x443257 };
+        put(x, y, c);
+        put(x + 1, y, c);
+        put(x, y + 1, c);
+        put(x + 1, y + 1, c);
+    }
+    Image::new(
+        Extent3d { width: t, height: t, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        buf,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    )
+}
+
+/// A parallax layer of the WRIFT behind the map fold: follows the camera at a
+/// fraction, plus a slow idle drift so the void never quite sleeps.
+#[derive(Component)]
+pub struct VoidLayer {
+    k: f32,
+    drift: Vec2,
+}
+
+/// The WRIFT backdrop (Baz: "something on brand... maybe parallax"): two tiled
+/// star-dust layers under the world map, sliding at 0.35x / 0.65x of the pan.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+pub fn void_backdrop(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    time: Res<Time>,
+    in_dungeon: Res<crate::app::dungeon::InDungeon>,
+    visited: Res<Visited>,
+    cur: Res<CurRoom>,
+    view: Res<MapView>,
+    quests: Res<crate::app::quests::QuestLog>,
+    tmaps: Res<crate::app::digging::TreasureMaps>,
+    mut layers: Query<(Entity, &VoidLayer, &mut Transform)>,
+) {
+    let t_px = WRIFT_T as f32;
+    let (vw, vh) = view_size();
+    let (w, h) = (vw + 2.0 * t_px, vh + 2.0 * t_px);
+    if in_dungeon.0.is_some() {
+        // The dungeon floor map is parchment, not void.
+        for (e, ..) in &layers {
+            commands.entity(e).despawn();
+        }
+        return;
+    }
+    if layers.is_empty() {
+        for (i, (k, drift, seed)) in
+            [(0.35, Vec2::new(0.8, 0.45), 0x57a11u32), (0.65, Vec2::new(1.4, 0.8), 0x57a12u32)].into_iter().enumerate()
+        {
+            let mut spr = Sprite::from_image(images.add(wrift_tile(seed)));
+            spr.image_mode = SpriteImageMode::Tiled { tile_x: true, tile_y: true, stretch_value: 1.0 };
+            spr.custom_size = Some(Vec2::new(w, h));
+            commands.spawn((
+                spr,
+                at(AX - t_px, AY - t_px, w, h, 18.92 + i as f32 * 0.02), // over the codex panel (18.9), under content (19+)
+                PIXEL_LAYER,
+                CodexUi,
+                TabContent,
+                VoidLayer { k, drift },
+            ));
+        }
+        return; // positioned next frame
+    }
+    // The same camera math as the root (run/edge_arrows) — layers follow a fraction.
+    let pins = pin_rooms(&quests, &tmaps);
+    let b = bounds(&visited, cur.rx, cur.ry, &pins);
+    let (cell_w, cell_h) = cell_size(view.ts);
+    let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
+    let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
+    let off = |full: f32, v: f32, c: f32| {
+        if full <= v { -((v - full) / 2.0) } else { (c * full - v / 2.0).clamp(0.0, full - v) }
+    };
+    let (offx, offy) = (off(full_w, vw, view.cx), off(full_h, vh, view.cy));
+    let secs = time.elapsed_secs();
+    for (_, l, mut tf) in &mut layers {
+        let sx = ((offx * l.k + secs * l.drift.x) % t_px + t_px) % t_px;
+        let sy = ((offy * l.k + secs * l.drift.y) % t_px + t_px) % t_px;
+        let z = tf.translation.z;
+        *tf = at((AX - t_px - sx).round(), (AY - t_px - sy).round(), w, h, z);
+    }
+}
+
 /// Gold octant arrows (E, SE, S, SW, W, NW, N, NE) for the viewport-rim quest
 /// compass — an in-progress marker off the visible map gets an arrow on the rim
 /// pointing its way (Baz: "arrows on the edge of the map that point towards
@@ -464,20 +576,11 @@ fn spawn_map(
         .id();
     // Child at map-space top-left (mx,my), size (w,h): local y flips (root is a canvas point).
     let local = |mx: f32, my: f32, w: f32, h: f32, dz: f32| Transform::from_xyz(mx + w / 2.0, -(my + h / 2.0), dz);
-    // The map SHEET: a near-black panel + faint room-grid under everything. The void
-    // was pure black, so a pan over unexplored fold didn't visibly move (Baz) — the
-    // grid gives the camera something to slide, and hints where rooms could be.
+    // A faint room-grid over the void (the WRIFT backdrop lives below, parallax —
+    // see void_backdrop): pan feedback + a hint of where rooms could be.
     {
         let full_w = b.cols as f32 * cell_w - GAP;
         let full_h = b.rows as f32 * cell_h - GAP;
-        let sheet = commands
-            .spawn((
-                Sprite::from_color(Color::srgb_u8(0x0b, 0x0b, 0x10), Vec2::new(full_w + 4.0, full_h + 4.0)),
-                local(-2.0, -2.0, full_w + 4.0, full_h + 4.0, -0.1),
-                PIXEL_LAYER,
-            ))
-            .id();
-        commands.entity(root).add_child(sheet);
         let line = Color::srgb_u8(0x17, 0x17, 0x1f);
         for i in 1..b.cols {
             let e = commands
