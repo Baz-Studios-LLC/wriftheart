@@ -107,6 +107,9 @@ pub struct Swing {
     pub tool_tier: i32,
     /// Extra hitbox size for HOLD moves (cleave/shatter) — 0 for a plain tap swing.
     pub grow: f32,
+    /// A CHOP holds its line (the falling cleave/shatter): no lateral arc sweep —
+    /// the blade stays pointed along the facing for its whole life.
+    pub chop: bool,
 }
 
 /// The goblin's axe swipe: pivots on the goblin, active only after the wind-up.
@@ -176,7 +179,7 @@ pub fn axe_z(fy: f32, wielder_z: f32) -> f32 {
 pub fn swing_bundle(facing: usize, tool: Tool, damage: i32, tool_tier: i32, art: &AttackArt, tiered_img: Option<Handle<Image>>) -> impl Bundle {
     let spec = swing_spec(tool);
     (
-        Swing { life: spec.life, facing, tool, tool_tier, grow: 0.0 },
+        Swing { life: spec.life, facing, tool, tool_tier, grow: 0.0, chop: false },
         // hurt_team None: player swings hit foes AND resource nodes (js weapons set no
         // hurtTeam — the tool/team gates in resolve_combat do the sorting). `damage` is the
         // caller's final number (base spec x the tree's melee bonus).
@@ -220,7 +223,11 @@ pub fn swing_tick(s: &mut Swing, px: f32, py: f32) -> (Hitbox, f32, Vec2, bool) 
     let cy = py + 9.0 + dy * spec.reach;
     let g = s.grow;
     let hb = Hitbox { x: cx - (spec.hit_box + g) / 2.0, y: cy - (spec.hit_box + g) / 2.0, w: spec.hit_box + g, h: spec.hit_box + g };
-    let rot = ang + spin * (-spec.arc / 2.0 + spec.arc * prog);
+    let rot = if s.chop {
+        ang // a chop comes straight down its line — no sweep
+    } else {
+        ang + spin * (-spec.arc / 2.0 + spec.arc * prog)
+    };
     (hb, rot, Vec2::new(px + 8.0, py + 9.0), s.life > 0)
 }
 

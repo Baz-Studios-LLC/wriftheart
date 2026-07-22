@@ -816,12 +816,18 @@ pub fn tick(
                 .id();
             match tool {
                 crate::combat::Tool::Axe => {
-                    commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 8.0);
+                    commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| {
+                        sw.grow = 8.0;
+                        sw.chop = true;
+                    });
                     commands.entity(swing).entry::<Combatant>().and_modify(|mut c| c.knock += 2.5);
                     uses.sfx.write(super::sfx::Sfx("wood"));
                 }
                 _ => {
-                    commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| sw.grow = 20.0);
+                    commands.entity(swing).entry::<crate::actors::attacks::Swing>().and_modify(|mut sw| {
+                        sw.grow = 20.0;
+                        sw.chop = true;
+                    });
                     super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 9.0), 0xc0c0cc, 8);
                     uses.sfx.write(super::sfx::Sfx("stone"));
                 }
