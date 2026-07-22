@@ -345,6 +345,14 @@ pub fn spawn_room_props(
         let scene = super::encounters::build(def, world, room.0, room.1, h);
         super::encounters::spawn_decor(commands, images, art, root, &scene, &mut blockers);
         super::encounters::spawn_wanderers(commands, root, &scene);
+        // The scene's free pickings (the crater's star-metal): each waits until
+        // taken, then stays gone for good — the ruined-village stones' rule.
+        for (id, lx, ly) in &scene.loot {
+            let (c, r) = ((*lx as i32).div_euclid(TILE), (*ly as i32).div_euclid(TILE));
+            if !gather.placed_taken(room, c, r) {
+                super::gather::spawn_placed_item(commands, images, id, *lx, *ly, Some(root));
+            }
+        }
     }
     // The farm layer rides the root with the props: tilled beds + growing crops, then
     // the day's seasonal wild forage (js Farm.draw under the entities + spawnWildCrops).
