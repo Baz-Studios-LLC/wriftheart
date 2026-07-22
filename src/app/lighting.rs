@@ -118,6 +118,7 @@ struct SceneCtx<'w, 's> {
     /// update_overlay sits AT the 16-param cap.
     lootgobs: Query<'w, 's, &'static crate::combat::Hitbox, With<super::lootgoblin::LootGoblin>>,
     cleared: Res<'w, super::encounters::ClearedEncounters>,
+    grid: Res<'w, super::play::CurGrid>,
 }
 
 /// Rebuild the darkness buffer: ambient fill, then every light multiplies the alpha down
@@ -235,6 +236,20 @@ fn update_overlay(
                         "campfire" => v.push((d.x as i32 + 8, d.y as i32 + 4, 44)),
                         "crystal" => v.push((d.x as i32 + 8, d.y as i32 + 6, 30)),
                         _ => {}
+                    }
+                }
+            }
+            // LAVA GLOWS (task #48): the molten fields light the dark — one soft
+            // light per 3x3 tile stride keeps a big field cheap.
+            let (gx0, gy0) = (cur.rx * crate::room::COLS, cur.ry * crate::room::ROWS);
+            for r in 0..crate::room::ROWS {
+                for c in 0..crate::room::COLS {
+                    if r % 3 == 1
+                        && c % 3 == 1
+                        && scene.grid.0.code_at(c, r) == '.'
+                        && world.0.ground_name(gx0 + c, gy0 + r) == "lava"
+                    {
+                        v.push((c * crate::room::TILE + 8, r * crate::room::TILE + 8, 30));
                     }
                 }
             }

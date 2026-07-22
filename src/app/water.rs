@@ -1,5 +1,11 @@
-//! water.rs — the WATER MASK + the living-surface overlay (PORT-ORIGINAL, part of the
-//! 2026-07-16 water pass; "we moved to rust for a reason").
+//! water.rs — the LIQUIDS pass: the WATER mask + living-surface overlay
+//! (PORT-ORIGINAL, 2026-07-16), generalized for LAVA (task #48 — "we could use
+//! the water system and add to it since the hard shader work is mostly done",
+//! Baz). One shader, two liquids: water reads depth as darker deeps; lava reads
+//! it as the molten heart brightening away from the crusted edge. Lava churns at
+//! a third of water's pace, ignores the rain, BURNS the hero who wades it (a
+//! sizzle every 24 frames — sprintable, never free), and feeds the lighting
+//! pass so ember fields glow in the dark.
 //!
 //! On every room stand-up this bakes a PIXEL-RES (304x208) mask from the tile grid:
 //! r = water coverage — the '~'/'B' tiles PLUS the corner nooks that round water
@@ -30,13 +36,16 @@ pub struct WaterMask {
 
 #[derive(Component)]
 struct WaterOverlay;
+#[derive(Component)]
+struct LavaOverlay;
 
 pub struct WaterPlugin;
 
 impl Plugin for WaterPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WaterMask>()
-            .add_systems(Update, (rebake_mask, tick_water).chain());
+            .add_systems(Update, (rebake_mask, tick_water).chain())
+            .add_systems(bevy::app::FixedUpdate, lava_burn.run_if(super::screen::playing));
     }
 }
 
@@ -211,6 +220,132 @@ fn rebake_mask(
             .id();
         commands.entity(target).add_child(quad);
     }
+
+    // ---- THE LAVA PASS: alt-ground "lava" tiles get their own living surface. ----
+    let (gx0, gy0) = (cur.rx * COLS, cur.ry * ROWS);
+    let is_lava = |c: i32, r: i32| {
+        if !(0..COLS).contains(&c) || !(0..ROWS).contains(&r) {
+            return true; // off-room continues the field — border lava stays molten
+        }
+        grid.0.code_at(c, r) == '.' && world.0.ground_name(gx0 + c, gy0 + r) == "lava"
+    };
+    let mut ldepth = [[0u8; COLS as usize]; ROWS as usize];
+    let mut lany = false;
+    for r in 0..ROWS {
+        for c in 0..COLS {
+            if !is_lava(c, r) {
+                continue;
+            }
+            lany = true;
+            let mut d = 3u8;
+            'probe: for ring in 1i32..=3 {
+                for dr in -ring..=ring {
+                    for dc in -ring..=ring {
+                        if dr.abs().max(dc.abs()) == ring && !is_lava(c + dc, r + dr) {
+                            d = (ring - 1) as u8;
+                            break 'probe;
+                        }
+                    }
+                }
+            }
+            ldepth[r as usize][c as usize] = d;
+        }
+    }
+    if lany {
+        let mut cover = vec![false; (PX_W * PX_H) as usize];
+        for r in 0..ROWS {
+            for c in 0..COLS {
+                if !is_lava(c, r) {
+                    continue;
+                }
+                for py in r * TILE..(r + 1) * TILE {
+                    for px in c * TILE..(c + 1) * TILE {
+                        cover[(py * PX_W + px) as usize] = true;
+                    }
+                }
+            }
+        }
+        // Lava rounds into the basalt exactly as water rounds into land.
+        let open_lava = |c: i32, r: i32| (0..COLS).contains(&c) && (0..ROWS).contains(&r) && is_lava(c, r);
+        for r in 0..ROWS {
+            for c in 0..COLS {
+                if grid.0.code_at(c, r) != '.' || is_lava(c, r) {
+                    continue;
+                }
+                for (dx, dy) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] {
+                    if !(open_lava(c + dx, r) && open_lava(c, r + dy) && open_lava(c + dx, r + dy)) {
+                        continue;
+                    }
+                    for (j, w) in NOOK.into_iter().enumerate() {
+                        let nx = if dx < 0 { c * TILE } else { c * TILE + TILE - w };
+                        let ny = if dy < 0 { r * TILE + j as i32 } else { r * TILE + TILE - 1 - j as i32 };
+                        for x in nx..nx + w {
+                            cover[(ny * PX_W + x) as usize] = true;
+                        }
+                    }
+                }
+            }
+        }
+        let dep = |cc: i32, rr: i32| -> f32 {
+            let (cc, rr) = (cc.clamp(0, COLS - 1), rr.clamp(0, ROWS - 1));
+            if is_lava(cc, rr) { ldepth[rr as usize][cc as usize] as f32 / 3.0 } else { 0.0 }
+        };
+        let mut buf = vec![0u8; (PX_W * PX_H * 4) as usize];
+        for y in 0..PX_H {
+            for x in 0..PX_W {
+                let i = (y * PX_W + x) as usize;
+                if !cover[i] {
+                    continue;
+                }
+                let fx = (x as f32 + 0.5) / TILE as f32 - 0.5;
+                let fy = (y as f32 + 0.5) / TILE as f32 - 0.5;
+                let (c0, r0) = (fx.floor() as i32, fy.floor() as i32);
+                let (fu, fv) = (fx - c0 as f32, fy - r0 as f32);
+                let d = dep(c0, r0) * (1.0 - fu) * (1.0 - fv)
+                    + dep(c0 + 1, r0) * fu * (1.0 - fv)
+                    + dep(c0, r0 + 1) * (1.0 - fu) * fv
+                    + dep(c0 + 1, r0 + 1) * fu * fv;
+                buf[i * 4] = 255;
+                buf[i * 4 + 3] = (d * 255.0).round() as u8;
+            }
+        }
+        let limg = images.add(Image::new(
+            Extent3d { width: PX_W as u32, height: PX_H as u32, depth_or_array_layers: 1 },
+            TextureDimension::D2,
+            buf,
+            TextureFormat::Rgba8Unorm,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        ));
+        let mut t = at(
+            super::room_render::PLAY_X,
+            super::room_render::PLAY_Y,
+            PX_W as f32,
+            PX_H as f32,
+            layers::WATER_OVERLAY,
+        );
+        t.scale = Vec3::new(PX_W as f32, PX_H as f32, 1.0);
+        let quad = commands
+            .spawn((
+                LavaOverlay,
+                Mesh2d(meshes.add(Rectangle::new(1.0, 1.0))),
+                MeshMaterial2d(materials.add(WaterMaterial {
+                    mask: limg,
+                    params: WaterParams {
+                        time: 0.0,
+                        strength: 1.0,
+                        _p0: 0.0,
+                        _p1: 0.0,
+                        shallow: LAVA_CRUST,
+                        deep: LAVA_MOLTEN,
+                        wave: LAVA_GLINT,
+                    },
+                })),
+                t,
+                PIXEL_LAYER,
+            ))
+            .id();
+        commands.entity(target).add_child(quad);
+    }
 }
 
 /// The two style palettes, anchored to the game's own water chars ('w' 3cbcfc
@@ -221,6 +356,11 @@ const BLUE_WAVE: Vec4 = Vec4::new(0.24, 0.62, 0.95, 0.0); // toward 'w', restrai
 const MURK_SHALLOW: Vec4 = Vec4::new(0.19, 0.42, 0.36, 0.0); // u-family
 const MURK_DEEP: Vec4 = Vec4::new(0.08, 0.22, 0.19, 0.0);
 const MURK_WAVE: Vec4 = Vec4::new(0.31, 0.62, 0.55, 0.0); // u
+/// Lava reads the depth channel the other way round: crusted dark at the shore,
+/// the molten heart brightening toward the middle, hot glints riding the churn.
+const LAVA_CRUST: Vec4 = Vec4::new(0.45, 0.10, 0.03, 0.0); // 0x731a08 ember crust
+const LAVA_MOLTEN: Vec4 = Vec4::new(1.0, 0.45, 0.10, 0.0); // 0xff731a molten heart
+const LAVA_GLINT: Vec4 = Vec4::new(1.0, 0.82, 0.25, 0.0); // 0xffd140 hot spark
 
 /// Drift every live surface (mid-slide that's two — the outgoing room's and the
 /// incoming room's — so the water never freezes or blinks during the scroll).
@@ -229,6 +369,7 @@ fn tick_water(
     weather: Res<super::weather::WeatherState>,
     mut materials: ResMut<Assets<WaterMaterial>>,
     overlay: Query<&MeshMaterial2d<WaterMaterial>, With<WaterOverlay>>,
+    lava: Query<&MeshMaterial2d<WaterMaterial>, (With<LavaOverlay>, Without<WaterOverlay>)>,
 ) {
     for mat in &overlay {
         if let Some(mut m) = materials.get_mut(&mat.0) {
@@ -236,4 +377,44 @@ fn tick_water(
             m.params._p0 = weather.storm(); // rain chops the surface (weather tie-in)
         }
     }
+    for mat in &lava {
+        if let Some(mut m) = materials.get_mut(&mat.0) {
+            m.params.time = clock.0 as f32 / 170.0; // molten rock churns, it doesn't ripple
+        }
+    }
+}
+
+/// Wading lava BURNS: a bite every 24 frames while the hero's feet stand in it —
+/// crossable at real cost, so an unlucky field never soft-locks a room (the
+/// springboots hop over it clean; god mode shrugs).
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn lava_burn(
+    mut commands: Commands,
+    grid: Res<CurGrid>,
+    world: Res<super::play::GameWorld>,
+    cur: Res<super::play::CurRoom>,
+    god: Res<super::dev::GodMode>,
+    mut rng: ResMut<super::battle::GameRng>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    mut players: Query<(&super::play::Player, &mut crate::combat::Health)>,
+) {
+    let Ok((p, mut h)) = players.single_mut() else { return };
+    if god.0 || p.hop.is_some() {
+        return;
+    }
+    let (c, r) = (((p.x + 8.0) / TILE as f32).floor() as i32, ((p.y + 12.0) / TILE as f32).floor() as i32);
+    if !(0..COLS).contains(&c) || !(0..ROWS).contains(&r) || grid.0.code_at(c, r) != '.' {
+        return;
+    }
+    if world.0.ground_name(cur.rx * COLS + c, cur.ry * ROWS + r) != "lava" {
+        return;
+    }
+    if h.invuln > 0 {
+        return;
+    }
+    h.hp -= 1;
+    h.invuln = 24;
+    h.flash = 10;
+    sfx.write(super::sfx::Sfx("hurt"));
+    super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xff7a20, 6);
 }
