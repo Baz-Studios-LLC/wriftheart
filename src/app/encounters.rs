@@ -64,6 +64,9 @@ pub struct Scene {
     /// Free pickings placed with the scene (item id, x, y) — each waits until
     /// taken, then stays gone for good (the ruined-village stones' rule).
     pub loot: Vec<(&'static str, f32, f32)>,
+    /// Foes that spawn ASLEEP (sprawled, dreaming) — a hit or a close footstep
+    /// wakes them. The slumbering-guardian scenes' whole gamble.
+    pub sleepers: Vec<(&'static str, f32, f32)>,
 }
 
 pub struct Decor {
@@ -91,6 +94,9 @@ impl Scene {
     }
     pub fn loot(&mut self, id: &'static str, x: f32, y: f32) {
         self.loot.push((id, x, y));
+    }
+    pub fn sleeper(&mut self, kind: &'static str, x: f32, y: f32) {
+        self.sleepers.push((kind, x, y));
     }
     pub fn wanderer(&mut self, x: f32, y: f32, role: &'static str, title: &'static str) {
         let (x, y) = Self::clamp(x, y);
@@ -517,6 +523,25 @@ pub static ENCOUNTERS: &[EncDef] = &[
                 a.loot(ore, cx + ox as f32, cy + oy as f32);
             }
             a.loot("iron", cx - 14.0, cy + 24.0); a.loot("iron", cx + 40.0, cy - 18.0); } },
+    EncDef { id: "theAlpha", name: "THE ALPHA", biomes: Some(&["forest", "grassland", "mountains", "hollowwood"]), min_tier: 2, max_tier: None, weight: 1, seasons: None, night: None, roaming: false, friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.corpse(cx + 8.0, cy + 10.0); a.blood(cx + 12.0, cy + 14.0); a.bones(cx - 26.0, cy + 18.0);
+            a.foe("alphawolf", cx - 4.0, cy - 8.0);
+            a.foe("wolf", cx - 40.0, cy + 6.0); a.foe("wolf", cx + 38.0, cy + 8.0); } },
+    EncDef { id: "slumberingBeast", name: "THE SLUMBERING BEAST", biomes: Some(&["forest", "mountains", "hollowwood"]), min_tier: 2, max_tier: None, weight: 1, seasons: None, night: None, roaming: false, friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.gold(cx - 10.0, cy + 8.0); a.gold(cx + 10.0, cy + 10.0); a.gold(cx, cy + 18.0); a.bones(cx - 28.0, cy - 8.0); a.bones(cx + 26.0, cy - 10.0);
+            // Take the gold quietly... or take one step too close.
+            a.sleeper("bear", cx - 6.0, cy - 12.0); } },
+    EncDef { id: "slumberingTroll", name: "THE SLUMBERING TROLL", biomes: Some(&["arctic", "blackdeep"]), min_tier: 3, max_tier: None, weight: 1, seasons: None, night: None, roaming: false, friendly: false,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.ice(cx - 28.0, cy - 10.0); a.ice(cx + 26.0, cy - 8.0); a.ice(cx + 2.0, cy - 24.0);
+            a.gold(cx - 8.0, cy + 10.0); a.gold(cx + 10.0, cy + 12.0); a.crate_(cx + 32.0, cy + 16.0);
+            a.sleeper("icetroll", cx - 6.0, cy - 8.0); a.sleeper("icetroll", cx + 18.0, cy - 2.0); } },
+    EncDef { id: "falseMerchant", name: "A ROADSIDE STALL", biomes: None, min_tier: 1, max_tier: None, weight: 2, seasons: None, night: None, roaming: true, friendly: true,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.put("stall", cx - 13.0, cy - 22.0, 0); a.crate_(cx + 24.0, cy + 6.0);
+            a.wanderer(cx - 2.0, cy + 2.0, "merchant", "MERCHANT"); } },
+    EncDef { id: "whisperingWell", name: "THE WHISPERING WELL", biomes: None, min_tier: 1, max_tier: None, weight: 1, seasons: None, night: None, roaming: false, friendly: true,
+        place: |a| { let (cx, cy) = (a.cx, a.cy); a.put("oldwell", cx - 10.0, cy - 14.0, 0); a.flower(cx - 24.0, cy + 12.0); a.clutter("pebble", cx + 20.0, cy + 10.0);
+            // Stand at its mouth with a coin. Listen.
+        } },
 ];
 
 /// Camps the hero has wiped, and WHEN (room -> (day of last clear, clears so
@@ -731,6 +756,7 @@ pub fn build(def: &'static EncDef, world: &World, rx: i32, ry: i32, seed: u32) -
         victims: vec![],
         wanderers: vec![],
         loot: vec![],
+        sleepers: vec![],
     };
     (def.place)(&mut s);
     s
@@ -759,6 +785,8 @@ fn spec(kind: &str) -> Option<DecorSpec> {
         "web" => DecorSpec { grid: art::WEB, base_y: 0.0, hitbox: None },
         "ice" => DecorSpec { grid: art::ICE, base_y: 10.0, hitbox: Some((4.0, 6.0, 8.0, 4.0)) },
         "stake" => DecorSpec { grid: art::STAKE, base_y: 9.0, hitbox: Some((6.0, 7.0, 4.0, 2.0)) },
+        "stall" => DecorSpec { grid: art::STALL, base_y: 14.0, hitbox: Some((2.0, 8.0, 22.0, 6.0)) },
+        "oldwell" => DecorSpec { grid: art::OLDWELL, base_y: 12.0, hitbox: Some((3.0, 5.0, 14.0, 8.0)) },
         _ => return None,
     })
 }
@@ -781,6 +809,8 @@ pub fn spawn_decor(
                 "banner" => &[('r', 0)],  // placeholder — replaced below
                 "crystal" => &[('x', 0)], // (bake needs a concrete slice per call)
                 "blood" => art::BLOOD_PAL,
+                "stall" => art::STALL_PAL,
+                "oldwell" => art::OLDWELL_PAL,
                 _ => &[],
             };
             // Recolours can't borrow a temp slice through the match — bake directly.
@@ -792,6 +822,9 @@ pub fn spawn_decor(
             let (w, h) = (sp.grid[0].len() as f32, sp.grid.len() as f32);
             let z = if sp.base_y > 0.0 { actor_z(y + sp.base_y) } else { 3.05 };
             let e = child(commands, root, Sprite::from_image(img), at(PLAY_X + x, PLAY_Y + y, w, h, z));
+            if d.kind == "oldwell" {
+                commands.entity(e).insert(WhisperWell { x, y });
+            }
             if d.kind == "campfire" {
                 commands.entity(e).insert(Campfire {
                     frames: [images.add(bake(art::CAMP_A, &[])), images.add(bake(art::CAMP_B, &[]))],
@@ -880,6 +913,9 @@ impl Plugin for EncountersPlugin {
                     victim_deaths.after(crate::combat::resolve_combat),
                     wanderer_shout_tick,
                     threat_banner_tick,
+                    whisper_well_tick
+                        .after(super::prompts::prompt_tick)
+                        .before(super::play::EndTick),
                     wanderer_talk
                         .after(super::prompts::prompt_tick)
                         .after(super::services::interact_tick)
@@ -1153,6 +1189,133 @@ pub fn victim_tick(
 /// farmed (js talkWanderer); afterwards a friendly idle line. DEVIATION (flagged): the
 /// minstrel's waysong speed-buff awaits the player status system — he refills your
 /// MANA instead ("a tune for the road").
+/// THE WHISPERING WELL (Ideas pdf): an ancient ring over a mouth of dark. Toss a
+/// coin (one per well per day) and the water answers — a whisper, a blessing, a
+/// potion splashed up, the path to a treasure... and very rarely, YOUR NAME.
+#[derive(Component)]
+pub struct WhisperWell {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Component, Clone)]
+struct WellPromptUi;
+
+/// The well's toss-a-coin working set (grouped under the 16-param cap).
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct WellCtx<'w> {
+    inv: ResMut<'w, crate::inventory::PlayerInv>,
+    statuses: ResMut<'w, super::status::Statuses>,
+    mana: ResMut<'w, super::flute::Mana>,
+    log: ResMut<'w, super::rewards::LootLog>,
+    banners: ResMut<'w, super::banners::Banners>,
+    ident: Res<'w, super::identity::HeroIdent>,
+}
+
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn whisper_well_tick(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut input: ResMut<crate::input::ActionState>,
+    bindings: Res<crate::input::Bindings>,
+    world: Res<super::play::GameWorld>,
+    cur: Res<CurRoom>,
+    clock: Res<FrameClock>,
+    players: Query<&super::play::Player>,
+    wells: Query<&WhisperWell>,
+    mut cx: WellCtx,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    old: Query<Entity, With<WellPromptUi>>,
+    mut shown: Local<bool>,
+    mut drank: Local<bevy::platform::collections::HashMap<(i32, i32), i64>>,
+) {
+    let Ok(p) = players.single() else { return };
+    let today = super::gather::farm_day(clock.0);
+    let room = (cur.rx, cur.ry);
+    let near = wells.iter().next().filter(|w| {
+        ((p.x + 8.0) - (w.x + 10.0)).abs() < 16.0 && (p.y + 8.0) - w.y > 4.0 && (p.y + 8.0) - w.y < 30.0
+    });
+    let can = near.is_some() && drank.get(&room) != Some(&today);
+    if can != *shown {
+        *shown = can;
+        for e in &old {
+            commands.entity(e).despawn();
+        }
+        if can {
+            let key = bindings.prompt(crate::input::Action::Interact, input.pad_present);
+            super::prompts::spawn_bubble(&mut commands, &mut images, &format!("{key} TOSS A COIN"), p.x + 8.0, p.y - 10.0, WellPromptUi);
+        }
+    }
+    let Some(w) = near else { return };
+    if !input.pressed(crate::input::Action::Interact) {
+        return;
+    }
+    input.consume(crate::input::Action::Interact);
+    if drank.get(&room) == Some(&today) {
+        cx.log.add("well", "THE WELL IS SILENT NOW", 1, 0x8a8a92, false, true);
+        return;
+    }
+    if cx.inv.money < 1 {
+        cx.log.add("well", "IT WANTS A COIN", 1, 0x8a8a92, false, true);
+        sfx.write(super::sfx::Sfx("tink"));
+        return;
+    }
+    cx.inv.money -= 1;
+    drank.insert(room, today);
+    let h = hash(world.0.seed ^ (today as u32).wrapping_mul(0x9e37_79b9), room.0, room.1, 0x77e1_15e1);
+    let tier = World::threat_tier(room.0, room.1);
+    match h % 100 {
+        0..=1 => {
+            // It knows you. The water remembers.
+            let name = cx.ident.name.to_uppercase();
+            cx.banners.note(&name, "- THE WATER REMEMBERS -");
+            cx.statuses.add("waysong", 5400);
+            cx.mana.cur = cx.mana.max;
+            if cx.inv.can_add("potion") {
+                cx.inv.add_item("potion", 1);
+            }
+            sfx.write(super::sfx::Sfx("songmatch"));
+        }
+        2..=9 => {
+            if cx.inv.can_add("treasuremap") {
+                cx.inv.add_item("treasuremap", 1);
+                cx.log.add("treasuremap", "THE WATER SHOWS YOU A PLACE", 1, 0xd8b8ff, false, true);
+            } else {
+                spawn_pickup_at(&mut commands, &mut images, "treasuremap", 1, w.x + 4.0, w.y + 18.0);
+            }
+            sfx.write(super::sfx::Sfx("itemget"));
+        }
+        10..=29 => {
+            if cx.inv.can_add("potion") {
+                cx.inv.add_item("potion", 1);
+                cx.log.add("potion", "A POTION SPLASHES UP", 1, 0xd83060, false, true);
+            } else {
+                spawn_pickup_at(&mut commands, &mut images, "potion", 1, w.x + 4.0, w.y + 18.0);
+            }
+            sfx.write(super::sfx::Sfx("itemget"));
+        }
+        30..=49 => {
+            cx.statuses.add("waysong", 3600);
+            cx.mana.cur = cx.mana.max;
+            cx.log.add("well", "THE WELL HUMS KINDLY", 1, 0xa8e0ff, false, true);
+            sfx.write(super::sfx::Sfx("songmatch"));
+        }
+        _ => {
+            let whispers = [
+                "THE WATER SAYS... NOT YET",
+                "A NAME YOU DO NOT KNOW... YET",
+                "IT COUNTS YOUR COINS BACK TO YOU",
+                "SOMETHING TURNS OVER, FAR BELOW",
+                "THE DEEP LANDS HOLD WHAT YOU SEEK",
+                "IT HUMS A TUNE YOU ALMOST REMEMBER",
+            ];
+            let line = whispers[((h >> 8) as usize + tier as usize) % whispers.len()];
+            cx.log.add("well", line, 1, 0xcfc9a8, false, true);
+            sfx.write(super::sfx::Sfx("open"));
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 pub fn wanderer_talk(
     mut statuses: ResMut<super::status::Statuses>,
@@ -1169,16 +1332,17 @@ pub fn wanderer_talk(
     mut saves: MessageWriter<super::save::SaveRequest>,
     mut rng: ResMut<super::battle::GameRng>,
     players: Query<&super::play::Player>,
-    mut wanderers: Query<&mut Wanderer>,
+    mut human_art: ResMut<crate::actors::goblin::HumanArt>,
+    mut wanderers: Query<(&mut Wanderer, Entity)>,
 ) {
     let Ok(p) = players.single() else { return };
     if !input.pressed(crate::input::Action::Interact) {
         return;
     }
     let (pcx, pcy) = (p.x + 8.0, p.y + 8.0);
-    let Some(mut w) = wanderers
+    let Some((mut w, _)) = wanderers
         .iter_mut()
-        .find(|w| ((w.x + 8.0) - pcx).hypot((w.y + 8.0) - pcy) < 26.0)
+        .find(|(w, _)| ((w.x + 8.0) - pcx).hypot((w.y + 8.0) - pcy) < 26.0)
     else {
         return;
     };
@@ -1199,6 +1363,7 @@ pub fn wanderer_talk(
             "stargazer" => "THE SKY REMEMBERS EVERYTHING.",
             "mourner" => "THANK YOU FOR STANDING WITH US.",
             "knight" => "GO... TAKE IT AND GO. LET ME REST.",
+            "merchant" => "SOLD OUT, FRIEND. SOLD OUT.",
             _ => "SAFE TRAVELS!",
         };
         w.shout = Some((idle.to_string(), 220));
@@ -1273,6 +1438,76 @@ pub fn wanderer_talk(
             }
             w.shout = Some(("THE ROAD KEEP YOU.".to_string(), 220));
             sfx.write(super::sfx::Sfx("itemget"));
+        }
+        "merchant" => {
+            // THE FALSE MERCHANT (Ideas pdf): the same stall, four fates — the
+            // room's seed decides who he really is. Sales that can't close leave
+            // the offer OPEN (no met-mark), so you can come back with coin.
+            match w.seed % 4 {
+                0 => {
+                    // Genuine: a fair price on a real find.
+                    if inv.money < 25 {
+                        w.shout = Some(("FINE GOODS, 25 COIN. COME BACK.".to_string(), 220));
+                        sfx.write(super::sfx::Sfx("tink"));
+                        return;
+                    }
+                    inv.money -= 25;
+                    let (id, qty) = crate::items::roll_loot(0.45 + tier as f64 * 0.1, 0.0, || rng.0.next_f64());
+                    if inv.can_add(id) {
+                        inv.add_item(id, qty);
+                        let name = crate::items::get(id).map_or(id, |d| d.name).to_uppercase();
+                        log.add(id, &name, qty, super::rewards::toast_color(id), false, false);
+                    } else {
+                        spawn_pickup_at(&mut commands, &mut images, id, qty, w.x, w.y + 12.0);
+                    }
+                    w.shout = Some(("A FAIR PRICE, FRIEND.".to_string(), 220));
+                    sfx.write(super::sfx::Sfx("itemget"));
+                }
+                1 => {
+                    // The trap: his friends were behind the stall all along.
+                    w.shout = Some(("NOTHING PERSONAL, FRIEND.".to_string(), 260));
+                    for (bx, by) in [(-42.0, -20.0), (44.0, -16.0), (0.0, 38.0)] {
+                        let (x, y) = (w.x + bx, w.y + by);
+                        let seed = (x as i32 as u32).wrapping_mul(2654435761) ^ (y as i32 as u32).wrapping_mul(97) ^ 0xfa15e;
+                        let frames = human_art.frames("bandit", seed, &mut images);
+                        commands.spawn((
+                            crate::actors::goblin::goblin_bundle(crate::actors::goblin::GoblinKind::Melee, x, y),
+                            Sprite::default(),
+                            crate::actors::goblin::HumanSkin { kind: "bandit", seed, frames },
+                            RoomActor,
+                            crate::gfx::PIXEL_LAYER,
+                            EncFoe,
+                        ));
+                    }
+                    sfx.write(super::sfx::Sfx("swing"));
+                }
+                2 => {
+                    // Black market: pricey, but the chart is real.
+                    if inv.money < 60 {
+                        w.shout = Some(("THE GOOD STUFF IS 60. COME BACK RICH.".to_string(), 220));
+                        sfx.write(super::sfx::Sfx("tink"));
+                        return;
+                    }
+                    inv.money -= 60;
+                    if inv.can_add("treasuremap") {
+                        inv.add_item("treasuremap", 1);
+                        log.add("treasuremap", "TREASURE MAP", 1, 0xd8b8ff, false, false);
+                    } else {
+                        spawn_pickup_at(&mut commands, &mut images, "treasuremap", 1, w.x, w.y + 12.0);
+                    }
+                    w.shout = Some(("DONT ASK WHERE I GOT IT.".to_string(), 220));
+                    sfx.write(super::sfx::Sfx("itemget"));
+                }
+                _ => {
+                    // Already robbed — he presses his last stock on you.
+                    if inv.can_add("potion") {
+                        inv.add_item("potion", 1);
+                        log.add("potion", "POTION", 1, 0xd83060, false, false);
+                    }
+                    w.shout = Some(("BANDITS TOOK THE REST. TAKE IT.".to_string(), 260));
+                    sfx.write(super::sfx::Sfx("itemget"));
+                }
+            }
         }
         "knight" => {
             // His last tale, and his blade — rolled by the forge that made him

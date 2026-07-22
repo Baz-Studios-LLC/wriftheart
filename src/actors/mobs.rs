@@ -185,7 +185,12 @@ pub use super::mob_defs::MOB_DEFS;
 /// tag's base; unknown kinds fall back. (Lives here, not the GENERATED mobs_art, so an
 /// extractor regen can't drop it.)
 pub fn bestiary_name(kind: &str) -> &'static str {
-    super::mobs_art::BESTIARY_INFO.iter().find(|(k, _, _)| *k == kind).map(|(_, n, _)| *n).unwrap_or("BEAST")
+    super::mobs_art::BESTIARY_INFO
+        .iter()
+        .chain(super::mobs_art_extra::EXTRA_BESTIARY)
+        .find(|(k, _, _)| *k == kind)
+        .map(|(_, n, _)| *n)
+        .unwrap_or("BEAST")
 }
 
 pub fn def_index(kind: &str) -> Option<usize> {
@@ -327,7 +332,7 @@ pub struct MobArtBank {
 impl MobArtBank {
     pub fn build(images: &mut Assets<Image>) -> Self {
         let mut frames = HashMap::default();
-        for (kind, set) in mobs_art::ALL_FRAMES {
+        for (kind, set) in mobs_art::ALL_FRAMES.iter().chain(super::mobs_art_extra::EXTRA_FRAMES) {
             let right: Vec<_> = set.iter().map(|f| bake_frame(images, f, false)).collect();
             let left: Vec<_> = set.iter().map(|f| bake_frame(images, f, true)).collect();
             frames.insert(*kind, [right, left]);

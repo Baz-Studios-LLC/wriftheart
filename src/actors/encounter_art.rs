@@ -112,3 +112,59 @@ pub const BLOOD_POOL: &[&str] = &[
     "...qqqqqqqqq....", "....qqqqqqq.....", "......qqq.......", "................",
 ];
 pub const BLOOD_PAL: &[(char, u32)] = &[('q', 0x7c0800)];
+
+// --- rs-original bespoke props (Baz: encounters lean on bespoke graphics) --------
+
+/// THE FALSE MERCHANT's roadside stall: striped awning over a laden counter.
+pub const STALL: &[&str] = &[
+    "..........................",
+    ".kkkkkkkkkkkkkkkkkkkkkkk..",
+    ".kaAaaAaaAaaAaaAaaAaaAak..",
+    ".kAaaAaaAaaAaaAaaAaaAaAk..",
+    ".kkkkkkkkkkkkkkkkkkkkkkk..",
+    "..kW..................Wk..",
+    "..kW..................Wk..",
+    "..kW...gg...yy....gg..Wk..",
+    ".kkkkkkkkkkkkkkkkkkkkkkk..",
+    ".kWwwwWwwwWwwwWwwwWwwwWk..",
+    ".kwwwwwwwwwwwwwwwwwwwwwk..",
+    ".kkkkkkkkkkkkkkkkkkkkkkk..",
+    "..kw.................wk...",
+    "..kw.................wk...",
+    "..kk.................kk...",
+    "..........................",
+];
+pub const STALL_PAL: &[(char, u32)] = &[
+    ('k', 0x14100c),
+    ('a', 0xb02828), // awning red
+    ('A', 0xe8dcc0), // awning cream
+    ('w', 0x6a4a26), // counter wood
+    ('W', 0x8a6636), // wood light
+    ('g', 0x5aa04a), // wares
+    ('y', 0xd8b040), // wares
+];
+
+/// THE WHISPERING WELL: a mossy ancient ring over a mouth of pure dark.
+pub const OLDWELL: &[&str] = &[
+    "....................",
+    "......kkkkkkkk......",
+    "....kkSSSSSSSSkk....",
+    "...kSSSmSSSSSSSk....",
+    "..kSSkkkkkkkkkSSk...",
+    "..kSkDDDDDDDDDkSk...",
+    ".kSSkDDDDDDDDDkSSk..",
+    ".kSmkDDDDDDDDDkSSk..",
+    ".kSSkDDDDDDDDDkmSk..",
+    ".kSSSkkkkkkkkkSSSk..",
+    "..kSSSSSSmSSSSSSk...",
+    "..kkSSSSSSSSSSkk....",
+    "....kkSSmSSSkk......",
+    "......kkkkkk........",
+    "....................",
+];
+pub const OLDWELL_PAL: &[(char, u32)] = &[
+    ('k', 0x0c0e10),
+    ('S', 0x6a7078), // old stone
+    ('m', 0x4a7a3a), // moss
+    ('D', 0x05060a), // the dark below
+];

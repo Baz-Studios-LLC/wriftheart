@@ -104,9 +104,15 @@ pub(super) fn mobs_ai(
         // The Lullaby: asleep foes stand dreaming — no aggro, no thinking (flute.rs
         // wakes them the instant they're struck).
         if m.sleep > 0 {
-            m.sleep -= 1;
-            seat_hb(&m, d, &mut hb);
-            continue;
+            // A footstep too close wakes the dreamer (the slumbering-guardian rule).
+            if (Vec2::new(m.x, m.y) - ppos).length() < 30.0 {
+                m.sleep = 0;
+                m.aggro = true;
+            } else {
+                m.sleep -= 1;
+                seat_hb(&m, d, &mut hb);
+                continue;
+            }
         }
         // FROZEN SOLID (the frost beam): an ice statue — no thinking, no stepping,
         // no contact bite — until it thaws (mobfx.rs paints the blue cast + mist).

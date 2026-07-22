@@ -23,7 +23,7 @@ fn roster(goblins: &GoblinArt, mobs: &MobArtBank) -> Vec<Row> {
         ("goblin", "GOBLIN", "Wretched raiders; some sling stones.", (goblins.0[0][0][0].clone(), 16.0, 16.0)),
         ("slinger", "SPEAR GOBLIN", "Keeps its distance and slings stones.", (goblins.0[1][0][0].clone(), 16.0, 16.0)),
     ];
-    for (kind, name, desc) in BESTIARY_INFO {
+    for (kind, name, desc) in BESTIARY_INFO.iter().chain(crate::actors::mobs_art_extra::EXTRA_BESTIARY) {
         let art = if *kind == "wolf" { mobs.wolf[0][0].clone() } else { mobs.frames[kind][0][0].clone() };
         out.push((kind, name, desc, art));
     }

@@ -105,6 +105,13 @@ pub fn spawn_room_mobs(
     // roll entirely (friendly ones spawn no foes at all).
     if let Some((def, h)) = super::encounters::live_at(world, cleared, room.0, room.1, now) {
         let scene = super::encounters::build(def, world, room.0, room.1, h);
+        for (kind, x, y) in &scene.sleepers {
+            if let Some(idx) = mobs::def_index(kind) {
+                let e = commands.spawn((mob_bundle(idx, *x, *y), RoomActor, PIXEL_LAYER, super::encounters::EncFoe)).id();
+                // Dreaming until struck or stepped near (ai.rs wakes them).
+                commands.entity(e).entry::<mobs::Mob>().and_modify(|mut m| m.sleep = i32::MAX / 2);
+            }
+        }
         for (kind, x, y) in &scene.foes {
             let (x, y) = (*x, *y);
             if let Some(idx) = mobs::def_index(kind) {

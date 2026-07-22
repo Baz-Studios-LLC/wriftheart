@@ -120,7 +120,11 @@ pub(super) fn sync_mobs(art: Res<MobArtBank>, mut q: MobSprites) {
             *vis = if m.down_t < 40 && ((m.down_t >> 1) & 1) == 1 { Visibility::Hidden } else { Visibility::Inherited };
             continue;
         }
-        tf.rotation = Quat::IDENTITY;
+        tf.rotation = if m.sleep > 0 {
+            Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2) // dreaming: sprawled flat
+        } else {
+            Quat::IDENTITY
+        };
         *vis = if h.flash > 0 && (h.flash & 1) == 1 { Visibility::Hidden } else { Visibility::Inherited };
     }
 }

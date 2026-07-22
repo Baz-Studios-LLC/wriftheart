@@ -377,4 +377,10 @@ pub static MOB_DEFS: &[MobDef] = &[
         scale: 1.0,
         ai: Ai::WaterSpitter { period: 250, up_at: 165, fire_r: 175.0, sp: 2.6, dmg: 2, color: 0xbff0ff, core: 0xffffff, afflict: ("slow", 140) },
         ..DEF_BASE },
+    MobDef { kind: "alphawolf", hp: 30, damage: 4, xp: 45, blood: 0xa82020, defense: 1, knock_resist: 0.6,
+        hb: (3.0, 5.0, 16.0, 8.0), potion: 0.6, coin: Coin::Range(10, 18), drops: Some(("leather", 0.9, 2, 2)),
+        scale: 1.6, // a big canvas AND the bulk pipeline — it should fill the screen edge
+        ai: Ai::Chaser { spd: 1.05, chase_r: 1e9, vec: true, refaces: true,
+            lunge: LungeCfg { range: 110.0, cd: 84, windup: 12, dash: 22, dash_spd: 3.8, recover: 14, face_windup: true } },
+        ..DEF_BASE },
 ];

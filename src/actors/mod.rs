@@ -15,6 +15,7 @@ pub mod mob_defs;
 pub mod mob_think;
 pub mod mobs;
 pub mod mobs_art;
+pub mod mobs_art_extra;
 pub mod hero;
 pub mod props;
 pub mod tree_art;
