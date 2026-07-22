@@ -106,19 +106,21 @@ fn caravan_tick(
     players: Query<&Player>,
     wagons: Query<&CaravanWagon>,
     old: Query<Entity, With<CaravanPrompt>>,
-    mut shown: Local<Option<(i32, i32)>>,
+    mut shown: Local<Option<(i32, i32, bool)>>,
 ) {
     let Ok(p) = players.single() else { return };
     let near = wagons.iter().any(|w| (w.x + 16.0 - (p.x + 8.0)).hypot(w.y + 10.0 - (p.y + 8.0)) < 34.0);
     // The shared by-the-character bubble (prompts.rs), re-anchored as the hero moves.
-    let key = near.then_some((p.x as i32, p.y as i32));
+    // Pad state rides the rebuild key: the prompt is DERIVED (F vs the pad glyph) and
+    // must re-bake when a controller connects (Baz: pad in hand, prompt said F).
+    let key = near.then_some((p.x as i32, p.y as i32, input.pad_present));
     if key != *shown {
         *shown = key;
         for e in &old {
             commands.entity(e).despawn();
         }
         if near {
-            let text = format!("{} TRADE", bindings.prompt(Action::Interact, false));
+            let text = format!("{} TRADE", bindings.prompt(Action::Interact, input.pad_present));
             super::prompts::spawn_bubble(&mut commands, &mut images, &text, p.x + 8.0, p.y - 10.0, CaravanPrompt);
         }
     }
