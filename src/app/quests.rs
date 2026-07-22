@@ -537,7 +537,7 @@ fn giver_glyph_tick(
             // The glyph centres by its INK — and over the FRAME's ink too (side
             // facings carry the body off-centre in the canvas).
             let body = *centers.entry(vsprite.image.id()).or_insert_with(|| ink_center_off(images.get(&vsprite.image)));
-            let bob = (clock.0 as f32 / 14.0 + v.x).sin().round() - 11.0;
+            let bob = (clock.0 as f32 / 14.0 + v.x).sin().round() - 12.0; // js -11; Baz: a px more air over the head
             let gx = (super::room_render::PLAY_X + v.x + 8.0 + body - ink2 / 2.0).round();
             let gy = (super::room_render::PLAY_Y + v.y.round() + bob).round();
             if let Ok((mut tf, mut vis)) = sprites.get_mut(ge) {
