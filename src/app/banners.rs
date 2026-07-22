@@ -221,6 +221,22 @@ fn banner_draw(
             commands.entity(e).despawn();
         }
         let spawn_text = |images: &mut Assets<Image>, commands: &mut Commands, text: &str, y: f32, scale: f32, color: u32, kind: u8, base: f32, z: f32| {
+            // A SHARP drop shadow under every banner line (Baz): the same bake in
+            // near-black, one scaled pixel down-right, riding the same fade.
+            let (shadow, sw) = font::bake_text(text, 0x0a0a0a, images);
+            let siw = (sw + (sw & 1)) as f32;
+            commands.spawn((
+                Sprite {
+                    image: shadow,
+                    custom_size: Some(Vec2::new(siw * scale, 6.0 * scale)),
+                    color: Color::srgba(1.0, 1.0, 1.0, 0.0),
+                    ..default()
+                },
+                at((cx - siw * scale / 2.0).round() + scale, y - 3.0 * scale + scale, siw * scale, 6.0 * scale, z - 0.01),
+                PIXEL_LAYER,
+                BannerUi,
+                BannerFade { kind, base: base * 0.9 },
+            ));
             let (img, w) = font::bake_text(text, color, images);
             let iw = (w + (w & 1)) as f32;
             // js centerText anchors mid-glyph: x centered, y is the text centre.
