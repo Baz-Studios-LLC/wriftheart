@@ -1550,8 +1550,10 @@ fn charge_hold(
 ) {
     let Ok(p) = players.single() else { return };
     // What hangs overhead: the charging axe/pick, or the first beats of its fall.
+    // A quick tap never shows the pose — the weapon only rises once the hold is
+    // real (Baz: the tap flashed the axe overhead before its side swipe).
     let show = match (&p.charge, &p.slam) {
-        (Some(ch), _) if ch.tool != crate::combat::Tool::Sword => Some((ch.tool, ch.t, ch.slot, None)),
+        (Some(ch), _) if ch.tool != crate::combat::Tool::Sword && ch.t >= 6 => Some((ch.tool, ch.t, ch.slot, None)),
         (_, Some(sl)) if sl.t < 3 => Some((sl.tool, 30, 0, Some(sl.t))),
         _ => None,
     };
