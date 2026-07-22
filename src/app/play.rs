@@ -278,6 +278,8 @@ pub struct SpinPlay {
     pub dmg: i32,
     pub tier: i32,
     pub tier_img: Option<Handle<Image>>,
+    /// Where he faced going in — the whirl returns him there (Baz).
+    pub restore: crate::actors::hero::Facing,
 }
 
 /// The reel toward a lodged grapple hook (js p.grapple {tx,ty,t}).
@@ -809,7 +811,8 @@ pub fn tick(
     // keeps winding through the swipe — full at 30f (ping + aura + the overhead
     // tremble), release then for the weapon's OWN special.
     if let Some(sp) = &mut p.spin {
-        // The sword's SPIN: one quarter-turn swing every 2 frames, clockwise.
+        // The sword's SPIN: one quarter-turn swing every 2 frames, clockwise —
+        // and the hero WHIRLS with the blade (Baz), back where he began at the end.
         sp.timer += 1;
         if sp.timer >= 2 {
             sp.timer = 0;
@@ -818,7 +821,17 @@ pub fn tick(
             commands.spawn((swing_bundle(facing, crate::combat::Tool::Sword, dmg, tier, &attack_art, img), RoomActor, PIXEL_LAYER));
             uses.sfx.write(super::sfx::Sfx("swing"));
             sp.step += 1;
-            if sp.step >= 4 {
+            let done = sp.step >= 4;
+            let restore = sp.restore;
+            use crate::actors::hero::Facing;
+            p.facing = match facing {
+                1 => Facing::Up,
+                2 => Facing::Right,
+                3 => Facing::Left,
+                _ => Facing::Down,
+            };
+            if done {
+                p.facing = restore;
                 p.spin = None;
             }
         }
@@ -917,6 +930,7 @@ pub fn tick(
                                 dmg: (ch.dmg * 7 / 4).max(1),
                                 tier: ch.tier,
                                 tier_img: ch.tier_img,
+                                restore: p.facing,
                             });
                             p.lock_timer = p.lock_timer.max(10);
                         }

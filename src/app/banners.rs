@@ -94,22 +94,37 @@ pub struct Banners {
     biome: Option<(&'static str, u32)>,                // (biome key, t)
     interior: Option<(String, u32)>,                   // (building title, t)
     last_biome: &'static str,                          // region tracking (js lastBiome)
+    last_town: Option<(i32, i32)>,                     // town-site tracking (multi-room towns)
     dirty: bool,
 }
 
 impl Banners {
-    /// A room-slide landed (js transition-end): towns announce every entry; a biome
-    /// change announces the region unless a town banner owns the moment.
+    /// The room's town identity — the site room that owns it (multi-room towns
+    /// share one site), or the home village standing as its own.
+    fn town_key(world: &crate::worldgen::World, rx: i32, ry: i32) -> Option<(i32, i32)> {
+        if (rx, ry) == HOME_VILLAGE {
+            return Some(HOME_VILLAGE);
+        }
+        if !world.is_town(rx, ry) {
+            return None;
+        }
+        world.town_site_of(rx, ry).map(|s| (s.tx, s.ty))
+    }
+    /// A room-slide landed (js transition-end): a town announces when you CROSS
+    /// INTO it — its streets stay quiet after that (Baz: every tile of a
+    /// multi-room town re-raised the name); a biome change announces the region
+    /// unless a town banner owns the moment.
     pub fn room_entered(&mut self, world: &crate::worldgen::World, names: &mut TownNames, rx: i32, ry: i32) {
-        let town = world.is_town(rx, ry) || (rx, ry) == HOME_VILLAGE;
-        if town {
+        let town = Self::town_key(world, rx, ry);
+        if town.is_some() && town != self.last_town {
             let sub = if (rx, ry) == HOME_VILLAGE { Some("- IN RUINS -") } else { None };
             self.town = Some((names.get(world, rx, ry), sub, 0));
             self.dirty = true;
         }
+        self.last_town = town;
         let bk = world.biome_key_at(rx, ry);
         if bk != self.last_biome {
-            if !town && BIOME_INFO.iter().any(|(k, ..)| *k == bk) {
+            if town.is_none() && BIOME_INFO.iter().any(|(k, ..)| *k == bk) {
                 self.biome = Some((bk, 0));
                 self.dirty = true;
             }
@@ -119,6 +134,7 @@ impl Banners {
     /// A silent arrival (load, respawn, interior exit): anchor the region, clear the air.
     pub fn anchor(&mut self, world: &crate::worldgen::World, rx: i32, ry: i32) {
         self.last_biome = world.biome_key_at(rx, ry);
+        self.last_town = Self::town_key(world, rx, ry); // an interior exit must not re-announce
         self.town = None;
         self.biome = None;
         self.dirty = true;
