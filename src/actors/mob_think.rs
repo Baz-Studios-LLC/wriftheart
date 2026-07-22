@@ -475,6 +475,19 @@ pub fn mob_think(
             // Rooted on its water tile: no stepping, no water-pathing to solve.
             m.t += 1;
             let ph = m.t.rem_euclid(*period);
+            if ph == 0 {
+                // A NEW hunting spot every dive (Baz: it kept surfacing in the
+                // same place) — slip to a random water tile while submerged.
+                use crate::room::{COLS, ROWS};
+                for _ in 0..24 {
+                    let (c, r) = (1 + (rand() * (COLS - 2) as f32) as i32, 1 + (rand() * (ROWS - 2) as f32) as i32);
+                    if grid.code_at(c, r) == '~' {
+                        m.x = (c * 16) as f32;
+                        m.y = (r * 16) as f32;
+                        break;
+                    }
+                }
+            }
             let (dx, dy) = ((ppos.x + 8.0) - (m.x + 8.0), (ppos.y + 9.0) - (m.y + 8.0));
             if ph < *up_at {
                 // Submerged: a ripple — harmless and unhittable (the burrower rule).
