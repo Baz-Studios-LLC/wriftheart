@@ -84,6 +84,7 @@ impl Plugin for PlayPlugin {
                     sync_player_sprite
                         .run_if(not(in_state(super::screen::Screen::Dead)))
                         .run_if(|p: Res<super::dungeon::PitFalling>| p.0.is_none()),
+                    charge_aura.after(sync_player_sprite).run_if(super::screen::playing),
                     relabel_coords,
                     worn_refresh,
                     apply_tree_hp,
@@ -793,9 +794,7 @@ pub fn tick(
             if ch.t == CHARGE_FULL {
                 uses.sfx.write(super::sfx::Sfx("songmatch")); // wound and ready
             }
-            if ch.t >= CHARGE_FULL && clock.0 % 6 == 0 {
-                super::battle::spawn_burst(&mut commands, &mut uses.rng, Vec2::new(p.x + 8.0, p.y + 6.0), 0xfcd000, 1);
-            }
+            // (the visual is the blue AURA — charge_aura draws it in Update)
         } else {
             let ch = p.charge.take().unwrap();
             if ch.t >= CHARGE_FULL && !p.blocking && p.spin.is_none() {
@@ -1378,6 +1377,86 @@ fn relabel_coords(
 
 /// Push the Player's room-pixel position + gait frame into its sprite each render frame.
 /// The i-frame blink hides the body on alternating 4-frame windows (js hurtFlash >> 2).
+/// The CHARGE AURA (Baz: "like Goku charging up"): a blue outline traced around
+/// the hero's exact current frame while a hold move winds, fading in with the
+/// charge and pulsing once it's full. Outlines are baked lazily per hero frame
+/// (worn gear re-bakes frames, so the cache keys on the frame's asset id).
+#[derive(Component)]
+struct ChargeAura;
+
+/// Blue rim of `src`: every transparent pixel touching an opaque one.
+fn outline_image(src: &Image) -> Image {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    let (w, h) = (src.size().x as usize, src.size().y as usize);
+    let data = src.data.as_deref().unwrap_or(&[]);
+    let alpha = |x: i32, y: i32| -> bool {
+        x >= 0 && y >= 0 && (x as usize) < w && (y as usize) < h && data.get((y as usize * w + x as usize) * 4 + 3).is_some_and(|a| *a > 0)
+    };
+    let mut buf = vec![0u8; w * h * 4];
+    for y in 0..h as i32 {
+        for x in 0..w as i32 {
+            if !alpha(x, y) && (alpha(x - 1, y) || alpha(x + 1, y) || alpha(x, y - 1) || alpha(x, y + 1)) {
+                let i = (y as usize * w + x as usize) * 4;
+                buf[i..i + 4].copy_from_slice(&[0x6e, 0xc8, 0xff, 255]);
+            }
+        }
+    }
+    Image::new(
+        Extent3d { width: w as u32, height: h as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        buf,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    )
+}
+
+#[allow(clippy::type_complexity)] // the aura rides the hero's exact transform
+fn charge_aura(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    art: Res<HeroArt>,
+    clock: Res<FrameClock>,
+    players: Query<(&Player, &Transform), Without<ChargeAura>>,
+    mut auras: Query<(Entity, &mut Sprite, &mut Transform), With<ChargeAura>>,
+    mut cache: Local<bevy::platform::collections::HashMap<AssetId<Image>, Handle<Image>>>,
+) {
+    let Ok((p, ptf)) = players.single() else { return };
+    let want = p.charge.as_ref().map(|ch| ch.t);
+    let Some(t) = want else {
+        for (e, ..) in &auras {
+            commands.entity(e).despawn();
+        }
+        return;
+    };
+    let frame = &art.0.frames[p.facing as usize][p.anim_frame];
+    let outline = cache
+        .entry(frame.id())
+        .or_insert_with(|| {
+            let img = images.get(frame).map(outline_image);
+            images.add(img.unwrap_or_default())
+        })
+        .clone();
+    // Fade in over the wind-up; breathe once it's full (the aura ROARS quietly).
+    let full = t >= 30;
+    let a = if full {
+        0.75 + 0.25 * ((clock.0 as f32 / 5.0).sin() * 0.5 + 0.5)
+    } else {
+        0.7 * (t as f32 / 30.0)
+    };
+    let mut tf = *ptf;
+    tf.translation.z -= 0.005; // just under the hero, rim peeking out
+    if let Ok((_, mut spr, mut atf)) = auras.single_mut() {
+        spr.image = outline;
+        spr.color = Color::srgba(0.55, 0.85, 1.0, a);
+        *atf = tf;
+    } else {
+        let mut spr = Sprite::from_image(outline);
+        spr.color = Color::srgba(0.55, 0.85, 1.0, a);
+        commands.spawn((spr, tf, PIXEL_LAYER, RoomActor, ChargeAura));
+    }
+}
+
 fn sync_player_sprite(
     art: Res<HeroArt>,
     fluting: Res<super::flute::Fluting>,

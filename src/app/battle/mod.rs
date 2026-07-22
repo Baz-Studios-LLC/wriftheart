@@ -36,6 +36,7 @@ impl Plugin for BattlePlugin {
         app.insert_resource(GameRng(Mulberry32::new(0x5eed)))
             .add_message::<HitLanded>()
             .add_message::<Tinked>()
+            .add_message::<crate::combat::ShieldClang>()
             .add_systems(Startup, |mut commands: Commands, mut images: ResMut<Assets<Image>>| {
                 commands.insert_resource(mobs::MobArtBank::build(&mut images));
             })

@@ -155,8 +155,15 @@ pub struct Tinked {
     pub note: Option<&'static str>,
 }
 
+/// A raised shield turned away a MELEE hit (frontal contact): shield.rs answers
+/// with the clang, the spark, and a notch of wear.
+#[derive(Message)]
+pub struct ShieldClang {
+    pub at: Vec2,
+}
+
 /// The resolve pass. Mirrors the JS loop shape: for each live attacker, test every target.
-#[allow(clippy::type_complexity)] // ECS system queries are wide by nature
+#[allow(clippy::type_complexity, clippy::too_many_arguments)] // ECS system queries are wide by nature
 pub fn resolve_combat(
     mut attackers: Query<(
         Entity,
@@ -171,17 +178,18 @@ pub fn resolve_combat(
         Option<&crate::actors::goblin::Goblin>,
         Option<&crate::actors::goblin::HumanSkin>,
     )>,
-    mut targets: Query<(Entity, &Combatant, &Hitbox, &mut Health, &HurtProfile, Option<&mut Knockback>, Option<&Blood>, Option<&GatherTool>)>,
+    mut targets: Query<(Entity, &Combatant, &Hitbox, &mut Health, &HurtProfile, Option<&mut Knockback>, Option<&Blood>, Option<&GatherTool>, Option<&crate::app::play::Player>)>,
     mut rng: ResMut<crate::app::battle::GameRng>,
     mut hits: MessageWriter<HitLanded>,
     mut tinks: MessageWriter<Tinked>,
     mut sfx: MessageWriter<crate::app::sfx::Sfx>,
     mut last_attacker: ResMut<LastAttacker>,
+    mut clangs: MessageWriter<ShieldClang>,
 ) {
     for (a_ent, atk, abox, mut once, atk_tool, afflicts, crit_chance, menace, a_mob, a_gob, a_skin) in &mut attackers {
         let Some(damage) = atk.damage else { continue };
         let ab = if atk.persistent { abox.expanded(3.0) } else { *abox };
-        for (t_ent, tgt, tbox, mut health, profile, kb, blood, gather) in &mut targets {
+        for (t_ent, tgt, tbox, mut health, profile, kb, blood, gather, t_player) in &mut targets {
             if t_ent == a_ent || tgt.team == atk.team {
                 continue;
             }
@@ -206,6 +214,33 @@ pub fn resolve_combat(
             }
             if let Some(once) = &mut once {
                 once.0.insert(t_ent);
+            }
+            // A raised shield holds FRONTAL melee (Baz — projectiles die earlier in
+            // shield.rs): no damage, half the shove, a mercy beat so contact can't
+            // grind the shield at sixty clangs a second. Hazards pierce; the sky
+            // does not respect woodwork.
+            if atk.team == Team::Enemy
+                && let Some(pl) = t_player
+                && pl.blocking
+            {
+                let (fx, fy) = pl.facing.offset();
+                let to = Vec2::new(
+                    (abox.x + abox.w / 2.0) - (tbox.x + tbox.w / 2.0),
+                    (abox.y + abox.h / 2.0) - (tbox.y + tbox.h / 2.0),
+                )
+                .normalize_or_zero();
+                if fx * to.x + fy * to.y > 0.25 {
+                    health.invuln = 30;
+                    if let Some(mut kb) = kb {
+                        kb.kx = -to.x * profile.kb_base * 0.5;
+                        kb.ky = -to.y * profile.kb_base * 0.5;
+                        kb.timer = profile.kb_frames / 2;
+                    }
+                    clangs.write(ShieldClang {
+                        at: Vec2::new(tbox.x + tbox.w / 2.0 + to.x * 8.0, tbox.y + tbox.h / 2.0 + to.y * 8.0),
+                    });
+                    continue;
+                }
             }
             // Gathering: a node only yields to its matching tool; the wrong tool tinks off
             // (still consumed the hits-set slot above, exactly like the JS order). A

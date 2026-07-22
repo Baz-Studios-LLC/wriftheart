@@ -80,27 +80,64 @@ pub fn shield_block(
         }
         commands.entity(e).despawn();
         spawn_burst(&mut commands, &mut rng, Vec2::new(hb.x + hb.w / 2.0, hb.y + hb.h / 2.0), 0xd8e8ff, 5);
-        // Wear the raised shield (js blocks()): dur seeds from the def on first use.
-        let Some(uid) = p.block_uid else {
-            sfx.write(super::sfx::Sfx("block"));
-            continue;
-        };
-        let max = inv.id_of(uid).and_then(crate::items::get).map_or(0, |d| d.dur);
-        let Some(entry) = inv.entries.iter_mut().find(|en| en.uid == uid) else { continue };
-        if max > 0 {
-            let d = entry.dur.get_or_insert(max);
-            *d -= 1;
-            if *d <= 0 {
-                inv.remove_entry(uid);
-                log.add("shield", "YOUR SHIELD SHATTERS", 1, 0xc8a060, false, true);
-                spawn_burst(&mut commands, &mut rng, Vec2::new(p.x + 8.0, p.y + 9.0), 0xa06a2a, 10);
-                sfx.write(super::sfx::Sfx("wood"));
-                p.blocking = false;
-                p.block_uid = None;
-                return; // nothing left to block with this tick
-            }
+        if wear_shield(&mut commands, &mut rng, &mut inv, &mut log, &mut sfx, &mut p) {
+            return; // it shattered — nothing left to block with this tick
         }
+    }
+}
+
+/// One notch of wear on the raised shield (js blocks()): dur seeds from the def on
+/// first use; the last notch SHATTERS it. Returns true on the shatter. Shared by the
+/// projectile deflect above and the melee clang below.
+fn wear_shield(
+    commands: &mut Commands,
+    rng: &mut GameRng,
+    inv: &mut crate::inventory::PlayerInv,
+    log: &mut super::rewards::LootLog,
+    sfx: &mut MessageWriter<super::sfx::Sfx>,
+    p: &mut Player,
+) -> bool {
+    let Some(uid) = p.block_uid else {
         sfx.write(super::sfx::Sfx("block"));
+        return false;
+    };
+    let max = inv.id_of(uid).and_then(crate::items::get).map_or(0, |d| d.dur);
+    let Some(entry) = inv.entries.iter_mut().find(|en| en.uid == uid) else { return false };
+    if max > 0 {
+        let d = entry.dur.get_or_insert(max);
+        *d -= 1;
+        if *d <= 0 {
+            inv.remove_entry(uid);
+            log.add("shield", "YOUR SHIELD SHATTERS", 1, 0xc8a060, false, true);
+            spawn_burst(commands, rng, Vec2::new(p.x + 8.0, p.y + 9.0), 0xa06a2a, 10);
+            sfx.write(super::sfx::Sfx("wood"));
+            p.blocking = false;
+            p.block_uid = None;
+            return true;
+        }
+    }
+    sfx.write(super::sfx::Sfx("block"));
+    false
+}
+
+/// A frontal melee hit turned by the raised shield (resolve_combat's clang): the
+/// spark at the contact point + the same notch of wear the shots pay.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn shield_clang(
+    mut commands: Commands,
+    mut rng: ResMut<GameRng>,
+    mut inv: ResMut<crate::inventory::PlayerInv>,
+    mut log: ResMut<super::rewards::LootLog>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    mut clangs: MessageReader<crate::combat::ShieldClang>,
+    mut players: Query<&mut Player>,
+) {
+    let Ok(mut p) = players.single_mut() else { return };
+    for c in clangs.read() {
+        spawn_burst(&mut commands, &mut rng, c.at, 0xd8e8ff, 5);
+        if wear_shield(&mut commands, &mut rng, &mut inv, &mut log, &mut sfx, &mut p) {
+            return;
+        }
     }
 }
 
@@ -248,11 +285,14 @@ impl Plugin for ShieldPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             bevy::app::FixedUpdate,
-            shield_block
-                .after(super::battle::projectiles::enemy_shots_tick)
-                .after(super::battle::projectiles::mob_projectiles_tick)
-                .before(crate::combat::resolve_combat)
-                .before(super::play::EndTick)
+            (
+                shield_clang.after(crate::combat::resolve_combat).before(super::play::EndTick),
+                shield_block
+                    .after(super::battle::projectiles::enemy_shots_tick)
+                    .after(super::battle::projectiles::mob_projectiles_tick)
+                    .before(crate::combat::resolve_combat)
+                    .before(super::play::EndTick),
+            )
                 .run_if(super::battle::not_sliding),
         )
         .add_systems(
