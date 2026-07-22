@@ -39,13 +39,36 @@ struct WaterOverlay;
 #[derive(Component)]
 struct LavaOverlay;
 
+/// One lava bubble: swells from a fleck, domes, and pops. `t` steps the frames.
+#[derive(Component)]
+struct LavaBubble {
+    t: i32,
+}
+
+/// Whether the CURRENT room has any lava (the bubble roller's cheap gate).
+#[derive(Resource, Default)]
+pub struct LavaAny(pub bool);
+
+/// The bubble's four moments, baked once: fleck, swell, dome, burst.
+const BUBBLE_FRAMES: [&[&str]; 4] = [
+    &["......", "......", "..y...", "......", "......", "......"],
+    &["......", "..yy..", "..oo..", "......", "......", "......"],
+    &["......", ".yooy.", ".o..o.", ".yooy.", "......", "......"],
+    &["y....y", ".y..y.", "......", ".y..y.", "y....y", "......"],
+];
+const BUBBLE_PAL: &[(char, u32)] = &[('y', 0xffd140), ('o', 0xff8a2a)];
+
 pub struct WaterPlugin;
 
 impl Plugin for WaterPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WaterMask>()
+            .init_resource::<LavaAny>()
             .add_systems(Update, (rebake_mask, tick_water).chain())
-            .add_systems(bevy::app::FixedUpdate, lava_burn.run_if(super::screen::playing));
+            .add_systems(
+                bevy::app::FixedUpdate,
+                (lava_burn, lava_bubbles).run_if(super::screen::playing),
+            );
     }
 }
 
@@ -62,6 +85,7 @@ fn rebake_mask(
     world: Res<super::play::GameWorld>,
     cur: Res<super::play::CurRoom>,
     mut mask: ResMut<WaterMask>,
+    mut lava_any: ResMut<LavaAny>,
     mut last_root: Local<Option<Entity>>,
 ) {
     // Mid-slide the grid already describes the INCOMING room but ActiveRoot still
@@ -251,6 +275,7 @@ fn rebake_mask(
             ldepth[r as usize][c as usize] = d;
         }
     }
+    lava_any.0 = lany;
     if lany {
         let mut cover = vec![false; (PX_W * PX_H) as usize];
         for r in 0..ROWS {
@@ -384,9 +409,12 @@ fn tick_water(
     }
 }
 
-/// Wading lava BURNS: a bite every 24 frames while the hero's feet stand in it —
-/// crossable at real cost, so an unlucky field never soft-locks a room (the
-/// springboots hop over it clean; god mode shrugs).
+/// Wading lava sets you BURNING (Baz: a dot ticks on you, a debuff shows while
+/// you stand in it): standing refreshes the burn status — the existing burn DoT
+/// ticks 1 HP every 30f and keeps searing ~1.5s AFTER you step off (afterburn),
+/// with the flame icon in the HUD buff row the whole while. Crossable at real
+/// cost, so an unlucky field never soft-locks a room; springboots hop it clean,
+/// god mode shrugs.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 fn lava_burn(
     mut commands: Commands,
@@ -394,11 +422,13 @@ fn lava_burn(
     world: Res<super::play::GameWorld>,
     cur: Res<super::play::CurRoom>,
     god: Res<super::dev::GodMode>,
+    mut statuses: ResMut<super::status::Statuses>,
     mut rng: ResMut<super::battle::GameRng>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
-    mut players: Query<(&super::play::Player, &mut crate::combat::Health)>,
+    players: Query<&super::play::Player>,
+    mut sizzle: Local<i32>,
 ) {
-    let Ok((p, mut h)) = players.single_mut() else { return };
+    let Ok(p) = players.single() else { return };
     if god.0 || p.hop.is_some() {
         return;
     }
@@ -409,12 +439,72 @@ fn lava_burn(
     if world.0.ground_name(cur.rx * COLS + c, cur.ry * ROWS + r) != "lava" {
         return;
     }
-    if h.invuln > 0 {
+    statuses.add("burn", 90); // refreshed every frame you stand in it; the DoT does the biting
+    *sizzle += 1;
+    if *sizzle >= 20 {
+        *sizzle = 0;
+        sfx.write(super::sfx::Sfx("hurt"));
+        super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xff7a20, 6);
+    }
+}
+
+/// The molten heart BUBBLES (Baz): now and then a fleck swells, domes, and pops
+/// somewhere deep in the field. Sprite-side — four baked frames over the overlay.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn lava_bubbles(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    lava_any: Res<LavaAny>,
+    grid: Res<CurGrid>,
+    world: Res<super::play::GameWorld>,
+    cur: Res<super::play::CurRoom>,
+    mut rng: ResMut<super::battle::GameRng>,
+    mut frames: Local<Vec<Handle<Image>>>,
+    mut live: Query<(Entity, &mut LavaBubble, &mut Sprite)>,
+) {
+    // Advance every live bubble: a frame every 6 ticks, gone after the burst.
+    for (e, mut b, mut spr) in &mut live {
+        b.t += 1;
+        let f = (b.t / 6) as usize;
+        if f >= BUBBLE_FRAMES.len() {
+            commands.entity(e).despawn();
+            continue;
+        }
+        spr.image = frames[f].clone();
+    }
+    if !lava_any.0 {
         return;
     }
-    h.hp -= 1;
-    h.invuln = 24;
-    h.flash = 10;
-    sfx.write(super::sfx::Sfx("hurt"));
-    super::battle::spawn_burst(&mut commands, &mut rng, Vec2::new(p.x + 8.0, p.y + 14.0), 0xff7a20, 6);
+    if frames.is_empty() {
+        *frames = BUBBLE_FRAMES.iter().map(|g| images.add(crate::gfx::bake(g, BUBBLE_PAL))).collect();
+    }
+    // Roll a pop: ~10% of ticks try three random tiles; the first HEARTED lava
+    // tile (all four neighbours molten too) births a bubble with sub-tile jitter.
+    if rng.0.next_f64() > 0.10 {
+        return;
+    }
+    let (gx0, gy0) = (cur.rx * COLS, cur.ry * ROWS);
+    let lava = |c: i32, r: i32| {
+        (0..COLS).contains(&c)
+            && (0..ROWS).contains(&r)
+            && grid.0.code_at(c, r) == '.'
+            && world.0.ground_name(gx0 + c, gy0 + r) == "lava"
+    };
+    for _ in 0..3 {
+        let c = (rng.0.next_f64() * COLS as f64) as i32;
+        let r = (rng.0.next_f64() * ROWS as f64) as i32;
+        if !(lava(c, r) && lava(c - 1, r) && lava(c + 1, r) && lava(c, r - 1) && lava(c, r + 1)) {
+            continue;
+        }
+        let x = (c * TILE) as f32 + 2.0 + (rng.0.next_f64() * 8.0) as f32;
+        let y = (r * TILE) as f32 + 2.0 + (rng.0.next_f64() * 8.0) as f32;
+        commands.spawn((
+            LavaBubble { t: 0 },
+            Sprite::from_image(frames[0].clone()),
+            at(super::room_render::PLAY_X + x, super::room_render::PLAY_Y + y, 6.0, 6.0, layers::WATER_OVERLAY + 0.02),
+            PIXEL_LAYER,
+            super::battle::RoomActor,
+        ));
+        break;
+    }
 }
