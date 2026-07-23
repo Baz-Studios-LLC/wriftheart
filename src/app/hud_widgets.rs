@@ -38,7 +38,7 @@ pub const WIDGETS: &[WidgetDef] = &[
     WidgetDef { id: "quests", name: "QUESTS", core: false },
     WidgetDef { id: "buffs", name: "BUFFS", core: false },
     WidgetDef { id: "shards", name: "SHARDS", core: false },
-    WidgetDef { id: "coins", name: "COPPER", core: false },
+    WidgetDef { id: "coins", name: "COIN", core: false },
     WidgetDef { id: "hint", name: "HINTS", core: false },
 ];
 
@@ -269,7 +269,7 @@ pub fn coins_tick(
     for e in &old {
         commands.entity(e).despawn();
     }
-    label(&mut commands, &mut images, "COPPER", PAD, COINS_BASE, 0xfcfcfc, HUD_Z + 1.0, (CoinHud, InWidget("coins")));
+    label(&mut commands, &mut images, "COIN", PAD, COINS_BASE, 0xfcfcfc, HUD_Z + 1.0, (CoinHud, InWidget("coins")));
     // The coin pip + the purse, side by side (Baz: a proper coin widget).
     let img = images.add(crate::gfx::bake(crate::actors::items_art::COIN_ICON, &[]));
     commands.spawn((
