@@ -346,7 +346,6 @@ fn drive(
     mut players: Query<(&mut Player, &mut Health)>,
     mut next: ResMut<NextState<Screen>>,
     toggles: (ResMut<GodMode>, ResMut<StatusStrip>), // tuple: drive sits AT the 16-param cap
-    badges: Query<Entity, With<GodBadge>>,
     mut refs: DevRefs,
 ) {
     let (mut god, mut strip) = toggles;
@@ -671,7 +670,6 @@ fn drive(
         }
         Cmd::God => {
             god.0 = !god.0;
-            set_badge(&mut commands, &mut images, god.0, &badges);
             log.add("dev", if god.0 { "GOD MODE ON" } else { "GOD MODE OFF" }, 1, 0xffd34d, false, true);
         }
         Cmd::ShardClear => {
@@ -812,24 +810,17 @@ fn redraw(
 
 
 /// The badge in the top-right while the walls are down.
-#[derive(Component)]
-struct GodBadge;
-
 /// G flips it from play (the dev panel's HERO row mirrors it).
 fn god_toggle(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
     mut input: ResMut<ActionState>,
     mut god: ResMut<GodMode>,
     mut log: ResMut<LootLog>,
-    badges: Query<Entity, With<GodBadge>>,
 ) {
     if !input.pressed(Action::God) {
         return;
     }
     input.consume(Action::God);
-    god.0 = !god.0;
-    set_badge(&mut commands, &mut images, god.0, &badges);
+    god.0 = !god.0; // the GOLD AURA (play::god_aura) is the indicator now
     log.add("dev", if god.0 { "GOD MODE ON" } else { "GOD MODE OFF" }, 1, 0xffd34d, false, true);
 }
 
@@ -845,13 +836,4 @@ fn god_tick(god: Res<GodMode>, mut players: Query<&mut Health, With<Player>>, mu
     mana.cur = mana.max; // the divine well never runs dry
 }
 
-fn set_badge(commands: &mut Commands, images: &mut Assets<Image>, on: bool, badges: &Query<Entity, With<GodBadge>>) {
-    for e in badges {
-        commands.entity(e).despawn();
-    }
-    if on {
-        let text = "GOD MODE";
-        let w = font::measure(text) as f32;
-        label(commands, images, text, CANVAS_W as f32 - 6.0 - w, 4.0, 0xffd34d, 17.3, GodBadge);
-    }
-}
+

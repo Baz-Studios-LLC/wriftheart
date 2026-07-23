@@ -85,6 +85,7 @@ impl Plugin for PlayPlugin {
                         .run_if(not(in_state(super::screen::Screen::Dead)))
                         .run_if(|p: Res<super::dungeon::PitFalling>| p.0.is_none()),
                     charge_aura.after(sync_player_sprite).run_if(super::screen::playing),
+                    god_aura.after(sync_player_sprite).run_if(super::screen::playing),
                     charge_hold.after(sync_player_sprite).run_if(super::screen::playing),
                     worn_refresh,
                     apply_tree_hp,
@@ -1488,8 +1489,8 @@ pub fn worn_refresh(
 #[derive(Component)]
 struct ChargeAura;
 
-/// Blue rim of `src`: every transparent pixel touching an opaque one.
-fn outline_image(src: &Image) -> Image {
+/// Colored rim of `src`: every transparent pixel touching an opaque one.
+fn outline_image(src: &Image, rgb: u32) -> Image {
     use bevy::asset::RenderAssetUsages;
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
     let (w, h) = (src.size().x as usize, src.size().y as usize);
@@ -1502,7 +1503,7 @@ fn outline_image(src: &Image) -> Image {
         for x in 0..w as i32 {
             if !alpha(x, y) && (alpha(x - 1, y) || alpha(x + 1, y) || alpha(x, y - 1) || alpha(x, y + 1)) {
                 let i = (y as usize * w + x as usize) * 4;
-                buf[i..i + 4].copy_from_slice(&[0x6e, 0xc8, 0xff, 255]);
+                buf[i..i + 4].copy_from_slice(&[(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8, 255]);
             }
         }
     }
@@ -1537,7 +1538,7 @@ fn charge_aura(
     let outline = cache
         .entry(frame.id())
         .or_insert_with(|| {
-            let img = images.get(frame).map(outline_image);
+            let img = images.get(frame).map(|f| outline_image(f, 0x6ec8ff));
             images.add(img.unwrap_or_default())
         })
         .clone();
@@ -1558,6 +1559,52 @@ fn charge_aura(
         let mut spr = Sprite::from_image(outline);
         spr.color = Color::srgba(0.55, 0.85, 1.0, a);
         commands.spawn((spr, tf, PIXEL_LAYER, RoomActor, ChargeAura));
+    }
+}
+
+/// THE GOD AURA (Baz): while GOD MODE is on, the hero wears a breathing GOLD rim
+/// — the on-screen tag retired; the aura IS the indicator. Same lazy per-frame
+/// outline cache as the charge aura, its own gold bank.
+#[derive(Component)]
+struct GodAura;
+
+#[allow(clippy::type_complexity)]
+fn god_aura(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    art: Res<HeroArt>,
+    clock: Res<FrameClock>,
+    god: Res<super::dev::GodMode>,
+    players: Query<(&Player, &Transform), Without<GodAura>>,
+    mut auras: Query<(Entity, &mut Sprite, &mut Transform), With<GodAura>>,
+    mut cache: Local<bevy::platform::collections::HashMap<AssetId<Image>, Handle<Image>>>,
+) {
+    let Ok((p, ptf)) = players.single() else { return };
+    if !god.0 {
+        for (e, ..) in &auras {
+            commands.entity(e).despawn();
+        }
+        return;
+    }
+    let frame = &art.0.frames[p.facing as usize][p.anim_frame];
+    let outline = cache
+        .entry(frame.id())
+        .or_insert_with(|| {
+            let img = images.get(frame).map(|f| outline_image(f, 0xffd34d));
+            images.add(img.unwrap_or_default())
+        })
+        .clone();
+    let a = 0.55 + 0.2 * ((clock.0 as f32 / 9.0).sin() * 0.5 + 0.5); // a slow divine breath
+    let mut tf = *ptf;
+    tf.translation.z -= 0.006; // just under the hero (and under the charge aura's rim)
+    if let Ok((_, mut spr, mut atf)) = auras.single_mut() {
+        spr.image = outline;
+        spr.color = Color::srgba(1.0, 0.85, 0.35, a);
+        *atf = tf;
+    } else {
+        let mut spr = Sprite::from_image(outline);
+        spr.color = Color::srgba(1.0, 0.85, 0.35, a);
+        commands.spawn((spr, tf, PIXEL_LAYER, RoomActor, GodAura));
     }
 }
 
