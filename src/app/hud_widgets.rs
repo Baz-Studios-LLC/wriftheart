@@ -44,6 +44,7 @@ pub const WIDGETS: &[WidgetDef] = &[
     WidgetDef { id: "vitals", name: "VITALS", core: true, gate: None },
     WidgetDef { id: "abilities", name: "ABILITIES", core: false, gate: None },
     WidgetDef { id: "clock", name: "CLOCK", core: false, gate: Some("clock") },
+    WidgetDef { id: "minimap", name: "MINIMAP", core: false, gate: Some("compass") },
     WidgetDef { id: "quests", name: "QUESTS", core: false, gate: None },
     WidgetDef { id: "buffs", name: "BUFFS", core: false, gate: None },
     WidgetDef { id: "shards", name: "SHARDS", core: false, gate: None },
@@ -79,6 +80,7 @@ impl Default for HudConfig {
             row("buffs", 0, true),
             row("shards", 0, true),
             row("hint", 1, true),
+            row("minimap", 1, true),
             row("coins", 0, true),
         ])
     }
@@ -141,6 +143,7 @@ fn baseline(id: &str) -> f32 {
         "buffs" => BUFFS_BASE,
         "shards" => SHARDS_BASE,
         "coins" => COINS_BASE,
+        "minimap" => MM_BASE,
         _ => CANVAS_H as f32 - 12.0, // hint
     }
 }
@@ -172,6 +175,7 @@ pub fn layout_tick(
             "buffs" => (buffs_n > 0).then(|| buffs_n.div_ceil(4) as f32 * 13.0),
             "shards" => (!relics.0.is_empty()).then_some(16.0),
             "coins" => Some(16.0),
+            "minimap" => inv.has_gear_flag("compass").then_some(MM_W),
             "hint" => Some(8.0),
             _ => None,
         }
@@ -290,4 +294,137 @@ pub fn coins_tick(
     ));
     let amount = format!("{}", inv.money);
     label(&mut commands, &mut images, &amount, PAD + 10.0, COINS_BASE + 8.0, 0xfcd000, HUD_Z + 1.0, (CoinHud, InWidget("coins")));
+}
+
+
+// ---------------------------------------------------------------------------
+// THE MINIMAP — the compass trinket's promise, finally kept (Baz; rs-original —
+// the js never had one, its "minimap" was the dungeon floor map). A 5x5 window
+// of VISITED rooms around you: biome-tinted cells, gold town pips, red shard-
+// dungeon pips, a green home pip, and YOU dead centre. Owning the compass lists
+// the widget; wearing it lights the map.
+
+#[derive(Component)]
+pub struct MinimapHud;
+
+const MM_BASE: f32 = 120.0;
+const MM_CELL: f32 = 12.0;
+const MM_R: i32 = 2; // 5x5 window
+const MM_W: f32 = MM_CELL * 5.0 + 2.0;
+
+/// Each biome's map tint — the sidebar-scale echo of its ground.
+fn biome_pip(key: &str) -> u32 {
+    match key {
+        "grassland" | "greenmaw" => 0x4f9a2c,
+        "forest" => 0x2f7a24,
+        "petalwood" | "bluebell" => 0xd88ac8,
+        "honeyglade" => 0xe0b040,
+        "desert" => 0xd8c07a,
+        "saltwastes" => 0xd8d8d0,
+        "mountains" => 0x8a8a92,
+        "swamp" | "tarmire" => 0x4a6a3a,
+        "graveyard" | "gloammoor" => 0x6a6a7a,
+        "arctic" => 0xcfe0f0,
+        "burnt" | "emberscar" => 0x5a4a44,
+        "embermaw" => 0xd85a20,
+        "hollowwood" => 0x3a3a4a,
+        "mushroom" => 0x9a6ad0,
+        "chaos" | "wriftscar" => 0x7a3a9a,
+        "prismwastes" => 0xa8d0e0,
+        "blackdeep" => 0x24243a,
+        "suncoast" => 0xe8d8a0,
+        "stormreach" => 0x5a7a9a,
+        "galewind" => 0x8ab88a,
+        "witherlands" => 0x4a3a3a,
+        "starhollow" => 0x2a2a5a,
+        _ => 0x4a7a3a,
+    }
+}
+
+fn rgb(c: u32) -> Color {
+    Color::srgb_u8((c >> 16) as u8, (c >> 8) as u8, c as u8)
+}
+
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+pub fn minimap_tick(
+    mut commands: Commands,
+    inv: Res<crate::inventory::PlayerInv>,
+    cur: Res<super::play::CurRoom>,
+    world: Res<super::play::GameWorld>,
+    visited: Res<super::play::Visited>,
+    phouse: Res<super::home::PlayerHouse>,
+    old: Query<Entity, With<MinimapHud>>,
+    mut last: Local<Option<(i32, i32, bool, usize, Option<(i32, i32)>)>>,
+) {
+    let on = inv.has_gear_flag("compass");
+    let home = phouse.0.as_ref().map(|h| h.room);
+    let key = Some((cur.rx, cur.ry, on, visited.0.len(), home));
+    if *last == key {
+        return;
+    }
+    *last = key;
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    if !on {
+        return;
+    }
+    let tag = || (MinimapHud, InWidget("minimap"));
+    let (x0, y0) = (PAD + ((crate::SIDEBAR_W - 2.0 * PAD - MM_W) / 2.0).floor(), MM_BASE);
+    commands.spawn((
+        Sprite::from_color(rgb(0x0a0a10), Vec2::new(MM_W, MM_W)),
+        crate::gfx::at(x0, y0, MM_W, MM_W, HUD_Z + 0.3),
+        crate::gfx::PIXEL_LAYER,
+        tag(),
+    ));
+    for (sx, sy, sw, sh) in crate::ui::border_strips(x0, y0, MM_W, MM_W, 1.0) {
+        commands.spawn((
+            Sprite::from_color(rgb(0x4a4a58), Vec2::new(sw, sh)),
+            crate::gfx::at(sx, sy, sw, sh, HUD_Z + 0.5),
+            crate::gfx::PIXEL_LAYER,
+            tag(),
+        ));
+    }
+    for dy in -MM_R..=MM_R {
+        for dx in -MM_R..=MM_R {
+            let (rx, ry) = (cur.rx + dx, cur.ry + dy);
+            if !visited.0.contains(&(rx, ry)) {
+                continue; // unexplored stays dark slate
+            }
+            let cx = x0 + 1.0 + (dx + MM_R) as f32 * MM_CELL;
+            let cy = y0 + 1.0 + (dy + MM_R) as f32 * MM_CELL;
+            commands.spawn((
+                Sprite::from_color(rgb(biome_pip(world.0.biome_key_at(rx, ry))), Vec2::new(MM_CELL - 1.0, MM_CELL - 1.0)),
+                crate::gfx::at(cx, cy, MM_CELL - 1.0, MM_CELL - 1.0, HUD_Z + 0.35),
+                crate::gfx::PIXEL_LAYER,
+                tag(),
+            ));
+            let pip = if world.0.is_town(rx, ry) {
+                Some(0xfcd000)
+            } else if world.0.shard_dungeon_at(rx, ry).is_some() {
+                Some(0xe23030)
+            } else if home == Some((rx, ry)) {
+                Some(0x7ee08a)
+            } else {
+                None
+            };
+            if let Some(pc) = pip {
+                commands.spawn((
+                    Sprite::from_color(rgb(pc), Vec2::new(3.0, 3.0)),
+                    crate::gfx::at(cx + 4.0, cy + 4.0, 3.0, 3.0, HUD_Z + 0.4),
+                    crate::gfx::PIXEL_LAYER,
+                    tag(),
+                ));
+            }
+        }
+    }
+    // YOU, dead centre, over every pip.
+    let pc = x0 + 1.0 + MM_R as f32 * MM_CELL + (MM_CELL - 1.0) / 2.0 - 1.0;
+    let pr = y0 + 1.0 + MM_R as f32 * MM_CELL + (MM_CELL - 1.0) / 2.0 - 1.0;
+    commands.spawn((
+        Sprite::from_color(rgb(0xffffff), Vec2::new(3.0, 3.0)),
+        crate::gfx::at(pc, pr, 3.0, 3.0, HUD_Z + 0.45),
+        crate::gfx::PIXEL_LAYER,
+        tag(),
+    ));
 }

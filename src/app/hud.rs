@@ -61,7 +61,7 @@ impl Plugin for HudPlugin {
             .add_systems(
                 Update,
                 (
-                    (hud_hp, hud_prompts, hud_slots, hud_progress, hud_name, hud_time, hud_quests, hud_mana, hw::shards_tick, hw::coins_tick).in_set(HudContent),
+                    (hud_hp, hud_prompts, hud_slots, hud_progress, hud_name, hud_time, hud_quests, hud_mana, hw::shards_tick, hw::coins_tick, hw::minimap_tick).in_set(HudContent),
                     hw::layout_tick,
                     (hw::adopt, hw::place).chain().after(HudContent).after(hw::layout_tick),
                 ),
