@@ -308,7 +308,10 @@ pub fn coins_tick(
 pub struct MinimapHud;
 
 const MM_BASE: f32 = 120.0;
-const MM_W: f32 = (crate::room::COLS * 3 + 2) as f32 + 2.0; // 3 thumbs + gaps + frame
+// The frame spans EXACTLY the ability-icon row (Baz): PAD to PAD + 64. Inner 62 =
+// three 20px cells + two 1px seams; each 19-tile thumb stretches one px to fit.
+const MM_W: f32 = crate::SIDEBAR_W - 2.0 * PAD;
+const MM_TW: f32 = 20.0;
 pub const MM_H: f32 = (crate::room::ROWS * 3 + 2) as f32 + 2.0;
 
 fn rgb(c: u32) -> Color {
@@ -347,8 +350,7 @@ pub fn minimap_tick(
         return;
     }
     let tag = || (MinimapHud, InWidget("minimap"));
-    let x0 = PAD + ((crate::SIDEBAR_W - 2.0 * PAD - MM_W) / 2.0).floor();
-    let y0 = MM_BASE;
+    let (x0, y0) = (PAD, MM_BASE);
     // Slate backing + frame (unexplored rooms stay this dark).
     commands.spawn((
         Sprite::from_color(rgb(0x0a0a10), Vec2::new(MM_W, MM_H)),
@@ -371,7 +373,7 @@ pub fn minimap_tick(
             if !visited.0.contains(&(rx, ry)) {
                 continue;
             }
-            let cx = x0 + 1.0 + ((dx + 1) * (COLS + 1)) as f32;
+            let cx = x0 + 1.0 + (dx + 1) as f32 * (MM_TW + 1.0);
             let cy = y0 + 1.0 + ((dy + 1) * (ROWS + 1)) as f32;
             // The codex map's own thumbnail, from the SHARED cache (bake once, ever).
             let img = cache
@@ -380,10 +382,10 @@ pub fn minimap_tick(
                 .or_insert_with(|| images.add(super::codex::map_tab::room_thumb(&world.0, rx, ry)))
                 .clone();
             let mut spr = Sprite::from_image(img);
-            spr.custom_size = Some(Vec2::new(COLS as f32, ROWS as f32));
+            spr.custom_size = Some(Vec2::new(MM_TW, ROWS as f32));
             commands.spawn((
                 spr,
-                crate::gfx::at(cx, cy, COLS as f32, ROWS as f32, HUD_Z + 0.35),
+                crate::gfx::at(cx, cy, MM_TW, ROWS as f32, HUD_Z + 0.35),
                 crate::gfx::PIXEL_LAYER,
                 tag(),
             ));
@@ -399,7 +401,7 @@ pub fn minimap_tick(
             if let Some(pc) = pip {
                 commands.spawn((
                     Sprite::from_color(rgb(pc), Vec2::new(2.0, 2.0)),
-                    crate::gfx::at(cx + COLS as f32 - 3.0, cy + 1.0, 2.0, 2.0, HUD_Z + 0.4),
+                    crate::gfx::at(cx + MM_TW - 3.0, cy + 1.0, 2.0, 2.0, HUD_Z + 0.4),
                     crate::gfx::PIXEL_LAYER,
                     tag(),
                 ));
@@ -407,7 +409,7 @@ pub fn minimap_tick(
         }
     }
     // YOU: a white dot at your ACTUAL TILE in the centre room (1px = 1 tile).
-    let px = x0 + 1.0 + (COLS + 1) as f32 + ptx.clamp(0, COLS - 1) as f32 - 0.5;
+    let px = x0 + 1.0 + (MM_TW + 1.0) + ((ptx.clamp(0, COLS - 1) as f32 + 0.5) * MM_TW / COLS as f32).floor() - 1.0;
     let py = y0 + 1.0 + (ROWS + 1) as f32 + pty.clamp(0, ROWS - 1) as f32 - 0.5;
     commands.spawn((
         Sprite::from_color(rgb(0xffffff), Vec2::new(2.0, 2.0)),
