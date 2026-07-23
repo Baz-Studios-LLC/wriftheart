@@ -329,8 +329,15 @@ fn bubble_overlay(
             commands.spawn((spr, at(0.0, 0.0, 22.0, 22.0, 8.2), PIXEL_LAYER, RoomActor, BubbleFx));
         }
     }
+    // The side frames draw the body 2px off the frame middle (cols 2..9 right,
+    // 6..13 flipped left) — anchor the sphere on the VISUAL centre (Baz).
+    let cx = match p.facing {
+        crate::actors::hero::Facing::Right => 6.0,
+        crate::actors::hero::Facing::Left => 10.0,
+        _ => 8.0,
+    };
     for (_, mut tf) in &mut fx {
-        *tf = at(PLAY_X + p.x + 8.0 - 11.0, PLAY_Y + p.y + 8.0 - 11.0, 22.0, 22.0, actor_z(p.y + 16.0) - 0.1);
+        *tf = at(PLAY_X + p.x + cx - 11.0, PLAY_Y + p.y + 8.0 - 11.0, 22.0, 22.0, actor_z(p.y + 16.0) - 0.1);
     }
 }
 

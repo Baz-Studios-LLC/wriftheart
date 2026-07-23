@@ -209,7 +209,7 @@ const fn seed_item(id: &'static str, name: &'static str, seed: &'static str, pri
 }
 
 /// The registry (js REGISTRY) — every def verbatim from js/items.js.
-const HOOK_ICON: &[&str] = &["...aa...", "....a...", "....a...", "....a...", ".a..a...", ".a..a...", ".aaaa...", "..aa...."];
+const HOOK_ICON: &[&str] = &["....aa..", ".....a..", ".....a..", ".....a..", "..a..a..", "..a..a..", "..aaaa..", "...aa..."];
 const HOOK_PAL: &[(char, u32)] = &[('a', 0xc8d2da)];
 const SEAL_ICON: &[&str] = &["..rrrr..", ".rrrrrr.", "rrWrrWrr", "rrrWWrrr", "rrrWWrrr", "rrWrrWrr", ".rrrrrr.", "..rrrr.."];
 const SEAL_PAL: &[(char, u32)] = &[('r', 0xc03848), ('W', 0xffd34d)];
@@ -219,13 +219,13 @@ const CHICKEN_ICON: &[&str] = &["...r....", "..WWW...", ".WWWWO..", ".WWWW...", 
 const CHICKEN_PAL: &[(char, u32)] = &[('W', 0xf4f0e8), ('r', 0xc83828), ('O', 0xe0902a), ('y', 0xc8a030)];
 const EGG_ICON: &[&str] = &["........", "...WW...", "..WWWW..", "..WWWw..", "..WWWw..", "..WWww..", "...ww...", "........"];
 const EGG_PAL: &[(char, u32)] = &[('W', 0xf4f0e4), ('w', 0xd8ccb0)];
-const COWI_ICON: &[&str] = &["........", ".WWWK...", "WWWWWWO.", "WKWWWWO.", "WWWKWWW.", ".WWWWK..", ".pp.....", "..W..W.."];
+const COWI_ICON: &[&str] = &[".WWWK...", "WWWWWWO.", "WKWWWWO.", "WWWKWWW.", ".WWWWK..", ".pp.....", "..W..W..", "........"];
 const COWI_PAL: &[(char, u32)] = &[('W', 0xf4f0e8), ('K', 0x2a2a30), ('O', 0xe8d8a0), ('p', 0xf0a8b8)];
 const PAIL_FARM_ICON: &[&str] = &["........", ".aWWWWa.", ".a....a.", ".AWWWWA.", ".AWWWWA.", ".AWWWWA.", ".AAAAAA.", "........"];
 const PAIL_FARM_PAL: &[(char, u32)] = &[('A', 0xaab4bc), ('W', 0xccd6de), ('a', 0x6a747c)];
 const MILK_ICON: &[&str] = &["..aaaa..", "..a..a..", ".aWWWWa.", ".aWWWWa.", ".aWWWWa.", ".aWWWWa.", ".aaaaaa.", "........"];
 const MILK_PAL: &[(char, u32)] = &[('a', 0x8a949c), ('W', 0xf8f4ec)];
-const COOPKIT_ICON: &[&str] = &["........", ".rrrrrr.", "rrrrrrrr", "KKKKKKKK", "KDWWDDWK", "KDWWDoWK", "KDDDDoWK", "KKKKKKKK"];
+const COOPKIT_ICON: &[&str] = &[".rrrrrr.", "rrrrrrrr", "KKKKKKKK", "KDWWDDWK", "KDWWDoWK", "KDDDDoWK", "KKKKKKKK", "........"];
 const COOPKIT_PAL: &[(char, u32)] = &[('r', 0xc83828), ('D', 0x8a6a3a), ('W', 0xe8d8a0), ('o', 0x141008), ('K', 0x3a2a18)];
 const BARNKIT_ICON: &[&str] = &["..KKKK..", ".KrrrrK.", "KrrrrrrK", "rrrrrrrr", "rrWDDWrr", "rrWDDWrr", "rrWDDWrr", "........"];
 const BARNKIT_PAL: &[(char, u32)] = &[('r', 0xc83828), ('K', 0x3a2a18), ('D', 0x5a3a20), ('W', 0xe8d8a0)];
@@ -233,13 +233,13 @@ const BARNKIT_PAL: &[(char, u32)] = &[('r', 0xc83828), ('K', 0x3a2a18), ('D', 0x
 // --- Cooked food (js items.js: made at the Cooking Fire; each dish = one timed buff,
 // applied by app/status.rs eat_dish — potions heal, MEALS BUFF). Icons js-verbatim. ---
 const ROAST_ICON: &[&str] = &["........", ".....W..", "....WW..", "..SSSW..", ".SSSSS..", ".SSSSS..", "..SSS...", "........"];
-const STEW_ICON: &[&str] = &["........", "........", ".WoooW..", "WooorW..", "WoooooW.", ".WoooW..", "..WWW...", "........"];
+const STEW_ICON: &[&str] = &["........", ".WoooW..", "WooorW..", "WoooooW.", ".WoooW..", "..WWW...", "........", "........"];
 const SKEWER_ICON: &[&str] = &[".......d", "......d.", "..SrS.d.", ".SrSrSd.", ".SrSrS..", "dSrSr...", "d.SrS...", "d......."];
 const SAUTE_ICON: &[&str] = &["........", "...gPg..", "..rgPgr.", ".aaaaaa.", ".aaaaaa.", "..a..a..", "........", "........"];
 const PIE_ICON: &[&str] = &["........", "...PP...", "..PyyP..", ".PyyyyP.", ".PyyyyP.", ".PyyyyP.", ".PPPPPP.", "........"];
 const TART_ICON: &[&str] = &["........", ".DDDDDD.", ".DrmrrD.", ".DmrrmD.", ".DrrmrD.", ".DDDDDD.", "........", "........"];
-const GRILL_ICON: &[&str] = &["........", ".....W..", "..ddddW.", ".dDDDDDd", "..ddddd.", "....d...", "........", "........"];
-const CHOWDER_ICON: &[&str] = &["........", "........", ".WcccW..", "WccdccW.", "WcccccW.", ".WcccW..", "..WWW...", "........"];
+const GRILL_ICON: &[&str] = &["........", "....W...", ".ddddW..", "dDDDDDd.", ".ddddd..", "...d....", "........", "........"];
+const CHOWDER_ICON: &[&str] = &["........", ".WcccW..", "WccdccW.", "WcccccW.", ".WcccW..", "..WWW...", "........", "........"];
 const FRY_ICON: &[&str] = &["........", ".yyyyy..", "yDyyDyy.", "yyyyyyy.", ".yyyyy..", "...K....", "...K....", "........"];
 const TONIC_ICON: &[&str] = &["...dd...", "..KddK..", "..KooK..", "..KoYK..", "..KooK..", "..KooK..", "..KooK..", "..KKKK.."];
 const RHERB_ICON: &[&str] = &["........", "...l....", "..lgl...", ".lgGgl..", ".llgll..", "...d....", "...d....", "........"];
@@ -248,7 +248,7 @@ const COOKFIRE_ICON: &[&str] = &[".aAAAa..", "aKKKKKa.", "aKKKKKa.", ".nKKKn..",
 // the rolled-scroll BP_ICON; the station icons are their in-inventory kit look.
 const WORKBENCH_ICON: &[&str] = &["........", "..a.a...", "DDDDDDDD", "DddddddD", "DDDDDDDD", ".d....d.", ".d....d.", "........"];
 const FORGE_ICON: &[&str] = &["........", "..AAAA..", "...AA...", "..AAAA..", "..nnnn..", ".nKKKKn.", ".n.KK.n.", "........"];
-const ALCHEMY_ICON: &[&str] = &["..WW....", "..ww....", ".wwww...", ".wggw...", "wggggw..", "wgGggw..", "wggggw..", ".wwww..."];
+const ALCHEMY_ICON: &[&str] = &["...WW...", "...ww...", "..wwww..", "..wggw..", ".wggggw.", ".wgGggw.", ".wggggw.", "..wwww.."];
 const ENCHANT_ICON: &[&str] = &["...x....", "..xXx...", ".xXWXx..", "..xXx...", "...x....", "...d....", "...d....", "..ddd..."];
 const FLETCH_ICON: &[&str] = &["..D.....", ".D.W....", "D..WA...", "D.WAAAA.", "D..WA...", ".D.W....", "..D.....", "........"];
 const JEWEL_ICON: &[&str] = &["...b....", "..PPP...", ".PP.PP..", ".P...P..", ".P...P..", ".PP.PP..", "..PPP...", "........"];
@@ -262,8 +262,8 @@ const GRAPPLE_ICON: &[&str] = &[".A...A..", ".A...A..", ".AA.AA..", "..AAA...", 
 const SPRINGBOOTS_ICON: &[&str] = &["..bb....", "..bb....", "..bbbb..", "..bbbbb.", "AAAAAAA.", ".A.A.A..", "A.A.A.A.", ".A.A.A.."];
 const BUBBLERING_ICON: &[&str] = &["..wPw...", ".w...w..", "w.....w.", "w.....w.", "w.....w.", ".w...w..", "..www...", "........"];
 const ANTIDOTE_ICON: &[&str] = &["...dd...", "..KddK..", "..KglK..", "..KggK..", "..KggK..", "..KggK..", "..KggK..", "..KKKK.."];
-const SATCHEL_ICON: &[&str] = &["........", "..dDDd..", ".dDDDDd.", ".DyyyyD.", ".DyDDyD.", ".DyyyyD.", ".DDDDDD.", "..DDDD.."];
-const WAND_ICON: &[&str] = &[".......G", "......GG", "......G.", ".....D..", "....D...", "...D....", "..D.....", ".d......"];
+const SATCHEL_ICON: &[&str] = &["..dDDd..", ".dDDDDd.", ".DyyyyD.", ".DyDDyD.", ".DyyyyD.", ".DDDDDD.", "..DDDD..", "........"];
+const WAND_ICON: &[&str] = &["......G.", ".....GG.", ".....G..", "....D...", "...D....", "..D.....", ".D......", "d......."];
 const RUNE_ICON: &[&str] = &["..aaaa..", ".aGGGGa.", ".aGKGGa.", ".aGGKGa.", ".aGKGGa.", ".aGGGGa.", ".aGGGGa.", "..aaaa.."];
 const MANAPOT_ICON: &[&str] = &["..KKK...", "..KWK...", ".KKKKK..", ".KLLLLK.", ".KLWLLK.", ".KLLLLK.", ".KLLLLK.", "..KKKK.."];
 const MANAELIX_ICON: &[&str] = &["...P....", "..KPK...", ".KwwwK..", ".KwbwK..", ".KwbwK..", ".KbbbK..", ".KbbbK..", "..KKKK.."];

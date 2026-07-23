@@ -14,7 +14,7 @@ pub const BANDAGE_ICON: &[&str] = &["........", "..WWWW..", ".WWrrWW.", ".WrWWrW
 pub const GREATERPOTION_ICON: &[&str] = &["...dd...", "..KddK..", "..KwwK..", "..KVVK..", "..KVVK..", "..KVVK..", "..KVVK..", "..KKKK.."];
 pub const ELIXIR_ICON: &[&str] = &["...P....", "..KPK...", ".KoooK..", ".KoooK..", ".KoPoK..", ".KoooK..", ".KoooK..", "..KKKK.."];
 pub const LEATHER_ICON: &[&str] = &["........", ".SDDDS..", "SDDDDDS.", "SDDDDDS.", "SDDDDDS.", ".SDDDS..", "..SSS...", "........"];
-pub const GEM_ICON: &[&str] = &["........", "..wWw...", ".wbbbw..", "wbBBbw..", ".wbBbw..", "..wbw...", "...w....", "........"];
+pub const GEM_ICON: &[&str] = &["........", "...wWw..", "..wbbbw.", ".wbBBbw.", "..wbBbw.", "...wbw..", "....w...", "........"];
 pub const MEAT_ICON: &[&str] = &["........", ".W......", "WWrro...", ".orooor.", ".roooor.", ".rroorr.", "..rrrr..", "........"];
 // A wound ball of string (js STRING_GRID; letters recolored via the def's icon_pal).
 pub const STRING_ICON: &[&str] = &["..gggg..", ".gllllg.", "gllggllg", "glgllglg", "gllggllg", "gllllllg", ".gllllg.", "..gggg.."];
@@ -54,13 +54,13 @@ pub const MIMIC_BITE_ICON: &[&str] = &[
 pub const ROD_ICON: &[&str] = &[".......D", "......D.", ".....D..", "....DD..", "...D.W..", "..D..W..", ".D...W..", "D....W.."];
 pub const FISH_GRID: &[&str] = &["........", "...CCCC.", ".K.CCCCC", "KKCCCKCC", ".K.CCCCC", "...CCCC.", "........", "........"];
 pub const BOOT_ICON: &[&str] = &["........", ".DD.....", ".DD.....", ".DD.....", ".DDDDD..", ".DDDDDD.", ".dddddd.", "........"];
-pub const WEED_ICON: &[&str] = &["..l..l..", ".l.l.l.l", ".l.ll.l.", "..lll...", "..l.l...", ".ll.l...", ".l..ll..", "........"];
+pub const WEED_ICON: &[&str] = &[".l..l...", "l.l.l.l.", "l.ll.l..", ".lll....", ".l.l....", "ll.l....", "l..ll...", "........"];
 pub const DRIFT_ICON: &[&str] = &["........", "......dd", "....ddd.", "..ddd...", ".dd.....", "dd......", "........", "........"];
 // Farming (js HOE_ICON / CAN_ICON / PROD_GRID / SEED_GRID): the two farm tools, plus the
 // shared produce + seed-packet silhouettes every crop recolors ('C').
 pub const HOE_ICON: &[&str] = &[".....AAA", ".....A..", "....A...", "...d....", "..d.....", ".d......", "d.......", "........"];
-pub const CAN_ICON: &[&str] = &["........", "..aa..A.", ".a..a.A.", ".aaaaaaA", ".aAAAAa.", ".aAAAAa.", ".aaaaaa.", "........"];
+pub const CAN_ICON: &[&str] = &["........", ".aa..A..", "a..a.A..", "aaaaaaA.", "aAAAAa..", "aAAAAa..", "aaaaaa..", "........"];
 pub const PROD_GRID: &[&str] = &["...g....", "..gCCg..", ".CCCCCC.", "CCCCCCCC", "CCCCCCCC", ".CCCCCC.", "..CCCC..", "........"];
 pub const SEED_GRID: &[&str] = &["........", ".DDDDDD.", ".DCCCCD.", ".DCCCCD.", ".DCCCCD.", ".DCCCCD.", ".DDDDDD.", "........"];
 // The Windwood Flute (js FLUTE_ICON) — four notes of carved blossom-wood.
-pub const FLUTE_ICON: &[&str] = &["........", "......dD", ".....dWd", "....dWd.", "...dWd..", "..dWd...", ".dDd....", "Dd......"];
+pub const FLUTE_ICON: &[&str] = &["......dD", ".....dWd", "....dWd.", "...dWd..", "..dWd...", ".dDd....", "Dd......", "........"];

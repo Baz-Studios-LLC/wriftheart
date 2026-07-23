@@ -60,14 +60,14 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "leatherboots", name: "Leather Boots", kind: "FEET", rarity: Rarity::Common,
         slot: Some("feet"), price: Some(60),
-        icon: &["........", ".D....D.", ".D....D.", ".D....D.", ".D....D.", ".DD..DD.", "DDD.DDD.", "ddd.ddd."],
+        icon: &[".D....D.", ".D....D.", ".D....D.", ".D....D.", ".DD..DD.", "DDD.DDD.", "ddd.ddd.", "........"],
         stats: &[("defense", 1.0)],
         desc: "Tough soles. +1 Armor.", ..BASE
     },
     ItemDef {
         id: "travelboots", name: "Traveler Boots", kind: "FEET", rarity: Rarity::Rare,
         slot: Some("feet"), price: Some(350),
-        icon: &["........", ".b....b.", "lb....bl", ".b....b.", ".b....b.", ".bb..bb.", "bbb.bbb.", "AAA.AAA."],
+        icon: &[".b....b.", "lb....bl", ".b....b.", ".b....b.", ".bb..bb.", "bbb.bbb.", "AAA.AAA.", "........"],
         stats: &[("move", 0.15)],
         desc: "Light and quick. +Move speed.", ..BASE
     },
@@ -89,14 +89,14 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "luckamulet", name: "Lucky Amulet", kind: "TRINKET", rarity: Rarity::Rare,
         slot: Some("trinket"), price: Some(400),
-        icon: &["...P....", "...P....", "..ggg...", ".gGlGg..", ".glGlg..", "..ggg...", "........", "........"],
+        icon: &["........", "...P....", "...P....", "..ggg...", ".gGlGg..", ".glGlg..", "..ggg...", "........"],
         stats: &[("luck", 0.1)],
         desc: "Fortune favors you. +10% drops.", ..BASE
     },
     ItemDef {
         id: "greedcharm", name: "Greed Charm", kind: "TRINKET", rarity: Rarity::Uncommon,
         slot: Some("trinket"), price: Some(200),
-        icon: &["...P....", "..PPP...", ".PpppP..", ".PpPpP..", ".PpppP..", "..PPP...", "........", "........"],
+        icon: &["........", "...P....", "..PPP...", ".PpppP..", ".PpPpP..", ".PpppP..", "..PPP...", "........"],
         stats: &[("coin", 0.15)],
         desc: "Coins are worth more. +15% gold.", ..BASE
     },
@@ -152,7 +152,7 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "crownofvalor", name: "Crown of Valor", kind: "HEAD", rarity: Rarity::Legendary,
         slot: Some("head"),
-        icon: &["P.P.P.P.", "PPPPPPP.", "PPPPPPP.", "PPrPrPP.", "PPPPPPP.", ".PPPPP..", "........", "........"],
+        icon: &["........", "P.P.P.P.", "PPPPPPP.", "PPPPPPP.", "PPrPrPP.", "PPPPPPP.", ".PPPPP..", "........"],
         stats: &[("defense", 2.0), ("maxhp", 2.0), ("melee", 0.1)],
         desc: "A king's crown. +2 Armor, +2 HP, +10% Melee.", ..BASE
     },
@@ -202,14 +202,14 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "sandals", name: "Sandals", kind: "FEET", rarity: Rarity::Common,
         slot: Some("feet"),
-        icon: &["........", "........", ".S....S.", ".SssSsS.", ".SSSSSS.", "SSSSSSSS", ".S.SS.S.", "........"],
+        icon: &["........", ".S....S.", ".SssSsS.", ".SSSSSS.", "SSSSSSSS", ".S.SS.S.", "........", "........"],
         stats: &[("move", 0.05)],
         desc: "Bare and breezy. +Move.", ..BASE
     },
     ItemDef {
         id: "swiftboots", name: "Swift Boots", kind: "FEET", rarity: Rarity::Uncommon,
         slot: Some("feet"),
-        icon: &["........", ".l.g..g.", "lg.g..g.", ".g.g..g.", ".g.g..g.", ".gg.gg..", "ggg.ggg.", "GGG.GGG."],
+        icon: &[".l.g..g.", "lg.g..g.", ".g.g..g.", ".g.g..g.", ".gg.gg..", "ggg.ggg.", "GGG.GGG.", "........"],
         stats: &[("move", 0.1)],
         desc: "Featherlight. ++Move.", ..BASE
     },
@@ -244,14 +244,14 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "swiftcharm", name: "Swift Charm", kind: "TRINKET", rarity: Rarity::Uncommon,
         slot: Some("trinket"),
-        icon: &["...P....", "...P....", "..lll...", ".lglgl..", ".llgll..", "..lll...", "........", "........"],
+        icon: &["........", "...P....", "...P....", "..lll...", ".lglgl..", ".llgll..", "..lll...", "........"],
         stats: &[("haste", 0.06)],
         desc: "+Attack Speed.", ..BASE
     },
     ItemDef {
         id: "lodestone", name: "Lodestone", kind: "TRINKET", rarity: Rarity::Uncommon,
         slot: Some("trinket"),
-        icon: &[".r...r..", ".r...r..", ".r...r..", ".rA.Ar..", ".rrArr..", "..rrr...", "........", "........"],
+        icon: &["........", ".r...r..", ".r...r..", ".r...r..", ".rA.Ar..", ".rrArr..", "..rrr...", "........"],
         stats: &[("magnet", 1.0)],
         desc: "Draws nearby loot to you.", ..BASE
     },
@@ -279,21 +279,21 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "magefocus", name: "Mage Focus", kind: "TRINKET", rarity: Rarity::Rare,
         slot: Some("trinket"),
-        icon: &["...P....", "...P....", "..bbb...", ".bBwBb..", ".bwBwb..", "..bbb...", "........", "........"],
+        icon: &["........", "...P....", "...P....", "..bbb...", ".bBwBb..", ".bwBwb..", "..bbb...", "........"],
         stats: &[("spell", 0.12), ("maxmana", 2.0)],
         desc: "+12% Spell, +2 MP.", ..BASE
     },
     ItemDef {
         id: "ironheart", name: "Iron Heart", kind: "TRINKET", rarity: Rarity::Rare,
         slot: Some("trinket"),
-        icon: &[".a.a....", "aAaAa...", "aAAAa...", ".aAAa...", "..Aa....", "........", "........", "........"],
+        icon: &["........", "..a.a...", ".aAaAa..", ".aAAAa..", "..aAAa..", "...Aa...", "........", "........"],
         stats: &[("maxhp", 2.0), ("defense", 1.0)],
         desc: "+2 HP, +1 Armor.", ..BASE
     },
     ItemDef {
         id: "titangrip", name: "Titan Grip", kind: "TRINKET", rarity: Rarity::Rare,
         slot: Some("trinket"),
-        icon: &["........", ".AAAA...", "AAAAAA..", "AnAnAA..", "AAAAAA..", ".AAAA...", "..AA....", "........"],
+        icon: &["........", "..AAAA..", ".AAAAAA.", ".AnAnAA.", ".AAAAAA.", "..AAAA..", "...AA...", "........"],
         stats: &[("knock", 1.0)],
         desc: "Your blows fling foes far. +Knockback.", ..BASE
     },
@@ -329,7 +329,7 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "assassinmark", name: "Assassin's Mark", kind: "TRINKET", rarity: Rarity::Epic,
         slot: Some("trinket"),
-        icon: &["...W....", "...X....", "...X....", "..XXX...", "...x....", "...x....", "........", "........"],
+        icon: &["........", "...W....", "...X....", "...X....", "..XXX...", "...x....", "...x....", "........"],
         icon_pal: &[('x', 0xb85cf0), ('X', 0x6a28a8), ('f', 0xa8e6ff), ('F', 0x3f93d2)],
         stats: &[("crit", 0.15), ("critmult", 0.5)],
         desc: "+15% Crit, +50% Crit damage.", ..BASE
@@ -337,7 +337,7 @@ pub static GEAR_DEFS: &[ItemDef] = &[
     ItemDef {
         id: "phoenixfeather", name: "Phoenix Feather", kind: "TRINKET", rarity: Rarity::Legendary,
         slot: Some("trinket"),
-        icon: &[".....P..", "....Po..", "...Poo..", "..Poro..", ".Pooro..", "Pooro...", ".Pro....", ".P......"],
+        icon: &["......P.", ".....Po.", "....Poo.", "...Poro.", "..Pooro.", ".Pooro..", "..Pro...", "..P....."],
         stats: &[("maxhp", 3.0), ("regen", 1.0)],
         desc: "Ever-renewing. +3 HP, +Regen.", ..BASE
     },
