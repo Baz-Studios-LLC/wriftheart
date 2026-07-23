@@ -97,6 +97,7 @@ fn fish_tick(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut fishing: ResMut<Fishing>,
+    mut dock_toast: Local<Option<(i32, i32)>>, // one BOARDS toast per room visit
     mut input: ResMut<ActionState>,
     mut rng: ResMut<GameRng>,
     mut inv: ResMut<crate::inventory::PlayerInv>,
@@ -146,7 +147,19 @@ fn fish_tick(
         }
         let (gx, gy) = (ctx.cur.rx * COLS + c, ctx.cur.ry * ROWS + r);
         let water: &'static str = if ctx.world.0.water_style(gx, gy) == "murk" { "murk" } else { "blue" };
-        let bite_at = 55 + (rng.0.next_f64() * 150.0) as u32; // (js lure gear shortens this — with the trinket port)
+        // DOCK FISHING (Baz: docks are the fisherman's spot): casting from the
+        // boards, the wait runs ~40% shorter — the fish gather in the shade.
+        let (pc, pr) = (((p.x + 8.0) / TILE as f32) as i32, ((p.y + 12.0) / TILE as f32) as i32);
+        let docked = grid.0.code_at(pc, pr) == 'B';
+        if docked && *dock_toast != Some((ctx.cur.rx, ctx.cur.ry)) {
+            *dock_toast = Some((ctx.cur.rx, ctx.cur.ry));
+            log.add("fish", "THE FISH GATHER UNDER THE BOARDS", 1, 0x8ab0d0, false, true);
+        }
+        let bite_at = if docked {
+            40 + (rng.0.next_f64() * 90.0) as u32
+        } else {
+            55 + (rng.0.next_f64() * 150.0) as u32 // (js lure gear shortens this — with the trinket port)
+        };
         let (bx, by) = ((c * TILE + 8) as f32, (r * TILE + 9) as f32);
         fishing.0 = Some(FishState { phase: Phase::Cast, t: 0, bx, by, bite_at, win: 0, water, hooked: None, hp: health.hp });
         // The scene: bobber (red cap / white float), a faint line from the rod hand, and

@@ -518,7 +518,7 @@ impl World {
             const SALT_DOCK: u32 = 0x0d0c_5ea5;
             let mut drng = Mulberry32::new(hash(self.seed, rx, ry, SALT_DOCK));
             let water_n: usize = grid.iter().flatten().filter(|&&ch| ch == '~').count();
-            if water_n >= 30 && drng.next_f64() < 0.22 {
+            if water_n >= 40 && drng.next_f64() < 0.15 {// rarer + bigger waters only (Baz: not everywhere)
                 'tries: for _ in 0..28 {
                     let c = 1 + (drng.next_f64() * (COLS - 2) as f64).floor() as i32;
                     let r = 1 + (drng.next_f64() * (ROWS - 2) as f64).floor() as i32;
