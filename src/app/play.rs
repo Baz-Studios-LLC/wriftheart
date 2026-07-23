@@ -163,6 +163,12 @@ impl SlideState {
             (s.delta.x * (1.0 - t), -s.delta.y * (1.0 - t)) // Bevy y-up -> screen y-down
         })
     }
+    /// The OUTGOING room's root while a slide is in flight — wake systems that stand
+    /// early for the incoming room spare ITS children from their sweeps (the old
+    /// structure rides out and dies with this root).
+    pub fn outgoing_root(&self) -> Option<Entity> {
+        self.0.as_ref().map(|s| s.old_root)
+    }
     /// The INCOMING room's root while a slide is in flight. ActiveRoot still points at
     /// the OUTGOING root until the slide settles — anything spawned as a room child
     /// mid-slide must join THIS root or it rides out and dies with the old room (the

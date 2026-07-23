@@ -38,23 +38,30 @@ fn wagon_wake(
     mut images: ResMut<Assets<Image>>,
     mut art: ResMut<crate::actors::villager::VillagerArt>,
     cur: Res<CurRoom>,
-    sliding: Res<super::play::SlideActive>,
+    slide: Res<super::play::SlideState>,
     world: Res<GameWorld>,
     in_dungeon: Res<super::dungeon::InDungeon>,
     inside: Res<super::interior::Inside>,
     mut blockers: ResMut<super::room_props::RoomBlockers>,
     mut woke: Local<Option<(i32, i32)>>,
     live: Query<Entity, With<CaravanWagon>>,
+    parents: Query<&ChildOf>,
 ) {
-    if sliding.0 || in_dungeon.0.is_some() || inside.0.is_some() {
+    if in_dungeon.0.is_some() || inside.0.is_some() {
         *woke = None;
         return;
     }
+    // Stands up MID-SLIDE for the incoming room and rides in (the hall_wake rule);
+    // the sweep spares the outgoing room's wagon, which leaves with its root.
     if *woke == Some((cur.rx, cur.ry)) {
         return;
     }
     *woke = Some((cur.rx, cur.ry));
+    let outgoing = slide.outgoing_root();
     for e in &live {
+        if outgoing.is_some() && parents.get(e).ok().map(|p| p.parent()) == outgoing {
+            continue;
+        }
         commands.entity(e).despawn();
     }
     for e in world.0.room_entities(cur.rx, cur.ry) {

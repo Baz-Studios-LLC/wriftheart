@@ -13,7 +13,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use super::battle::RoomActor;
-use super::play::{CurRoom, SlideActive};
+use super::play::CurRoom;
 use super::room_render::{actor_z, PLAY_X, PLAY_Y};
 use crate::gfx::{at, font, PIXEL_LAYER};
 use crate::ui::label;
@@ -203,7 +203,7 @@ pub fn hall_wake(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     cur: Res<CurRoom>,
-    sliding: Res<SlideActive>,
+    slide: Res<super::play::SlideState>,
     world: Res<super::play::GameWorld>,
     in_dungeon: Res<super::dungeon::InDungeon>,
     inside: Res<super::interior::Inside>,
@@ -211,16 +211,25 @@ pub fn hall_wake(
     mut blockers: ResMut<super::room_props::RoomBlockers>,
     mut woke: Local<Option<(i32, i32)>>,
     face: Query<Entity, With<HallFace>>,
+    parents: Query<&ChildOf>,
 ) {
-    if sliding.0 || in_dungeon.0.is_some() || inside.0.is_some() {
-        *woke = None; // interiors and halls re-stand the face on the way back out
+    if in_dungeon.0.is_some() || inside.0.is_some() {
+        *woke = None; // interiors re-stand the face on the way back out
         return;
     }
+    // MID-SLIDE the hall stands up EARLY for the incoming room (cur already names
+    // it) and adopt_room_cast puts it on the sliding new root, so it rides in with
+    // its streets (Baz: it popped at settle). The sweep spares the OUTGOING hall —
+    // a child of the departing root, leaving with it.
     if *woke == Some((cur.rx, cur.ry)) && !ledger.is_changed() {
         return;
     }
     *woke = Some((cur.rx, cur.ry));
+    let outgoing = slide.outgoing_root();
     for e in &face {
+        if outgoing.is_some() && parents.get(e).ok().map(|p| p.parent()) == outgoing {
+            continue;
+        }
         commands.entity(e).despawn();
     }
     let Some(e) = world.0.room_entities(cur.rx, cur.ry).into_iter().find(|e| e.kind == "guildhall") else {
