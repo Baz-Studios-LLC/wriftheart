@@ -42,7 +42,7 @@ pub fn unlocked(w: &WidgetDef, inv: &crate::inventory::PlayerInv) -> bool {
 /// The registry — order here is the default TOP order and the arranger's fallback.
 pub const WIDGETS: &[WidgetDef] = &[
     WidgetDef { id: "vitals", name: "VITALS", core: true, gate: None },
-    WidgetDef { id: "abilities", name: "ABILITIES", core: false, gate: None },
+    WidgetDef { id: "abilities", name: "ITEMS", core: false, gate: None }, // the sidebar header says ITEMS - the arranger matches (Baz)
     WidgetDef { id: "clock", name: "CLOCK", core: false, gate: Some("clock") },
     WidgetDef { id: "minimap", name: "MINIMAP", core: false, gate: Some("compass") },
     WidgetDef { id: "quests", name: "QUESTS", core: false, gate: None },
