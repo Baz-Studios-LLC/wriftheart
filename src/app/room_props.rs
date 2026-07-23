@@ -113,7 +113,7 @@ pub fn spawn_room_props(
         let (c, r) = (x.div_euclid(TILE), y.div_euclid(TILE));
         let fx = x as f32;
         let fy = y as f32;
-        let gatherable = is_big_prop(e.kind) || matches!(e.kind, "bush" | "boulder" | "grass" | "cobweb");
+        let gatherable = is_big_prop(e.kind) || matches!(e.kind, "bush" | "boulder" | "grass" | "cobweb" | "orenode");
         if gatherable && gather.taken(room, c, r, today) {
             continue; // gathered earlier today — regrows on the next day's first entry
         }
@@ -186,17 +186,24 @@ pub fn spawn_room_props(
                 blockers.push(blocker);
             }
             "boulder" => {
-                // Ore node: the rock advertises its metal by zone tier — the vein art climbs
-                // copper -> mithril (the baked 0..=4 sets), and a deeper vein needs a stronger
-                // pick (req_tier), which is exactly the metal it yields.
-                let rq = (ztier.max(1) - 1).clamp(0, 4) as usize;
-                let pool = &art.boulders[rq];
-                let img = pool[pick_variant(x, y, 0x22 + 1 + rq as i32, pool.len())].clone();
+                // Plain stone (Baz: the ore moved to its own nodes) — any pick opens it.
+                let img = art.boulders[pick_variant(x, y, 0x22, art.boulders.len())].clone();
                 let pe = child(commands, root, Sprite::from_image(img), at(PLAY_X + fx, PLAY_Y + fy, 16.0, 16.0, 3.4));
                 let blocker = (fx + 2.0, fy + 3.0, 12.0, 11.0);
                 let hb = Hitbox { x: fx + 2.0, y: fy + 3.0, w: 12.0, h: 11.0 };
-                // Gate on biome tier (uniform per region); drop tier stays ztier (deeper = better).
-                commands.entity(pe).insert(node_bundle("boulder", c, r, Tool::Pick, 3, hb, Some(blocker), 0xa8a8a8, false, ztier, btier.max(1)));
+                commands.entity(pe).insert(node_bundle("boulder", c, r, Tool::Pick, 3, hb, Some(blocker), 0xa8a8a8, false, ztier, 1));
+                blockers.push(blocker);
+            }
+            "orenode" => {
+                // The zone's metal in its OWN bespoke rock (Baz): needs the metal's pick,
+                // pays the metal + a shot at a gem (gather::drops_for).
+                let idx = (ztier.max(1) - 1).clamp(0, 5) as usize;
+                let img = art.ore_nodes[idx].clone();
+                let chip = crate::actors::props_art::ORE_NODE_ART[idx].2.iter().find(|(ch, _)| *ch == 'm').map_or(0xa8a8a8, |(_, col)| *col);
+                let pe = child(commands, root, Sprite::from_image(img), at(PLAY_X + fx, PLAY_Y + fy, 16.0, 16.0, 3.4));
+                let blocker = (fx + 2.0, fy + 3.0, 12.0, 11.0);
+                let hb = Hitbox { x: fx + 2.0, y: fy + 3.0, w: 12.0, h: 11.0 };
+                commands.entity(pe).insert(node_bundle("orenode", c, r, Tool::Pick, 4, hb, Some(blocker), chip, false, ztier, btier.max(1)));
                 blockers.push(blocker);
             }
             "cobweb" => {

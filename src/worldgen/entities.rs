@@ -353,6 +353,16 @@ impl World {
                 place_solid!("boulder", c, r + 1);
             }
         }
+        // ORE NODES (Baz: bespoke, not boulder recolors): the zone's metal in its own
+        // rock - rarer than plain stone, a touch likelier out deep.
+        if b.boulders > 0 {
+            let n = (orng.next_f64() < 0.45) as i32 + (World::ring_dist(rx, ry) / 8 >= 2 && orng.next_f64() < 0.3) as i32;
+            for _ in 0..n {
+                let c = 2 + (orng.next_f64() * (COLS - 4) as f64).floor() as i32;
+                let r = 2 + (orng.next_f64() * (ROWS - 4) as f64).floor() as i32;
+                place_solid!("orenode", c, r);
+            }
+        }
 
         // Big props (trees + cacti): spaced >= 3 tiles apart so canopies don't pile up.
         let mut big: Vec<(i32, i32)> = Vec::new();

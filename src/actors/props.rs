@@ -361,8 +361,10 @@ pub struct PropArt {
     pub farmhouse: Handle<Image>,
     pub well: Handle<Image>,
     pub torch: [Handle<Image>; 2],
-    /// Ore-node boulders: [tier 1..=5 -> 15 variants].
-    pub boulders: Vec<Vec<Handle<Image>>>,
+    /// Plain stone boulders (every shape, baked grey - Baz: ore left the boulders).
+    pub boulders: Vec<Handle<Image>>,
+    /// Bespoke ore nodes, indexed copper..voidsteel (ORE_NODE_ART order).
+    pub ore_nodes: Vec<Handle<Image>>,
     pub grass: Vec<Handle<Image>>,
     pub flowers: Vec<Handle<Image>>,
     pub clutter: HashMap<&'static str, Handle<Image>>,
@@ -380,9 +382,12 @@ impl PropArt {
             },
             boulders: ORE_NODES
                 .iter()
-                .map(|(main, lite, grids)| {
-                    grids.iter().map(|g| images.add(bake(g, &[('v', *main), ('V', *lite)]))).collect()
-                })
+                .flat_map(|(_, _, grids)| grids.iter())
+                .map(|g| images.add(bake(g, &[('v', 0x8a8a8a), ('V', 0xa8a8a8)])))
+                .collect(),
+            ore_nodes: crate::actors::props_art::ORE_NODE_ART
+                .iter()
+                .map(|(_, grid, pal)| images.add(bake(grid, pal)))
                 .collect(),
             grass: GRASS_FRAMES.iter().map(|g| images.add(bake(g, &[]))).collect(),
             flowers: FLOWER_COLS.iter().map(|c| images.add(bake(FLOWER_BASE, &[('p', *c)]))).collect(),

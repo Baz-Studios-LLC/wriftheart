@@ -401,14 +401,18 @@ fn accent_pokes(img: &mut Image, arm: &WornArm, facing: &str) {
             rect(hx + 2, 1, hw - 4, 1, h.lite); // dome glint
         }
         if h.style == "lamp" {
-            // the miner's headlamp: forehead from the front, leading edge in profile
+            // the miner's headlamp, readable from EVERY facing (Baz): a bold lamp
+            // front and in profile, the strap + peeking lamp tip from behind.
             if facing == "down" {
-                rect(hx + hw / 2 - 1, 1, 2, 2, 0xffe27a);
+                rect(hx + hw / 2 - 2, 1, 3, 2, 0xffe27a);
                 rect(hx + hw / 2 - 1, 1, 1, 1, 0xfff8d0);
             } else if side {
                 rect(hx + hw - 2, 1, 1, 2, 0x2a2a30);
-                rect(hx + hw - 1, 1, 1, 2, 0xffe27a);
+                rect(hx + hw - 1, 0, 1, 3, 0xffe27a);
                 rect(hx + hw - 1, 1, 1, 1, 0xfff8d0);
+            } else {
+                rect(hx, 2, hw, 1, h.dark); // the strap across the crown
+                rect(hx + hw / 2 - 1, 0, 2, 1, 0xffe27a); // the lamp tip peeking over
             }
         }
         if h.style == "horned" {

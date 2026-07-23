@@ -10,6 +10,48 @@ pub const BUSH_VARIANTS: &[&[&str]] = &[
 ];
 
 /// Ore-node boulders: [tier 1..=5][15 variants], with per-tier vein colours (v, V).
+/// BESPOKE ore nodes (Baz: recolored boulders retire): one distinct rock per metal,
+/// indexed copper..voidsteel. (id, grid, palette). k outline, s stone, m metal, M glint.
+pub const ORE_NODE_ART: &[(&str, &[&str], &[(char, u32)])] = &[
+    ("copper", &[
+        "................", "................", "......kkkk......", "....kkssssk.....",
+        "...kssmmsssk....", "..kssmmmmsssk...", "..ksssmmssssk...", ".kssssssmmssk...",
+        ".ksmmsssmmmssk..", ".ksmmmssssssk...", "..ksmssssmmsk...", "..kssssssssk....",
+        "...kkssssskk....", ".....kkkkk......", "................", "................",
+    ], &[('k', 0x1a140e), ('s', 0x7a6a56), ('m', 0xc86a2a), ('M', 0xe89a4a)]),
+    ("iron", &[
+        "................", "................", "...kkkkkkkkk....", "..kssssssssk....",
+        "..ksmmssssssk...", "..ksmmmsssmsk...", "..kssssssmmsk...", "..kssmssssssk...",
+        "..ksmmmssmmsk...", "..kssmsssmmmsk..", "..ksssssssssk...", "..kssssssssk....",
+        "..kkkkkkkkkk....", "................", "................", "................",
+    ], &[('k', 0x14141a), ('s', 0x5a5a64), ('m', 0x8a8a92), ('M', 0xb8b8c0)]),
+    ("silver", &[
+        "................", "......kk........", ".....kMsk.......", "....ksmmsk......",
+        "....ksmMsk......", "...kssmmssk.....", "...ksmssmsk.....", "..kssMssmssk....",
+        "..ksssmmsssk....", "..ksmssssmsk....", ".kssssmmssssk...", ".ksssssssssk....",
+        "..kkkkkkkkk.....", "................", "................", "................",
+    ], &[('k', 0x16161c), ('s', 0x8a8e9a), ('m', 0xc8ccd8), ('M', 0xf0f4ff)]),
+    ("gold", &[
+        "................", "................", "................", "....kkkkkk......",
+        "...kssssssk.....", "..kssmMmsssk....", ".kssmmmmssssk...", ".ksssmMssmmsk...",
+        ".kssssssmmmmsk..", ".ksmmssssmmsk...", "..ksmmsssssk....", "...kssssssk.....",
+        "....kkkkkk......", "................", "................", "................",
+    ], &[('k', 0x1a1408), ('s', 0x8a7a4a), ('m', 0xe8b820), ('M', 0xffe27a)]),
+    ("mithril", &[
+        "................", ".......kk.......", "......kMmk......", "......kmmk......",
+        "....k.kmmk.k....", "...kmk.kk.kmk...", "...kmmk..kmmk...", "..ksmmsksmmsk...",
+        "..kssmsssmssk...", "..ksssssssssk...", ".kssssmmsssssk..", ".ksssssssssk....",
+        "..kkkkkkkkk.....", "................", "................", "................",
+    ], &[('k', 0x0e1a1e), ('s', 0x3a5a64), ('m', 0x30c8d8), ('M', 0x9af0ff)]),
+    ("voidsteel", &[
+        "................", "......kk........", ".....kmMk.......", ".....kmmk.......",
+        "....kmmmmk......", "....kmsmmk......", "...ksmmsmmk.....", "...kmmsmsmk.....",
+        "..ksmmmsmmsk....", "..kmsmMmsmmk....", ".ksmmsmmmsmsk...", ".kmmsmsmmsmk....",
+        "..kkkkkkkkkk....", "................", "................", "................",
+    ], &[('k', 0x080610), ('s', 0x241f38), ('m', 0x3a2a52), ('M', 0x8a5adf)]),
+];
+
+// The plain-stone boulder shapes (baked grey now - Baz: ore left the boulders).
 pub const ORE_NODES: &[(u32, u32, &[&[&str]])] = &[
     (0xc87838, 0xe8a060, &[
         &["................", "................", "......KKKKK.....", "....KKKAAAKKK...", "..KKKAAAAAAAKKK.", "..KAAAAAAAAAAAK.", ".KKAAAAAAAAAAAKK", ".KAAAAAAAAAvAAAK", ".KAaaaaavavAaaaK", ".KaaaAaaavaaaaAK", ".KaaavvaAaaaaaaK", ".KAaavaaaaaAaaaK", ".KKnvnnnnnnnnnKK", "..KVnnnnnnnnnnK.", "..KKKnnnnnnnKKK.", "....KKKnnnKKK..."],

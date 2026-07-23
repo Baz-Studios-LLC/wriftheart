@@ -400,12 +400,26 @@ fn drops_for(kind: &str, tier: i32, biome: &str, rng: &mut GameRng) -> Vec<&'sta
                 out.push("herb");
             }
         }
-        "boulder" | "stalagmite" | "crystalspire" => {
+        "boulder" => {
+            // Plain stone, nothing else (Baz: the ore lives in its own nodes now).
             let n = 2 + (rng.0.next_f64() * 2.0) as usize;
             out.extend(std::iter::repeat_n("stone", n));
-            // ~35% a chunk of the zone's ore (copper -> voidsteel deeper) (js ORE_LADDER).
+        }
+        "stalagmite" | "crystalspire" => {
+            // Caves stay the mining hotbed: stone + the zone's ore roll, unchanged.
+            let n = 2 + (rng.0.next_f64() * 2.0) as usize;
+            out.extend(std::iter::repeat_n("stone", n));
             if rng.0.next_f64() < 0.35 {
                 out.push(ore_at_tier(tier));
+            }
+        }
+        "orenode" => {
+            // The metal itself, 2-3 chunks, a stone, and a 15% gem (Baz).
+            let n = 2 + (rng.0.next_f64() * 2.0) as usize;
+            out.extend(std::iter::repeat_n(ore_at_tier(tier), n));
+            out.push("stone");
+            if rng.0.next_f64() < 0.15 {
+                out.push("gem");
             }
         }
         "cobweb" => {

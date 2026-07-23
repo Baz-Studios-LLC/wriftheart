@@ -185,8 +185,7 @@ fn bake_room(
             }
             "bush" => props.push((prop_art.bushes[pick_variant(x, y, 0x11, prop_art.bushes.len())].clone(), x, y, y + TILE, y + 9)),
             "boulder" => {
-                let pool = &prop_art.boulders[0];
-                props.push((pool[pick_variant(x, y, 0x23, pool.len())].clone(), x, y, y + TILE, y + 9));
+                props.push((prop_art.boulders[pick_variant(x, y, 0x23, prop_art.boulders.len())].clone(), x, y, y + TILE, y + 9));
             }
             _ => {}
         }
