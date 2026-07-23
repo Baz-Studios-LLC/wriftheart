@@ -1026,6 +1026,8 @@ const CASTLE_MARK: &[&str] = &[
 // --- Room thumbnails: 1 px per tile, coloured so every biome reads correctly ---
 // (port of GROUND_MINI / WALL_MINI / miniColor in js/codex.js)
 
+// EVERY ground the biomes can lay (the js table stopped at 11; the biome expansion
+// left 16 grounds baking fallback grey — Baz: lava was invisible on the map).
 const GROUND_MINI: &[(&str, u32)] = &[
     ("grass", 0x2e8a2a),
     ("dirt", 0x6e4a22),
@@ -1038,6 +1040,22 @@ const GROUND_MINI: &[(&str, u32)] = &[
     ("ash", 0x45454a),
     ("spore", 0x5aa050),
     ("chaosground", 0x5a2f8a),
+    ("lava", 0xd85a20),
+    ("basalt", 0x3a3a42),
+    ("blight", 0x5a4a5e),
+    ("bluemeadow", 0x2e8a6a),
+    ("caverock", 0x55555e),
+    ("crystalground", 0x9ab8d0),
+    ("ice", 0xbfe1f0),
+    ("jungle", 0x1e6a2e),
+    ("meadow", 0x4a9a30),
+    ("rotleaf", 0x5a5a2e),
+    ("salt", 0xd8d8d0),
+    ("steppe", 0x8a9a4a),
+    ("stormrock", 0x5a6a7a),
+    ("tar", 0x26262a),
+    ("voidglass", 0x241f38),
+    ("wetsand", 0xb0a070),
 ];
 
 const WALL_MINI: &[(char, u32)] = &[
