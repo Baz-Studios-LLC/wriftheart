@@ -1,6 +1,7 @@
 //! fishing.rs — the rod's cast -> bite -> tap loop (js startFishing/updateFishing/
-//! resolveCatch + drawFishing). Equip the rod, face water, press its slot: the bobber
-//! sails out and the WORLD KEEPS RUNNING — you stand rooted and vulnerable, and a hit
+//! resolveCatch + drawFishing). Equip the rod, face water: TAP flicks a short
+//! cast, HOLD winds up a farther throw — overshoot onto dry land and it fizzles.
+//! The bobber sails out and the WORLD KEEPS RUNNING — you stand rooted and vulnerable, and a hit
 //! snaps the line. A bite dips the float and flashes "!": tap either of the first two
 //! slots inside the window (tighter for rarer fish) to land it.
 //!
@@ -33,10 +34,12 @@ pub struct FishState {
     hooked: Option<Catch>,
     hp: i32,    // a hit while rooted snaps the line
     pool: bool, // the bobber sits in a fishing POOL (double roll; lands count the school down)
+    slot: u8,   // which ability slot holds the rod (the wind-up watches it for release)
 }
 
 #[derive(PartialEq)]
 enum Phase {
+    Charge, // wind-up: rod slot held, meter filling; release throws
     Cast,
     Bite,
 }
@@ -47,6 +50,10 @@ struct FishFx;
 
 #[derive(Component)]
 struct Bobber;
+
+/// The gold wind-up meter fill (its frame is plain FishFx; this one gets resized).
+#[derive(Component)]
+struct ChargeFill;
 
 #[derive(Component)]
 struct BiteAlert;
@@ -60,6 +67,12 @@ struct PromptBar;
 // Daily-seeded: tomorrow the schools run somewhere else entirely. -----------------
 
 pub const POOL_CATCHES: u8 = 3;
+
+/// Charged cast (Baz: tap = drop it in front, hold = send it out): a full
+/// CHARGE_FULL-frame wind-up throws CAST_MAX tiles. Only the LANDING tile decides
+/// water-or-fail — the bobber arcs over shoals, rocks, and shore between.
+const CAST_MAX: i32 = 4;
+const CHARGE_FULL: u32 = 45;
 
 /// Per-room school state for TODAY: (hop generation, catches from the current spot).
 /// Runtime-only — the daily dice re-seed everything anyway.
@@ -79,9 +92,10 @@ impl FishPools {
 }
 
 /// Where the room's pool ripples today (None = no school here): ~28% of rooms with
-/// enough REACHABLE water hold one. A spot is reachable when the cast can land on or
-/// next to it — one tile of slack around a water tile that borders standable ground
-/// (shore, road, or dock planks). `hop` re-picks the spot each time a school is
+/// enough REACHABLE water hold one. A spot is reachable when a throw can land on
+/// or beside it — water within a straight CAST_MAX-tile throw of standable ground
+/// (shore, road, or dock planks; the charged cast arcs over anything between).
+/// `hop` re-picks the spot each time a school is
 /// fished out, so the school hops around the room instead of squatting one tile.
 pub fn pool_at(world: &crate::worldgen::World, rx: i32, ry: i32, today: i64, hop: u8) -> Option<(i32, i32)> {
     use crate::worldgen::rng::{hash, Mulberry32};
@@ -101,7 +115,9 @@ pub fn pool_at(world: &crate::worldgen::World, rx: i32, ry: i32, today: i64, hop
     let standable = |c: i32, r: i32| matches!(ch(c, r), '.' | '=' | 'B');
     let castable = |c: i32, r: i32| {
         ch(c, r) == '~'
-            && [(1, 0), (-1, 0), (0, 1), (0, -1)].iter().any(|&(dx, dy)| standable(c + dx, r + dy))
+            && [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                .iter()
+                .any(|&(dx, dy)| (1..=CAST_MAX).any(|k| standable(c + dx * k, r + dy * k)))
     };
     let mut spots: Vec<(i32, i32)> = vec![];
     for r in 0..ROWS {
@@ -216,15 +232,14 @@ fn season_name(clock: i64) -> &'static str {
     ["SPRING", "SUMMER", "FALL", "WINTER"][super::codex::calendar_tab::season_index(clock) % 4]
 }
 
-/// The tile the player faces (js fishFrontTile), room coords.
-fn front_tile(p: &Player) -> (i32, i32) {
-    let (dx, dy) = match p.facing {
+/// The player's facing as a tile delta — the ray the cast flies along.
+fn facing_delta(p: &Player) -> (i32, i32) {
+    match p.facing {
         crate::actors::hero::Facing::Up => (0, -1),
         crate::actors::hero::Facing::Down => (0, 1),
         crate::actors::hero::Facing::Left => (-1, 0),
         crate::actors::hero::Facing::Right => (1, 0),
-    };
-    (((p.x + 8.0) / 16.0).floor() as i32 + dx, ((p.y + 12.0) / 16.0).floor() as i32 + dy)
+    }
 }
 
 /// The read-only world context of a cast, bundled (Bevy's 16-param cap).
@@ -254,11 +269,12 @@ fn fish_tick(
     players: Query<(&Player, &Health)>,
     fx: Query<Entity, With<FishFx>>,
     bars: Query<Entity, With<PromptBar>>,
-    mut bobbers: Query<&mut Transform, With<Bobber>>,
+    bobfill: (Query<&mut Transform, With<Bobber>>, Query<(&mut Sprite, &mut Transform), (With<ChargeFill>, Without<Bobber>)>),
     mut alerts: Query<&mut Visibility, With<BiteAlert>>,
     bindings: Res<crate::input::Bindings>,
 ) {
     let (mut rng, mut pools) = rng_pools;
+    let (mut bobbers, mut fills) = bobfill;
     let Ok((p, health)) = players.single() else { return };
     let end = |commands: &mut Commands, fishing: &mut Fishing, fx: &Query<Entity, With<FishFx>>| {
         fishing.0 = None;
@@ -269,97 +285,47 @@ fn fish_tick(
 
     // --- No cast in flight: does a rod-slot press start one? ---
     if fishing.0.is_none() {
-        let mut cast_pressed = false;
+        let mut cast_slot: Option<usize> = None;
         for (i, action) in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4].into_iter().enumerate() {
             if input.pressed(action)
                 && inv.slots[i].and_then(|uid| inv.id_of(uid)) == Some("fishingrod")
                 && p.cooldowns[i] == 0
             {
                 input.consume(action);
-                cast_pressed = true;
+                cast_slot = Some(i);
                 break;
             }
         }
-        if !cast_pressed {
-            return;
-        }
+        let Some(slot) = cast_slot else { return };
         if ctx.in_dungeon.0.is_some() {
             log.add("fish", "NOTHING SWIMS DOWN HERE", 1, 0x8ab0d0, false, true);
             return;
         }
-        let (c, r) = front_tile(p);
-        let code = grid.0.code_at(c, r);
-        if code != '~' && code != 'B' {
+        // Any landing within rod range ahead? (The charged throw arcs over dry
+        // tiles, so the gate is "some water exists", not "the front tile is wet".)
+        let (dx, dy) = facing_delta(p);
+        let (pc, pr) = (((p.x + 8.0) / TILE as f32) as i32, ((p.y + 12.0) / TILE as f32) as i32);
+        if !(1..=CAST_MAX).any(|k| matches!(grid.0.code_at(pc + dx * k, pr + dy * k), '~' | 'B')) {
             log.add("fish", "FACE THE WATER TO CAST", 1, 0x8ab0d0, false, true);
             return;
         }
-        let (gx, gy) = (ctx.cur.rx * COLS + c, ctx.cur.ry * ROWS + r);
-        let water: &'static str = if ctx.world.0.water_style(gx, gy) == "murk" { "murk" } else { "blue" };
-        // DOCK FISHING (Baz: docks are the fisherman's spot): casting from the
-        // boards, the wait runs ~40% shorter — the fish gather in the shade.
-        let (pc, pr) = (((p.x + 8.0) / TILE as f32) as i32, ((p.y + 12.0) / TILE as f32) as i32);
-        let docked = grid.0.code_at(pc, pr) == 'B';
-        if docked && *dock_toast != Some((ctx.cur.rx, ctx.cur.ry)) {
-            *dock_toast = Some((ctx.cur.rx, ctx.cur.ry));
-            log.add("fish", "THE FISH GATHER UNDER THE BOARDS", 1, 0x8ab0d0, false, true);
-        }
-        // A cast INTO the day's pool (WoW-style, Baz): the bobber on or beside the
-        // ripples means near-instant bites and a doubled roll — while the school holds.
-        let today = super::gather::farm_day(ctx.clock.0);
-        pools.roll_day(today);
-        let pgen = pools.rooms.get(&(ctx.cur.rx, ctx.cur.ry)).map_or(0, |s| s.0);
-        let in_pool = pool_at(&ctx.world.0, ctx.cur.rx, ctx.cur.ry, today, pgen)
-            .is_some_and(|(pc2, pr2)| (pc2 - c).abs() <= 1 && (pr2 - r).abs() <= 1);
-        let bite_at = if in_pool {
-            28 + (rng.0.next_f64() * 55.0) as u32
-        } else if docked {
-            40 + (rng.0.next_f64() * 90.0) as u32
-        } else {
-            55 + (rng.0.next_f64() * 150.0) as u32 // (js lure gear shortens this — with the trinket port)
-        };
-        let (bx, by) = ((c * TILE + 8) as f32, (r * TILE + 9) as f32);
-        fishing.0 = Some(FishState { phase: Phase::Cast, t: 0, bx, by, bite_at, win: 0, water, hooked: None, hp: health.hp, pool: in_pool });
-        // The scene: bobber (red cap / white float), a faint line from the rod hand, and
-        // the prompt bar. (The js line is a live 1px stroke; ours is a thin rotated quad.)
-        let (hx, hy) = (p.x + 8.0, p.y + 2.0);
-        let (mx, my) = ((hx + bx) / 2.0, (hy + by) / 2.0);
-        let len = ((bx - hx).powi(2) + (by - hy).powi(2)).sqrt().max(1.0);
-        let ang = (-(by - hy)).atan2(bx - hx);
-        let mut line_tf = at(PLAY_X + mx - len / 2.0, PLAY_Y + my - 0.5, len, 1.0, 8.9);
-        line_tf.rotation = Quat::from_rotation_z(ang);
+        // WIND-UP (Baz: tap = a short flick, hold = the long throw). Rooted, the
+        // meter climbs over the hero's head; release lets it fly (Phase::Charge arm).
+        fishing.0 = Some(FishState { phase: Phase::Charge, t: 0, bx: 0.0, by: 0.0, bite_at: 0, win: 0, water: "blue", hooked: None, hp: health.hp, pool: false, slot: slot as u8 });
         commands.spawn((
-            Sprite::from_color(Color::srgba(0.93, 0.93, 0.93, 0.55), Vec2::new(len, 1.0)),
-            line_tf,
+            Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.78), Vec2::new(14.0, 4.0)),
+            at(PLAY_X + p.x + 1.0, PLAY_Y + p.y - 8.0, 14.0, 4.0, crate::gfx::layers::PROMPT),
             PIXEL_LAYER,
             FishFx,
         ));
-        let be = commands
-            .spawn((
-                Sprite::from_color(Color::srgb_u8(0xe8, 0x38, 0x38), Vec2::new(2.0, 3.0)),
-                at(PLAY_X + bx - 1.0, PLAY_Y + by - 3.0, 2.0, 3.0, 9.0),
-                PIXEL_LAYER,
-                FishFx,
-                Bobber,
-            ))
-            .id();
         commands.spawn((
-            Sprite::from_color(Color::srgb_u8(0xf4, 0xf4, 0xf4), Vec2::new(2.0, 2.0)),
-            Transform::from_translation(Vec3::new(0.0, -2.5, 0.01)),
-            ChildOf(be),
+            Sprite::from_color(Color::srgb_u8(0xff, 0xd3, 0x4d), Vec2::new(1.0, 2.0)),
+            at(PLAY_X + p.x + 2.0, PLAY_Y + p.y - 7.0, 1.0, 2.0, crate::gfx::layers::PROMPT + 0.01),
             PIXEL_LAYER,
-        ));
-        // The "!" alert, hidden until the bite.
-        let (img, _w) = crate::gfx::font::bake_text("!", 0xfcd000, &mut images);
-        commands.spawn((
-            Sprite::from_image(img),
-            at(PLAY_X + bx - 1.0, PLAY_Y + by - 13.0, 4.0, 7.0, crate::gfx::layers::PROMPT),
-            PIXEL_LAYER,
-            Visibility::Hidden,
             FishFx,
-            BiteAlert,
+            ChargeFill,
         ));
-        let msg = format!("WAIT FOR A BITE - {} REEL IN", bindings.prompt(Action::Slot2, input.pad_present));
-        prompt_bar(&mut commands, &mut images, &msg, 0xcfe0ec);
+        prompt_bar(&mut commands, &mut images, "RELEASE TO CAST", 0xcfe0ec);
         return;
     }
 
@@ -367,8 +333,11 @@ fn fish_tick(
     let Some(f) = &mut fishing.0 else { return };
     // The world runs live while you fish: a hit snaps the line (js).
     if health.hp < f.hp {
+        let charging = f.phase == Phase::Charge;
         end(&mut commands, &mut fishing, &fx);
-        log.add("fish", "THE LINE SNAPS!", 1, 0xfc6868, false, true);
+        if !charging {
+            log.add("fish", "THE LINE SNAPS!", 1, 0xfc6868, false, true);
+        }
         return;
     }
     f.hp = health.hp;
@@ -388,6 +357,101 @@ fn fish_tick(
         input.consume(Action::Slot2);
     }
     match f.phase {
+        Phase::Charge => {
+            let action = [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4][f.slot as usize];
+            if input.held(action) {
+                let pow = f.t.min(CHARGE_FULL) as f32 / CHARGE_FULL as f32;
+                let w = 1.0 + pow * 11.0; // 1..12 px inside the 14 px frame
+                for (mut spr, mut tf) in &mut fills {
+                    spr.custom_size = Some(Vec2::new(w, 2.0));
+                    *tf = at(PLAY_X + p.x + 2.0, PLAY_Y + p.y - 7.0, w, 2.0, crate::gfx::layers::PROMPT + 0.01);
+                }
+                return;
+            }
+            // RELEASE: the throw. Distance rides the wind-up; only the LANDING tile
+            // decides water-or-fail (Baz: overshoot onto dry ground and it fizzles).
+            let dist = 1 + (f.t.min(CHARGE_FULL) * (CAST_MAX as u32 - 1) / CHARGE_FULL) as i32;
+            let (dx, dy) = facing_delta(p);
+            let (pc, pr) = (((p.x + 8.0) / TILE as f32) as i32, ((p.y + 12.0) / TILE as f32) as i32);
+            let (c, r) = (pc + dx * dist, pr + dy * dist);
+            let code = grid.0.code_at(c, r);
+            if code != '~' && code != 'B' {
+                end(&mut commands, &mut fishing, &fx);
+                log.add("fish", "NOTHING BITES ON DRY LAND", 1, 0x8ab0d0, false, true);
+                return;
+            }
+            let (gx, gy) = (ctx.cur.rx * COLS + c, ctx.cur.ry * ROWS + r);
+            f.water = if ctx.world.0.water_style(gx, gy) == "murk" { "murk" } else { "blue" };
+            // DOCK FISHING (Baz: docks are the fisherman's spot): casting from the
+            // boards, the wait runs ~40% shorter — the fish gather in the shade.
+            let docked = grid.0.code_at(pc, pr) == 'B';
+            if docked && *dock_toast != Some((ctx.cur.rx, ctx.cur.ry)) {
+                *dock_toast = Some((ctx.cur.rx, ctx.cur.ry));
+                log.add("fish", "THE FISH GATHER UNDER THE BOARDS", 1, 0x8ab0d0, false, true);
+            }
+            // A cast INTO the day's pool (WoW-style, Baz): the bobber on or beside the
+            // ripples means near-instant bites and a doubled roll — while the school holds.
+            let today = super::gather::farm_day(ctx.clock.0);
+            pools.roll_day(today);
+            let pgen = pools.rooms.get(&(ctx.cur.rx, ctx.cur.ry)).map_or(0, |s| s.0);
+            f.pool = pool_at(&ctx.world.0, ctx.cur.rx, ctx.cur.ry, today, pgen)
+                .is_some_and(|(pc2, pr2)| (pc2 - c).abs() <= 1 && (pr2 - r).abs() <= 1);
+            f.bite_at = if f.pool {
+                28 + (rng.0.next_f64() * 55.0) as u32
+            } else if docked {
+                40 + (rng.0.next_f64() * 90.0) as u32
+            } else {
+                55 + (rng.0.next_f64() * 150.0) as u32 // (js lure gear shortens this — with the trinket port)
+            };
+            f.phase = Phase::Cast;
+            f.t = 0;
+            let (bx, by) = ((c * TILE + 8) as f32, (r * TILE + 9) as f32);
+            f.bx = bx;
+            f.by = by;
+            // The wind-up fx go; the scene comes out: line, bobber, hidden alert, prompt.
+            for e in &fx {
+                commands.entity(e).despawn();
+            }
+            let (hx, hy) = (p.x + 8.0, p.y + 2.0);
+            let (mx, my) = ((hx + bx) / 2.0, (hy + by) / 2.0);
+            let len = ((bx - hx).powi(2) + (by - hy).powi(2)).sqrt().max(1.0);
+            let ang = (-(by - hy)).atan2(bx - hx);
+            let mut line_tf = at(PLAY_X + mx - len / 2.0, PLAY_Y + my - 0.5, len, 1.0, 8.9);
+            line_tf.rotation = Quat::from_rotation_z(ang);
+            commands.spawn((
+                Sprite::from_color(Color::srgba(0.93, 0.93, 0.93, 0.55), Vec2::new(len, 1.0)),
+                line_tf,
+                PIXEL_LAYER,
+                FishFx,
+            ));
+            let be = commands
+                .spawn((
+                    Sprite::from_color(Color::srgb_u8(0xe8, 0x38, 0x38), Vec2::new(2.0, 3.0)),
+                    at(PLAY_X + bx - 1.0, PLAY_Y + by - 3.0, 2.0, 3.0, 9.0),
+                    PIXEL_LAYER,
+                    FishFx,
+                    Bobber,
+                ))
+                .id();
+            commands.spawn((
+                Sprite::from_color(Color::srgb_u8(0xf4, 0xf4, 0xf4), Vec2::new(2.0, 2.0)),
+                Transform::from_translation(Vec3::new(0.0, -2.5, 0.01)),
+                ChildOf(be),
+                PIXEL_LAYER,
+            ));
+            // The "!" alert, hidden until the bite.
+            let (img, _w) = crate::gfx::font::bake_text("!", 0xfcd000, &mut images);
+            commands.spawn((
+                Sprite::from_image(img),
+                at(PLAY_X + bx - 1.0, PLAY_Y + by - 13.0, 4.0, 7.0, crate::gfx::layers::PROMPT),
+                PIXEL_LAYER,
+                Visibility::Hidden,
+                FishFx,
+                BiteAlert,
+            ));
+            let msg = format!("WAIT FOR A BITE - {} REEL IN", bindings.prompt(Action::Slot2, input.pad_present));
+            prompt_bar(&mut commands, &mut images, &msg, 0xcfe0ec);
+        }
         Phase::Cast => {
             if tapped {
                 end(&mut commands, &mut fishing, &fx); // reel the empty line back in
