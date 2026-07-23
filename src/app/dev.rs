@@ -197,13 +197,13 @@ fn strip_tick(
     use super::room_render::{PLAY_X, PLAY_Y};
     use crate::room::PX_W;
     commands.spawn((
-        Sprite::from_color(bevy::color::Color::srgba(0.0, 0.0, 0.0, 0.55), bevy::math::Vec2::new(PX_W as f32, 10.0)),
+        Sprite::from_color(bevy::color::Color::srgba(0.0, 0.0, 0.0, 0.88), bevy::math::Vec2::new(PX_W as f32, 10.0)), // near-opaque: legible over bright biomes (Baz)
         crate::gfx::at(PLAY_X, PLAY_Y, PX_W as f32, 10.0, 15.35), // under the banners (15.5)
         crate::gfx::PIXEL_LAYER,
         StripUi,
     ));
     let tw = crate::gfx::font::measure(&text) as f32;
-    crate::ui::label(&mut commands, &mut images, &text, PLAY_X + ((PX_W as f32 - tw) / 2.0).round(), PLAY_Y + 2.0, 0x8a8a92, 15.4, StripUi);
+    crate::ui::label(&mut commands, &mut images, &text, PLAY_X + ((PX_W as f32 - tw) / 2.0).round(), PLAY_Y + 2.0, 0xc8ccd8, 15.4, StripUi);
 }
 
 #[derive(Resource, Default)]
