@@ -175,7 +175,7 @@ pub fn layout_tick(
             "buffs" => (buffs_n > 0).then(|| buffs_n.div_ceil(4) as f32 * 13.0),
             "shards" => (!relics.0.is_empty()).then_some(16.0),
             "coins" => Some(16.0),
-            "minimap" => inv.has_gear_flag("compass").then_some(MM_W),
+            "minimap" => inv.has_gear_flag("compass").then_some(MM_H),
             "hint" => Some(8.0),
             _ => None,
         }
@@ -298,48 +298,18 @@ pub fn coins_tick(
 
 
 // ---------------------------------------------------------------------------
-// THE MINIMAP — the compass trinket's promise, finally kept (Baz; rs-original —
-// the js never had one, its "minimap" was the dungeon floor map). A 5x5 window
-// of VISITED rooms around you: biome-tinted cells, gold town pips, red shard-
-// dungeon pips, a green home pip, and YOU dead centre. Owning the compass lists
-// the widget; wearing it lights the map.
+// THE MINIMAP — the compass trinket's promise, kept the JS WAY (Baz: "go check
+// the js again"): each room is its 1px-per-tile THUMBNAIL (the codex map's own
+// baker + cache — water, paths, walls, forests all read), a 3x3 window around
+// you, town/dungeon/home pips, and YOUR dot at your actual tile in the centre
+// room. Owning the compass lists the widget; wearing it lights the map.
 
 #[derive(Component)]
 pub struct MinimapHud;
 
 const MM_BASE: f32 = 120.0;
-const MM_CELL: f32 = 12.0;
-const MM_R: i32 = 2; // 5x5 window
-const MM_W: f32 = MM_CELL * 5.0 + 2.0;
-
-/// Each biome's map tint — the sidebar-scale echo of its ground.
-fn biome_pip(key: &str) -> u32 {
-    match key {
-        "grassland" | "greenmaw" => 0x4f9a2c,
-        "forest" => 0x2f7a24,
-        "petalwood" | "bluebell" => 0xd88ac8,
-        "honeyglade" => 0xe0b040,
-        "desert" => 0xd8c07a,
-        "saltwastes" => 0xd8d8d0,
-        "mountains" => 0x8a8a92,
-        "swamp" | "tarmire" => 0x4a6a3a,
-        "graveyard" | "gloammoor" => 0x6a6a7a,
-        "arctic" => 0xcfe0f0,
-        "burnt" | "emberscar" => 0x5a4a44,
-        "embermaw" => 0xd85a20,
-        "hollowwood" => 0x3a3a4a,
-        "mushroom" => 0x9a6ad0,
-        "chaos" | "wriftscar" => 0x7a3a9a,
-        "prismwastes" => 0xa8d0e0,
-        "blackdeep" => 0x24243a,
-        "suncoast" => 0xe8d8a0,
-        "stormreach" => 0x5a7a9a,
-        "galewind" => 0x8ab88a,
-        "witherlands" => 0x4a3a3a,
-        "starhollow" => 0x2a2a5a,
-        _ => 0x4a7a3a,
-    }
-}
+const MM_W: f32 = (crate::room::COLS * 3 + 2) as f32 + 2.0; // 3 thumbs + gaps + frame
+pub const MM_H: f32 = (crate::room::ROWS * 3 + 2) as f32 + 2.0;
 
 fn rgb(c: u32) -> Color {
     Color::srgb_u8((c >> 16) as u8, (c >> 8) as u8, c as u8)
@@ -348,17 +318,24 @@ fn rgb(c: u32) -> Color {
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
 pub fn minimap_tick(
     mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
     inv: Res<crate::inventory::PlayerInv>,
     cur: Res<super::play::CurRoom>,
     world: Res<super::play::GameWorld>,
     visited: Res<super::play::Visited>,
     phouse: Res<super::home::PlayerHouse>,
+    mut cache: ResMut<super::codex::map_tab::ThumbCache>,
+    players: Query<&super::play::Player>,
     old: Query<Entity, With<MinimapHud>>,
-    mut last: Local<Option<(i32, i32, bool, usize, Option<(i32, i32)>)>>,
+    mut last: Local<Option<(i32, i32, bool, usize, i32, i32)>>,
 ) {
+    use crate::room::{COLS, ROWS};
     let on = inv.has_gear_flag("compass");
-    let home = phouse.0.as_ref().map(|h| h.room);
-    let key = Some((cur.rx, cur.ry, on, visited.0.len(), home));
+    let (ptx, pty) = players
+        .single()
+        .map(|p| ((p.x / 16.0) as i32, (p.y / 16.0) as i32))
+        .unwrap_or((COLS / 2, ROWS / 2));
+    let key = Some((cur.rx, cur.ry, on, visited.0.len(), ptx, pty));
     if *last == key {
         return;
     }
@@ -370,14 +347,16 @@ pub fn minimap_tick(
         return;
     }
     let tag = || (MinimapHud, InWidget("minimap"));
-    let (x0, y0) = (PAD + ((crate::SIDEBAR_W - 2.0 * PAD - MM_W) / 2.0).floor(), MM_BASE);
+    let x0 = PAD + ((crate::SIDEBAR_W - 2.0 * PAD - MM_W) / 2.0).floor();
+    let y0 = MM_BASE;
+    // Slate backing + frame (unexplored rooms stay this dark).
     commands.spawn((
-        Sprite::from_color(rgb(0x0a0a10), Vec2::new(MM_W, MM_W)),
-        crate::gfx::at(x0, y0, MM_W, MM_W, HUD_Z + 0.3),
+        Sprite::from_color(rgb(0x0a0a10), Vec2::new(MM_W, MM_H)),
+        crate::gfx::at(x0, y0, MM_W, MM_H, HUD_Z + 0.3),
         crate::gfx::PIXEL_LAYER,
         tag(),
     ));
-    for (sx, sy, sw, sh) in crate::ui::border_strips(x0, y0, MM_W, MM_W, 1.0) {
+    for (sx, sy, sw, sh) in crate::ui::border_strips(x0, y0, MM_W, MM_H, 1.0) {
         commands.spawn((
             Sprite::from_color(rgb(0x4a4a58), Vec2::new(sw, sh)),
             crate::gfx::at(sx, sy, sw, sh, HUD_Z + 0.5),
@@ -385,17 +364,26 @@ pub fn minimap_tick(
             tag(),
         ));
     }
-    for dy in -MM_R..=MM_R {
-        for dx in -MM_R..=MM_R {
+    let home = phouse.0.as_ref().map(|h| h.room);
+    for dy in -1..=1i32 {
+        for dx in -1..=1i32 {
             let (rx, ry) = (cur.rx + dx, cur.ry + dy);
             if !visited.0.contains(&(rx, ry)) {
-                continue; // unexplored stays dark slate
+                continue;
             }
-            let cx = x0 + 1.0 + (dx + MM_R) as f32 * MM_CELL;
-            let cy = y0 + 1.0 + (dy + MM_R) as f32 * MM_CELL;
+            let cx = x0 + 1.0 + ((dx + 1) * (COLS + 1)) as f32;
+            let cy = y0 + 1.0 + ((dy + 1) * (ROWS + 1)) as f32;
+            // The codex map's own thumbnail, from the SHARED cache (bake once, ever).
+            let img = cache
+                .0
+                .entry((rx, ry))
+                .or_insert_with(|| images.add(super::codex::map_tab::room_thumb(&world.0, rx, ry)))
+                .clone();
+            let mut spr = Sprite::from_image(img);
+            spr.custom_size = Some(Vec2::new(COLS as f32, ROWS as f32));
             commands.spawn((
-                Sprite::from_color(rgb(biome_pip(world.0.biome_key_at(rx, ry))), Vec2::new(MM_CELL - 1.0, MM_CELL - 1.0)),
-                crate::gfx::at(cx, cy, MM_CELL - 1.0, MM_CELL - 1.0, HUD_Z + 0.35),
+                spr,
+                crate::gfx::at(cx, cy, COLS as f32, ROWS as f32, HUD_Z + 0.35),
                 crate::gfx::PIXEL_LAYER,
                 tag(),
             ));
@@ -410,20 +398,20 @@ pub fn minimap_tick(
             };
             if let Some(pc) = pip {
                 commands.spawn((
-                    Sprite::from_color(rgb(pc), Vec2::new(3.0, 3.0)),
-                    crate::gfx::at(cx + 4.0, cy + 4.0, 3.0, 3.0, HUD_Z + 0.4),
+                    Sprite::from_color(rgb(pc), Vec2::new(2.0, 2.0)),
+                    crate::gfx::at(cx + COLS as f32 - 3.0, cy + 1.0, 2.0, 2.0, HUD_Z + 0.4),
                     crate::gfx::PIXEL_LAYER,
                     tag(),
                 ));
             }
         }
     }
-    // YOU, dead centre, over every pip.
-    let pc = x0 + 1.0 + MM_R as f32 * MM_CELL + (MM_CELL - 1.0) / 2.0 - 1.0;
-    let pr = y0 + 1.0 + MM_R as f32 * MM_CELL + (MM_CELL - 1.0) / 2.0 - 1.0;
+    // YOU: a white dot at your ACTUAL TILE in the centre room (1px = 1 tile).
+    let px = x0 + 1.0 + (COLS + 1) as f32 + ptx.clamp(0, COLS - 1) as f32 - 0.5;
+    let py = y0 + 1.0 + (ROWS + 1) as f32 + pty.clamp(0, ROWS - 1) as f32 - 0.5;
     commands.spawn((
-        Sprite::from_color(rgb(0xffffff), Vec2::new(3.0, 3.0)),
-        crate::gfx::at(pc, pr, 3.0, 3.0, HUD_Z + 0.45),
+        Sprite::from_color(rgb(0xffffff), Vec2::new(2.0, 2.0)),
+        crate::gfx::at(px, py, 2.0, 2.0, HUD_Z + 0.45),
         crate::gfx::PIXEL_LAYER,
         tag(),
     ));

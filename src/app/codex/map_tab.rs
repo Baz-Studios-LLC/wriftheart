@@ -41,7 +41,7 @@ impl Default for MapView {
 
 /// Room-thumbnail cache — worldgen is deterministic, so a thumb never goes stale.
 #[derive(Resource, Default)]
-pub struct ThumbCache(HashMap<(i32, i32), Handle<Image>>);
+pub struct ThumbCache(pub HashMap<(i32, i32), Handle<Image>>); // shared with the sidebar MINIMAP
 
 #[derive(Component)]
 pub struct MapRoot;
@@ -1070,7 +1070,7 @@ fn mini_color(world: &crate::worldgen::World, code: char, gx: i32, gy: i32) -> u
     }
 }
 
-fn room_thumb(world: &crate::worldgen::World, rx: i32, ry: i32) -> Image {
+pub(crate) fn room_thumb(world: &crate::worldgen::World, rx: i32, ry: i32) -> Image {
     let map = world.generate(rx, ry).map;
     let mut img = Image::new_fill(
         Extent3d { width: COLS as u32, height: ROWS as u32, depth_or_array_layers: 1 },
