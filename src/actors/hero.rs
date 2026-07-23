@@ -311,7 +311,7 @@ pub static ARMOR_LOOK: &[(&str, ArmorLook)] = &[
     ("rangerhood", ArmorLook { style: "hood", lite: 0x3c7040, dark: 0x1c4420 }),
     ("ironhelm", ArmorLook { style: "helm", lite: 0xc0c4cc, dark: 0x6a6e78 }),
     ("bronzehelm", ArmorLook { style: "helm", lite: 0xcc9648, dark: 0x7a5424 }),
-    ("minerhelm", ArmorLook { style: "lamp", lite: 0xa8823c, dark: 0x5a4620 }),
+    ("minerhelm", ArmorLook { style: "lamp", lite: 0x9aa0aa, dark: 0x545a64 }), // grey steel, not leather-brown (Baz)
     ("hornedhelm", ArmorLook { style: "horned", lite: 0x9094a0, dark: 0x42464e }),
     ("dragonhelm", ArmorLook { style: "crest", lite: 0xc0442e, dark: 0x5a1a12 }),
     ("magehat", ArmorLook { style: "hat", lite: 0x6450b0, dark: 0x2e2456 }),
