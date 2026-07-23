@@ -780,8 +780,8 @@ fn spec(kind: &str) -> Option<DecorSpec> {
         "ritual" => DecorSpec { grid: art::RITUAL, base_y: 0.0, hitbox: None },
         "bones" => DecorSpec { grid: art::BONES, base_y: 0.0, hitbox: None },
         "crate" => DecorSpec { grid: art::CRATE, base_y: 8.0, hitbox: Some((3.0, 3.0, 6.0, 5.0)) },
-        "tent" => DecorSpec { grid: art::TENT, base_y: 13.0, hitbox: Some((1.0, 9.0, 16.0, 5.0)) },
-        "banner" => DecorSpec { grid: art::BANNER_ART, base_y: 13.0, hitbox: Some((3.0, 10.0, 3.0, 3.0)) },
+        "tent" => DecorSpec { grid: art::TENT, base_y: 25.0, hitbox: Some((2.0, 16.0, 30.0, 9.0)) }, // HUMAN scale (Baz: the hero would never fit that door)
+        "banner" => DecorSpec { grid: art::BANNER_ART, base_y: 27.0, hitbox: Some((4.0, 24.0, 4.0, 3.0)) }, // a war standard, not a toothpick
         "gold" => DecorSpec { grid: art::GOLD, base_y: 0.0, hitbox: None },
         "crystal" => DecorSpec { grid: art::CRYSTAL_ART, base_y: 10.0, hitbox: Some((4.0, 6.0, 8.0, 4.0)) },
         "web" => DecorSpec { grid: art::WEB, base_y: 0.0, hitbox: None },
