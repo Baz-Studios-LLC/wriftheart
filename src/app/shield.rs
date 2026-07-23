@@ -282,25 +282,48 @@ fn bubble_overlay(
     mut shown: Local<bool>,
 ) {
     let Ok(p) = players.single() else { return };
-    if bubble.charged != *shown {
+    // Rebuild on charge flips — and if a room slide reaped the ring (it rides the
+    // cast now), re-stand it while still charged.
+    if bubble.charged != *shown || (bubble.charged && fx.iter().next().is_none()) {
         *shown = bubble.charged;
         for (e, _) in &fx {
             commands.entity(e).despawn();
         }
         if bubble.charged {
-            // A 22x22 ring: cyan rim, hollow centre.
-            let mut grid: Vec<String> = Vec::new();
-            for y in 0..22i32 {
-                let mut row = String::new();
-                for x in 0..22i32 {
-                    let (dx, dy) = (x as f32 - 10.5, y as f32 - 10.5);
-                    let d = (dx * dx + dy * dy).sqrt();
-                    row.push(if (9.0..=10.6).contains(&d) { 'w' } else { '.' });
+            // A SUPERSAMPLED ring — the skill tree's shape() recipe: 4x4 coverage per
+            // pixel becomes alpha, so the sphere reads round, not staircased (Baz).
+            use bevy::asset::RenderAssetUsages;
+            use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+            let size = 22u32;
+            let c = size as f32 / 2.0;
+            let mut img = Image::new_fill(
+                Extent3d { width: size, height: size, depth_or_array_layers: 1 },
+                TextureDimension::D2,
+                &[0, 0, 0, 0],
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+            );
+            for y in 0..size {
+                for x in 0..size {
+                    let mut cov = 0.0f32;
+                    for sy in 0..4 {
+                        for sx in 0..4 {
+                            let dx = x as f32 + (sx as f32 + 0.5) / 4.0 - c;
+                            let dy = y as f32 + (sy as f32 + 0.5) / 4.0 - c;
+                            if ((dx * dx + dy * dy).sqrt() - 9.8).abs() <= 0.8 {
+                                cov += 1.0;
+                            }
+                        }
+                    }
+                    let a = (cov / 16.0 * 255.0) as u8;
+                    if a > 0
+                        && let Ok(px) = img.pixel_bytes_mut(UVec3::new(x, y, 0))
+                    {
+                        px.copy_from_slice(&[0x9c, 0xe0, 0xff, a]);
+                    }
                 }
-                grid.push(row);
             }
-            let refs: Vec<&str> = grid.iter().map(|s| s.as_str()).collect();
-            let img = images.add(crate::gfx::bake(&refs, &[('w', 0x9ce0ff)]));
+            let img = images.add(img);
             let mut spr = Sprite::from_image(img);
             spr.color = spr.color.with_alpha(0.7);
             commands.spawn((spr, at(0.0, 0.0, 22.0, 22.0, 8.2), PIXEL_LAYER, RoomActor, BubbleFx));
