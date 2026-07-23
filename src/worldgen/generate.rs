@@ -509,6 +509,54 @@ impl World {
             }
         }
 
+        // DOCKS (Baz + the water-travel plan): some big waters grow a plank pier —
+        // 3 wide, 4-5 long, walking straight out from open shore ground. Bridge
+        // tiles, protected so nothing spawns on the boards. Runs LAST: the stray-
+        // plank sweep is done, and a pier surrounded by water survives it anyway.
+        {
+            use super::rng::{hash, Mulberry32};
+            const SALT_DOCK: u32 = 0x0d0c_5ea5;
+            let mut drng = Mulberry32::new(hash(self.seed, rx, ry, SALT_DOCK));
+            let water_n: usize = grid.iter().flatten().filter(|&&ch| ch == '~').count();
+            if water_n >= 30 && drng.next_f64() < 0.22 {
+                'tries: for _ in 0..28 {
+                    let c = 1 + (drng.next_f64() * (COLS - 2) as f64).floor() as i32;
+                    let r = 1 + (drng.next_f64() * (ROWS - 2) as f64).floor() as i32;
+                    if grid[r as usize][c as usize] != '.' {
+                        continue;
+                    }
+                    for (dc, dr) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                        let len = 4 + (drng.next_f64() * 2.0) as i32; // 4-5 boards out
+                        let (pc, pr) = (dr, dc); // lateral axis
+                        let mut fits = true;
+                        'scan: for step in 1..=len {
+                            for lat in -1..=1i32 {
+                                let (tc, tr) = (c + dc * step + pc * lat, r + dr * step + pr * lat);
+                                if tc < 0 || tc >= COLS || tr < 0 || tr >= ROWS
+                                    || grid[tr as usize][tc as usize] != '~'
+                                    || prot.contains(&idx(tr, tc))
+                                {
+                                    fits = false;
+                                    break 'scan;
+                                }
+                            }
+                        }
+                        if !fits {
+                            continue;
+                        }
+                        for step in 1..=len {
+                            for lat in -1..=1i32 {
+                                let (tc, tr) = (c + dc * step + pc * lat, r + dr * step + pr * lat);
+                                grid[tr as usize][tc as usize] = 'B';
+                                prot.insert(idx(tr, tc));
+                            }
+                        }
+                        break 'tries;
+                    }
+                }
+            }
+        }
+
         RoomMap { map: grid.into_iter().map(|row| row.into_iter().collect()).collect(), prot }
     }
 }
