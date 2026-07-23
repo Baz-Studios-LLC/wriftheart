@@ -332,15 +332,9 @@ pub fn spawn_room_props(
                 blockers.push((fx + 8.0 - 34.0, fy - 14.0, 68.0, 28.0)); // the js hitbox: the tower's ground mass
             }
             "clutter" => {
-                // Numbered siblings form a VARIANT POOL ("gravestone" + "gravestone2"…):
-                // the position hash picks, stable across rebuilds. Any clutter kind
-                // grows variants by adding rows to CLUTTER_ART — no code (Baz).
-                let pool: Vec<&'static str> = crate::actors::props_art::CLUTTER_ART
-                    .iter()
-                    .map(|(n, _)| *n)
-                    .filter(|n| n.trim_end_matches(|ch: char| ch.is_ascii_digit()) == e.sub.as_str())
-                    .collect();
-                let name = if pool.len() > 1 { pool[pick_variant(x, y, 0x77, pool.len())] } else { e.sub.as_str() };
+                // Variant pools (gravestones, pillars…) — the shared pick, so scene
+                // dressing and natural clutter can never disagree (props_art).
+                let name = crate::actors::props_art::clutter_pick(e.sub.as_str(), x, y);
                 if let Some(img) = art.clutter.get(name) {
                     let ce = child(commands, root, Sprite::from_image(img.clone()), at(PLAY_X + fx, PLAY_Y + fy, 16.0, 16.0, 3.0));
                     commands.entity(ce).insert(GroundVeg { c, r });

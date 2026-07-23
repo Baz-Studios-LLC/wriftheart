@@ -851,7 +851,7 @@ pub fn spawn_decor(
             "flower" => Some(art_bank.flowers[0].clone()),
             "mushroom" | "toadstool" => art_bank.clutter.get("toadstool").cloned(),
             "torch" => Some(art_bank.torch[0].clone()),
-            sub => art_bank.clutter.get(sub).cloned(),
+            sub => art_bank.clutter.get(crate::actors::props_art::clutter_pick(sub, d.x as i32, d.y as i32)).cloned(),
         };
         if let Some(img) = img {
             child(commands, root, Sprite::from_image(img), at(PLAY_X + x, PLAY_Y + y, 16.0, 16.0, 3.0));
