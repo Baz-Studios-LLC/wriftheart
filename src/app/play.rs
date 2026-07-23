@@ -1449,6 +1449,14 @@ fn adopt_room_cast(
 /// Worn armor changed -> re-bake the hero's sprite bank in the new gear (js
 /// refreshSprite on equipGear). The anim tick reads HeroArt every frame, so the
 /// swap re-skins instantly.
+/// The three worn looks straight from the gear slots — ONE mapping for
+/// worn_refresh and the loader (the loader once wrote BARE frames over the
+/// geared bank and poisoned the cache: loaded-in armor never rendered — Baz).
+pub fn worn_arm(inv: &crate::inventory::PlayerInv) -> crate::actors::hero::WornArm {
+    let look_of = |id: &'static str| crate::actors::hero::armor_look(id).or_else(|| crate::procgen::armor_look(id));
+    [0, 1, 2].map(|g| inv.gear[g].and_then(|uid| inv.id_of(uid)).and_then(look_of))
+}
+
 pub fn worn_refresh(
     mut images: ResMut<Assets<Image>>,
     inv: Res<crate::inventory::PlayerInv>,

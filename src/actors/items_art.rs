@@ -63,4 +63,4 @@ pub const CAN_ICON: &[&str] = &["........", ".aa..A..", "a..a.A..", "aaaaaaA.", 
 pub const PROD_GRID: &[&str] = &["...g....", "..gCCg..", ".CCCCCC.", "CCCCCCCC", "CCCCCCCC", ".CCCCCC.", "..CCCC..", "........"];
 pub const SEED_GRID: &[&str] = &["........", ".DDDDDD.", ".DCCCCD.", ".DCCCCD.", ".DCCCCD.", ".DCCCCD.", ".DDDDDD.", "........"];
 // The Windwood Flute (js FLUTE_ICON) — four notes of carved blossom-wood.
-pub const FLUTE_ICON: &[&str] = &["........", "......dD", ".....dWd", "....dWd.", "...dWd..", "..dWd...", ".dDd....", "Dd......"]; // shifted low: a full-bleed diagonal reads centred with its empty row on TOP (Baz)
+pub const FLUTE_ICON: &[&str] = &["........", ".....dD.", "....dWd.", "...dWd..", "..dWd...", ".dDd....", ".Dd.....", "........"]; // drawn 6x6 symmetric: the full-bleed diagonal could never centre in 8px (Baz)

@@ -165,8 +165,10 @@ pub fn handle_load_slot(
             *ctx.social.livestock = Default::default();
         }
     }
-    // Re-bake the hero's sprite bank in this save's look (hair colours, style, the works).
-    *hero_art = crate::app::play::HeroArt(crate::actors::hero::build_frames(&ctx.ident.look, &mut images));
+    // Re-bake the hero's sprite bank in this save's look — GEARED (the bare bake
+    // here poisoned worn_refresh's cache: armor you loaded in with never rendered).
+    let arm = crate::app::play::worn_arm(&ctx.inv);
+    *hero_art = crate::app::play::HeroArt(crate::actors::hero::build_frames_geared(&ctx.ident.look, &arm, &mut images));
 
     // --- The world seed: a new game rolls its own; a load restores the slot's. A change
     // rebuilds the World (its caches key on the seed; room spawns below regenerate). ---
