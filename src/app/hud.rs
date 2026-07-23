@@ -50,12 +50,42 @@ const QUESTS_HDR_Y: f32 = TIME_ROW_Y + 8.0 + 5.0;
 #[derive(bevy::ecs::schedule::SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct HudContent;
 
+/// CLICKABLE ABILITY SLOTS (Baz): a click on a slot cell fires that slot exactly
+/// as its bound key would. The raw LMB press already registered as Slot1 through
+/// the bindings — retract it first, so clicking slot 3 doesn't also swing slot 1's
+/// sword (consume-then-press is harmless when slot 1 itself is the click).
+fn slot_click(
+    mut state: ResMut<ActionState>,
+    ptr: Res<crate::input::Pointer>,
+    layout: Res<super::hud_widgets::WidgetLayout>,
+) {
+    if !ptr.click {
+        return;
+    }
+    let Some(delta) = layout.0.get("abilities") else { return }; // widget hidden = nothing to click
+    let Some(pos) = ptr.pos else { return };
+    let y = SLOTS_Y + delta;
+    let gap = ((INNER_W - 4.0 * SLOT) / 3.0).floor();
+    for (i, a) in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4].into_iter().enumerate() {
+        let x = PAD + i as f32 * (SLOT + gap);
+        if pos.x >= x && pos.x < x + SLOT && pos.y >= y && pos.y < y + SLOT {
+            state.consume(Action::Slot1);
+            state.press(a);
+            return;
+        }
+    }
+}
+
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         use super::hud_widgets as hw;
         app.add_systems(Startup, setup_hud)
+            .add_systems(
+                bevy::app::FixedUpdate,
+                slot_click.before(super::play::tick).run_if(super::screen::playing),
+            )
             .init_resource::<hw::HudConfig>()
             .init_resource::<hw::WidgetLayout>()
             .add_systems(
