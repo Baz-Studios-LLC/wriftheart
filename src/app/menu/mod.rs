@@ -102,9 +102,10 @@ fn open_title_options(
     ui: Query<Entity, With<MenuUi>>,
     mut images: ResMut<Assets<Image>>,
     hcfg: Res<super::hud_widgets::HudConfig>,
+    inv: Res<crate::inventory::PlayerInv>,
 ) {
     *menu = MenuState { settings_only: true, ..default() };
-    redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, false);
+    redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, &inv, false);
 }
 
 /// Grab the next raw key, mouse button, or pad button while a rebind capture is armed (js
@@ -186,13 +187,14 @@ pub fn menu_tick(
     mut saves: MessageWriter<SaveRequest>,
     ptr: Res<crate::input::Pointer>,
     mut hcfg: ResMut<super::hud_widgets::HudConfig>,
+    inv: Res<crate::inventory::PlayerInv>,
 ) {
     match screen.get() {
         Screen::Play => {
             if state.pressed(Action::Pause) {
                 *menu = MenuState::default();
                 next.set(Screen::Pause);
-                redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, false);
+                redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, &inv, false);
             }
         }
         Screen::Pause | Screen::TitleOptions => {
@@ -247,14 +249,14 @@ pub fn menu_tick(
                             }
                         }
                     }
-                    redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, false);
+                    redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, &inv, false);
                 }
                 return;
             }
             if menu.saved_flash > 0 {
                 menu.saved_flash -= 1;
                 if menu.saved_flash == 0 {
-                    redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, false);
+                    redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, &inv, false);
                 }
             }
             if state.pressed(Action::Pause) || state.pressed(Action::Slot2) {
@@ -274,12 +276,12 @@ pub fn menu_tick(
                 menu.grab = false;
                 dirty = true;
             } else {
-                let rows = rows_len(menu.real_tab(), &settings, &menu, &hcfg);
+                let rows = rows_len(menu.real_tab(), &settings, &menu, &hcfg, &inv);
                 // WIDGETS tab, widget in hand: UP/DOWN carries it, not the cursor.
                 let carrying = menu.real_tab() == 1 && menu.grab;
                 if state.pressed(Action::Up) {
                     if carrying {
-                        widgets_tab::shift(&mut hcfg, &mut menu.index, false);
+                        widgets_tab::shift(&mut hcfg, &inv, &mut menu.index, false);
                     } else {
                         menu.index = (menu.index + rows - 1) % rows;
                     }
@@ -287,7 +289,7 @@ pub fn menu_tick(
                 }
                 if state.pressed(Action::Down) {
                     if carrying {
-                        widgets_tab::shift(&mut hcfg, &mut menu.index, true);
+                        widgets_tab::shift(&mut hcfg, &inv, &mut menu.index, true);
                     } else {
                         menu.index = (menu.index + 1) % rows;
                     }
@@ -306,7 +308,7 @@ pub fn menu_tick(
                     );
                 }
                 if menu.real_tab() == 1 && state.pressed(Action::Slot3) {
-                    dirty |= widgets_tab::toggle(&mut hcfg, &mut menu.index);
+                    dirty |= widgets_tab::toggle(&mut hcfg, &inv, &mut menu.index);
                 }
             }
             // --- Mouse (Baz's request): hover highlights a row, LMB selects it, and clicking a
@@ -324,7 +326,7 @@ pub fn menu_tick(
                     dirty = true;
                 }
             } else if let Some(r) =
-                ptr.pos.and_then(|p| row_at(menu.real_tab(), &content_area(), p, &settings, &menu, &hcfg))
+                ptr.pos.and_then(|p| row_at(menu.real_tab(), &content_area(), p, &settings, &menu, &hcfg, &inv))
             {
                 // The CONTROLS table SCROLLS to centre its cursor — hover-select made the
                 // list reflow under a still mouse (Baz: "mouse movement to scroll is bad
@@ -348,16 +350,16 @@ pub fn menu_tick(
                 }
             }
             if dirty {
-                redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, capture.active);
+                redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, &inv, capture.active);
             }
         }
         _ => {} // codex / slide-out own their own inputs
     }
 }
 
-fn rows_len(tab: usize, settings: &Settings, menu: &MenuState, hcfg: &super::hud_widgets::HudConfig) -> usize {
+fn rows_len(tab: usize, settings: &Settings, menu: &MenuState, hcfg: &super::hud_widgets::HudConfig, inv: &crate::inventory::PlayerInv) -> usize {
     match tab {
-        1 => widgets_tab::len(hcfg),
+        1 => widgets_tab::len(hcfg, inv),
         4 => controls::len(),
         t => tabs::list_rows(t, settings, menu.saved_flash).len(),
     }
@@ -463,12 +465,13 @@ fn content_area() -> Area {
 /// The absolute row index under a canvas point, or None (over a gap / header / outside). Mirrors
 /// the two row layouts: the scrolling CONTROLS table (tab 3, controls::draw) and the centred
 /// settings list (tabs::draw_list). Kept next to `content_area` so the geometry stays paired.
-fn row_at(tab: usize, a: &Area, p: Vec2, settings: &Settings, menu: &MenuState, hcfg: &super::hud_widgets::HudConfig) -> Option<usize> {
+#[allow(clippy::too_many_arguments)] // the shared hit-test reads every tab's inputs
+fn row_at(tab: usize, a: &Area, p: Vec2, settings: &Settings, menu: &MenuState, hcfg: &super::hud_widgets::HudConfig, inv: &crate::inventory::PlayerInv) -> Option<usize> {
     if p.x < a.x || p.x >= a.x + a.w || p.y < a.y {
         return None;
     }
     if tab == 1 {
-        return widgets_tab::row_at(a, p, hcfg);
+        return widgets_tab::row_at(a, p, hcfg, inv);
     }
     if tab == 4 {
         let (rh, y0) = (10.0, a.y + 11.0);
@@ -486,7 +489,7 @@ fn row_at(tab: usize, a: &Area, p: Vec2, settings: &Settings, menu: &MenuState, 
         let vi = vi as usize;
         (vi < vis.min(n - scroll)).then_some(scroll + vi)
     } else {
-        let rows = rows_len(tab, settings, menu, hcfg);
+        let rows = rows_len(tab, settings, menu, hcfg, inv);
         let rh = 18.0;
         let y0 = a.y + (((a.h - rows as f32 * rh) / 2.0).round()).max(0.0);
         if p.y < y0 {
@@ -508,6 +511,7 @@ fn redraw(
     bindings: &Bindings,
     state: &ActionState,
     hcfg: &super::hud_widgets::HudConfig,
+    inv: &crate::inventory::PlayerInv,
     capturing: bool,
 ) {
     for e in old {
@@ -547,7 +551,7 @@ fn redraw(
 
     let a = content_area();
     match menu.real_tab() {
-        1 => widgets_tab::draw(&mut d, &a, hcfg, menu.index, menu.grab, bindings, state.pad_present),
+        1 => widgets_tab::draw(&mut d, &a, hcfg, inv, menu.index, menu.grab, bindings, state.pad_present),
         4 => controls::draw(&mut d, &a, menu.index, capturing, bindings),
         t => tabs::draw_list(&mut d, &a, &tabs::list_rows(t, settings, menu.saved_flash), menu.index),
     }

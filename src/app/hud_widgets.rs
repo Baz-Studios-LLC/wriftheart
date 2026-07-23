@@ -28,18 +28,27 @@ pub struct WidgetDef {
     pub id: &'static str,
     pub name: &'static str,
     pub core: bool,
+    /// Item gate: a gear FLAG that must be OWNED before the widget exists at all —
+    /// gated widgets never appear in the ESC arranger until you have the item
+    /// (Baz: the watch's CLOCK today, the compass MINIMAP to come).
+    pub gate: Option<&'static str>,
+}
+
+/// Is this widget allowed to exist for this player right now?
+pub fn unlocked(w: &WidgetDef, inv: &crate::inventory::PlayerInv) -> bool {
+    w.gate.is_none_or(|flag| inv.owns_flagged(flag))
 }
 
 /// The registry — order here is the default TOP order and the arranger's fallback.
 pub const WIDGETS: &[WidgetDef] = &[
-    WidgetDef { id: "vitals", name: "VITALS", core: true },
-    WidgetDef { id: "abilities", name: "ABILITIES", core: false },
-    WidgetDef { id: "clock", name: "CLOCK", core: false },
-    WidgetDef { id: "quests", name: "QUESTS", core: false },
-    WidgetDef { id: "buffs", name: "BUFFS", core: false },
-    WidgetDef { id: "shards", name: "SHARDS", core: false },
-    WidgetDef { id: "coins", name: "COIN", core: false },
-    WidgetDef { id: "hint", name: "HINTS", core: false },
+    WidgetDef { id: "vitals", name: "VITALS", core: true, gate: None },
+    WidgetDef { id: "abilities", name: "ABILITIES", core: false, gate: None },
+    WidgetDef { id: "clock", name: "CLOCK", core: false, gate: Some("clock") },
+    WidgetDef { id: "quests", name: "QUESTS", core: false, gate: None },
+    WidgetDef { id: "buffs", name: "BUFFS", core: false, gate: None },
+    WidgetDef { id: "shards", name: "SHARDS", core: false, gate: None },
+    WidgetDef { id: "coins", name: "COIN", core: false, gate: None },
+    WidgetDef { id: "hint", name: "HINTS", core: false, gate: None },
 ];
 
 pub fn def(id: &str) -> Option<&'static WidgetDef> {

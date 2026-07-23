@@ -179,6 +179,13 @@ impl PlayerInv {
         self.entries.iter().any(|e| e.id == id)
     }
 
+    /// Does ANY owned copy (bag, slot, or worn) carry this flag? The widget system's
+    /// unlock check — OWNING the watch lists CLOCK in the arranger; WEARING it
+    /// lights the widget (has_gear_flag below).
+    pub fn owns_flagged(&self, flag: &str) -> bool {
+        self.entries.iter().any(|e| items::get(e.id).is_some_and(|d| d.flags.contains(&flag)))
+    }
+
     /// js p.hasGearFlag: does any WORN gear piece carry this power flag (clock/light/…)?
     /// Ability-slot and bag copies don't count — the item works only while worn.
     pub fn has_gear_flag(&self, flag: &str) -> bool {
