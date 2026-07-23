@@ -8,9 +8,8 @@
 
 use super::super::play::{CurRoom, GameWorld, Visited};
 use super::{hint_scaffold, CodexUi, CodexState, TabContent, CONTENT_Z, FOOT_H, TOP_H};
-use crate::gfx::{at, font, PIXEL_LAYER};
+use crate::gfx::{at, PIXEL_LAYER};
 use crate::input::{Action, ActionState, Bindings};
-use crate::ui::{frame_rect, label};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use crate::room::{COLS, ROWS};
 use crate::{CANVAS_H, CANVAS_W};
@@ -46,18 +45,6 @@ pub struct ThumbCache(HashMap<(i32, i32), Handle<Image>>);
 
 #[derive(Component)]
 pub struct MapRoot;
-
-/// The RECENTER chip (bottom-right of the view) — snaps the camera back onto the
-/// room you stand in. NOT a child of the map root (it must not pan).
-#[derive(Component, Clone)]
-pub struct RecenterBtn;
-
-/// One geometry source for the chip's draw + click test (the tab_chips rule).
-fn recenter_rect() -> (f32, f32, f32, f32) {
-    let (vw, vh) = view_size();
-    let w = font::measure("RECENTER") as f32 + 8.0;
-    (AX + vw - w - 3.0, AY + vh - 14.0, w, 11.0)
-}
 
 pub fn hint(bindings: &Bindings, pad: bool) -> String {
     let zoom = format!(
@@ -106,7 +93,6 @@ pub fn run(
             MessageReader<MouseWheel>,
             Local<Option<Vec2>>,
             Local<f32>,
-            Query<Entity, With<RecenterBtn>>,
             Local<f32>,
         ),
         // Where you FELL + the clock that expires it with the day's room reset.
@@ -116,13 +102,10 @@ pub fn run(
 ) {
     let (towns, phouse, relics_res, players_q, in_dungeon, chant, mouse, fell) = marks;
     let death_room = fell.0 .0.filter(|(_, day)| *day == crate::app::gather::farm_day(fell.1 .0)).map(|(r, _)| r);
-    let (ptr, mbtn, mut wheels, mut drag, mut wacc, btns, mut pan_t) = mouse;
+    let (ptr, mbtn, mut wheels, mut drag, mut wacc, mut pan_t) = mouse;
     // UNDERGROUND: the DUNGEON FLOOR MAP replaces the world map (js drawDungeonMap) —
     // auto-fit, no zoom/pan, rebuilt when the room/floor moves (or the chant meter ticks).
     if let Some(drun) = &in_dungeon.0 {
-        for e in &btns {
-            commands.entity(e).despawn(); // no recentering a fixed floor map
-        }
         let key = (drun.drx, drun.dry, drun.dungeon.floor as i32, cx_state.generation, chant.0 / 30);
         if *dmap_key != Some(key) {
             *dmap_key = Some(key);
@@ -190,15 +173,14 @@ pub fn run(
             view.cy += px / full_h;
         }
     }
-    // MOUSE (Baz): hold-and-drag pans the map under the cursor, the wheel zooms,
-    // and the RECENTER chip snaps the camera back onto the room you stand in.
+    // MOUSE (Baz): hold-and-drag pans the map under the cursor, the wheel zooms;
+    // Slot4 is the recenter hotkey (the chip retired — Baz: we have a hotkey now).
     {
         let b = bounds(&visited, cur.rx, cur.ry, &pins);
         let (cell_w, cell_h) = cell_size(view.ts);
         let full_w = (b.cols as f32 * cell_w - GAP).max(1.0);
         let full_h = (b.rows as f32 * cell_h - GAP).max(1.0);
         let (vw, vh) = view_size();
-        let (bx, by, bw, bh) = recenter_rect();
         for m in wheels.read() {
             *wacc += match m.unit {
                 MouseScrollUnit::Line => m.y,
@@ -226,7 +208,7 @@ pub fn run(
                     view.cx -= (p.x - last.x) / full_w;
                     view.cy -= (p.y - last.y) / full_h;
                     *drag = Some(p);
-                } else if p.x >= AX && p.x <= AX + vw && p.y >= AY && p.y <= AY + vh && !ptr.over(bx, by, bw, bh) {
+                } else if p.x >= AX && p.x <= AX + vw && p.y >= AY && p.y <= AY + vh {
                     // Held inside the view with no anchor yet: arm HERE. (just_pressed
                     // is frame-cleared and a zero-tick FixedUpdate frame ate the edge —
                     // the drag randomly refused to start. The level state can't be missed;
@@ -237,22 +219,10 @@ pub fn run(
         } else {
             *drag = None;
         }
-        // Click the chip OR press Slot4 (Baz: unreachable by pad otherwise).
-        if (ptr.click && ptr.over(bx, by, bw, bh)) || state.pressed(Action::Slot4) {
+        // Slot4 snaps the camera back onto the room you stand in.
+        if state.pressed(Action::Slot4) {
             view.cx = ((cur.rx - b.min_x) as f32 * cell_w + COLS as f32 * view.ts as f32 / 2.0) / full_w;
             view.cy = ((cur.ry - b.min_y) as f32 * cell_h + ROWS as f32 * view.ts as f32 / 2.0) / full_h;
-        }
-        // Stand the chip up once (swept with the tab; rebuilt here if missing).
-        if btns.is_empty() {
-            let tag = (CodexUi, TabContent, RecenterBtn);
-            commands.spawn((
-                Sprite::from_color(Color::srgb_u8(0x14, 0x14, 0x1c), Vec2::new(bw, bh)),
-                at(bx, by, bw, bh, CONTENT_Z + 0.55),
-                PIXEL_LAYER,
-                tag.clone(),
-            ));
-            frame_rect(&mut commands, bx, by, bw, bh, 0x4a4a58, CONTENT_Z + 0.56, tag.clone());
-            label(&mut commands, &mut images, "RECENTER", bx + 4.0, by + 3.0, 0xcfd8e4, CONTENT_Z + 0.57, tag);
         }
     }
     // Clamp the camera fraction to the LIVE range — the span that actually maps to
