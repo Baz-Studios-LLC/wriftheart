@@ -148,6 +148,15 @@ pub fn nav(so: &mut SlideOut, state: &ActionState, inv: &PlayerInv) -> bool {
 // --- The carry model: which uid a cell holds, and what it may hold (js cellGet/cellSet/
 // cellAccepts). ---
 
+/// Does a Q press mean USE right now? Q doubles as Slot3-USE and TabPrev; on the
+/// CHAR page with the cursor on a FILLED bag cell, the item action must win and
+/// the tab hop yield (Baz: Q flipped tabs instead of drinking the potion).
+pub(super) fn wants_use(so: &super::SlideOut, inv: &PlayerInv) -> bool {
+    let cells = cells(inv);
+    let cur = &cells[so.gear_cursor.min(cells.len() - 1)];
+    matches!(cur.kind, CellKind::Bag(_)) && cell_get(inv, cur).is_some()
+}
+
 fn cell_get(inv: &PlayerInv, c: &Cell) -> Option<u32> {
     match c.kind {
         CellKind::Bag(i) => inv.bag.get(i).copied().flatten(),

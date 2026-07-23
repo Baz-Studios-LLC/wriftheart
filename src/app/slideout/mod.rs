@@ -243,7 +243,10 @@ fn slideout_tick(
             if state.pressed(Action::TabNext) {
                 step += 1;
             }
-            if state.pressed(Action::TabPrev) {
+            // Q doubles as Slot3-USE and TabPrev: when the CHAR page's cursor sits
+            // on a filled bag cell, USE wins and the tab hop yields (Baz).
+            let q_means_use = tabs.get(so.tab).copied() == Some("CHAR") && char_tab::wants_use(&so, inv);
+            if state.pressed(Action::TabPrev) && !q_means_use {
                 step += n - 1;
             }
             if step % n != 0 {
