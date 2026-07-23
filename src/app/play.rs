@@ -87,7 +87,6 @@ impl Plugin for PlayPlugin {
                         .run_if(|p: Res<super::dungeon::PitFalling>| p.0.is_none()),
                     charge_aura.after(sync_player_sprite).run_if(super::screen::playing),
                     charge_hold.after(sync_player_sprite).run_if(super::screen::playing),
-                    relabel_coords,
                     worn_refresh,
                     apply_tree_hp,
                     apply_iframes,
@@ -300,9 +299,6 @@ pub struct Hop {
     pub t: i32,
     pub total: i32,
 }
-
-#[derive(Component)]
-struct CoordsLabel;
 
 /// The non-overworld modes (interior / dungeon), nested (RoomCtx sits AT the 16 cap).
 #[derive(SystemParam)]
@@ -556,10 +552,6 @@ fn setup(
         at(PLAY_X + px, PLAY_Y + py, 16.0, 16.0, 10.0),
         PIXEL_LAYER,
     ));
-
-    // Room coords readout (the rest of the sidebar lives in hud.rs).
-    let coords = format!("{rx},{ry}");
-    label(&mut commands, &mut images, &coords, 8.0, CANVAS_H as f32 - 22.0, 0xa0a0a0, 18.2, CoordsLabel);
 
     // First room's cast.
     let world = GameWorld(world);
@@ -1433,22 +1425,6 @@ pub fn worn_refresh(
 }
 
 /// Re-bake the sidebar coords label when the room changes.
-fn relabel_coords(
-    mut commands: Commands,
-    cur: Res<CurRoom>,
-    old: Query<Entity, With<CoordsLabel>>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    if !cur.is_changed() {
-        return;
-    }
-    for e in &old {
-        commands.entity(e).despawn();
-    }
-    let text = format!("{},{}", cur.rx, cur.ry);
-    label(&mut commands, &mut images, &text, 8.0, CANVAS_H as f32 - 22.0, 0xa0a0a0, 18.2, CoordsLabel);
-}
-
 /// Push the Player's room-pixel position + gait frame into its sprite each render frame.
 /// The i-frame blink hides the body on alternating 4-frame windows (js hurtFlash >> 2).
 /// The CHARGE AURA (Baz: "like Goku charging up"): a blue outline traced around
