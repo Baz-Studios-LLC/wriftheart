@@ -8,7 +8,6 @@
 use super::{Area, Draw, GOLD, MUTED, TEXT_Z};
 use crate::app::hud_widgets::{def, unlocked, HudConfig, HudRow};
 use crate::inventory::PlayerInv;
-use crate::gfx::font;
 use crate::input::{Action, Bindings};
 use bevy::prelude::Vec2;
 
@@ -152,10 +151,8 @@ pub fn draw(d: &mut Draw, a: &Area, cfg: &HudConfig, inv: &PlayerInv, sel: usize
                 }
                 let col = if on && grab { 0xfcfcfc } else if on { GOLD } else { MUTED };
                 d.text(name, x, y + 2.0, col, TEXT_Z);
-                if def(&r.id).is_some_and(|w| w.core) {
-                    let nw = font::measure(name) as f32;
-                    d.text("*", x + nw + 4.0, y + 2.0, 0x5a5a64, TEXT_Z); // core: always shown
-                }
+                // (Core widgets carry no marker — the hide toggle simply refusing
+                // is clearer than an unexplained star was — Baz.)
             }
         }
         y += RH;

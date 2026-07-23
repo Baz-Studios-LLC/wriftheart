@@ -41,7 +41,7 @@ pub fn unlocked(w: &WidgetDef, inv: &crate::inventory::PlayerInv) -> bool {
 
 /// The registry — order here is the default TOP order and the arranger's fallback.
 pub const WIDGETS: &[WidgetDef] = &[
-    WidgetDef { id: "vitals", name: "VITALS", core: true, gate: None },
+    WidgetDef { id: "vitals", name: "CHARACTER", core: true, gate: None }, // (Baz) — core: movable, never hideable
     WidgetDef { id: "abilities", name: "ITEMS", core: false, gate: None }, // the sidebar header says ITEMS - the arranger matches (Baz)
     WidgetDef { id: "clock", name: "CLOCK", core: false, gate: Some("clock") },
     WidgetDef { id: "minimap", name: "MINIMAP", core: false, gate: Some("compass") },
@@ -79,8 +79,8 @@ impl Default for HudConfig {
             row("quests", 0, true),
             row("buffs", 0, true),
             row("shards", 0, true),
-            row("hint", 1, true),
             row("minimap", 1, true),
+            row("hint", 1, true),
             row("coins", 0, true),
         ])
     }
@@ -181,9 +181,10 @@ pub fn layout_tick(
         }
     };
     let mut out: HashMap<&'static str, f32> = HashMap::new();
-    // Bottom stack: first row sits nearest the edge, the next above it.
+    // Bottom stack, REVERSED: the arranger lists this section top-to-bottom exactly
+    // as it renders (Baz: it read upside down) — the LAST listed row hugs the edge.
     let mut bot = CANVAS_H as f32 - 4.0;
-    for r in cfg.0.iter().filter(|r| r.on && r.pin == 1) {
+    for r in cfg.0.iter().filter(|r| r.on && r.pin == 1).rev() {
         let (Some(d), Some(h)) = (def(&r.id), height(&r.id)) else { continue };
         bot -= h;
         out.insert(d.id, bot - baseline(d.id));
