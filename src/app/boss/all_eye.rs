@@ -164,7 +164,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
             EyeStalk { slot, role, cd: 90 + slot as i32 * 37, beam: None, x: ox, y: oy },
             Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(1), persistent: true, knock: 0.0 },
             Health { hp: STALK_HP, max: STALK_HP, defense: 0, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_frames: 0 },
+            HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             Knockback::default(),
             Hitbox { x: ox, y: oy, w: 10.0, h: 8.0 },
         ));
@@ -191,7 +191,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: ox + 2.0, y: oy + 2.0, w: 18.0, h: 14.0 },
     ));

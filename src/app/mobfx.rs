@@ -372,7 +372,7 @@ pub fn spawn_drain_orb(
         // Hurts the player on touch AND can be POPPED by a swing (Health 1).
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
         Health { hp: 1, max: 1, defense: 0, invuln: 0, flash: 0 },
-        HurtProfile { invuln: 0, flash: 0, kb_base: 0.0, kb_frames: 0 },
+        HurtProfile { invuln: 0, flash: 0, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
         Knockback::default(),
         Blood(0x96a050),
         HitOnce::default(),

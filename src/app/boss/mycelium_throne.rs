@@ -126,7 +126,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
             SporeNode { idx: i, radius: 10.0, pulse_cd: 100 + i as i32 * 37, erupt_cd: 200 + i as i32 * 41 },
             Combatant { team: Team::Enemy, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
             Health { hp: 8, max: 8, defense: 0, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 8, flash: 6, kb_base: 0.0, kb_frames: 0 },
+            HurtProfile { invuln: 8, flash: 6, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             Knockback::default(),
             Hitbox { x: nx + 1.0, y: ny + 1.0, w: 10.0, h: 9.0 },
         ));
@@ -141,7 +141,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         MyceliumThrone { x: tx, y: ty, anim: 0, nodes_left: 5, spit_cd: 80, hatch_cd: 300, carpet: Default::default(), carpet_img },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_frames: 0 }, // it IS the floor's will
+        HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 }, // it IS the floor's will
         Knockback::default(),
         Hitbox { x: tx + 3.0, y: ty + 4.0, w: 20.0, h: 16.0 },
     ));

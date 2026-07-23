@@ -87,6 +87,10 @@ pub struct HurtProfile {
     pub invuln: u32,
     pub flash: u32,
     pub kb_base: f32,
+    /// 0..1: scales the WHOLE knockback — base AND the attacker's knock stat.
+    /// (kb_base used to be pre-scaled, which let weapon knock shove even a
+    /// full-resist mob like the sandmaw — Baz: a hole cannot be pushed.)
+    pub kb_resist: f32,
     pub kb_frames: u32,
 }
 
@@ -232,8 +236,9 @@ pub fn resolve_combat(
                 if fx * to.x + fy * to.y > 0.25 {
                     health.invuln = 30;
                     if let Some(mut kb) = kb {
-                        kb.kx = -to.x * profile.kb_base * 0.5;
-                        kb.ky = -to.y * profile.kb_base * 0.5;
+                        let r = (1.0 - profile.kb_resist).max(0.0);
+                        kb.kx = -to.x * profile.kb_base * r * 0.5;
+                        kb.ky = -to.y * profile.kb_base * r * 0.5;
                         kb.timer = profile.kb_frames / 2;
                     }
                     clangs.write(ShieldClang {
@@ -294,7 +299,7 @@ pub fn resolve_combat(
                 let dx = (tbox.x + tbox.w / 2.0) - acx;
                 let dy = (tbox.y + tbox.h / 2.0) - acy;
                 let m = dx.hypot(dy).max(1e-6);
-                let k = profile.kb_base + atk.knock;
+                let k = (profile.kb_base + atk.knock) * (1.0 - profile.kb_resist).max(0.0);
                 kb.kx = dx / m * k;
                 kb.ky = dy / m * k;
                 kb.timer = profile.kb_frames;

@@ -250,7 +250,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         // The bulb bites nobody — its heads do the biting.
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: None, persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 8, flash: 8, kb_base: 0.0, kb_frames: 0 }, // rooted: unshovable
+        HurtProfile { invuln: 8, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 }, // rooted: unshovable
         Knockback::default(),
         Hitbox { x: hx + 2.0, y: hy + 2.0, w: 18.0, h: 16.0 },
     ));
@@ -305,7 +305,7 @@ fn grow_head(commands: &mut Commands, hydra: &mut WarrenHydra, i: usize, burst_i
         },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
         Health { hp: HEAD_HP, max: HEAD_HP, defense: 0, invuln: if burst_in { 20 } else { 30 }, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_frames: 0 }, // rooted in its vine
+        HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 }, // rooted in its vine
         Knockback::default(),
         Hitbox { x: hx + 1.0, y: hy + 1.0, w: 12.0, h: 12.0 },
     ));
@@ -527,7 +527,7 @@ pub(crate) fn deaths(
             HydraStump { burrow: hd.burrow, t: STUMP_T },
             Combatant { team: Team::Enemy, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
             Health { hp: 1, max: 1, defense: 0, invuln: 12, flash: 0 }, // any blow cauterizes
-            HurtProfile { invuln: 4, flash: 4, kb_base: 0.0, kb_frames: 0 },
+            HurtProfile { invuln: 4, flash: 4, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             Knockback::default(),
             Hitbox { x: bcx - 5.0, y: bcy - 7.0, w: 10.0, h: 10.0 },
         ));

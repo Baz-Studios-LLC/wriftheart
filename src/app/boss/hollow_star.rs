@@ -117,7 +117,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
             StarShard { slot, x: sx, y: sy },
             Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(1), persistent: true, knock: 0.0 },
             Health { hp: 6, max: 6, defense: 0, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_frames: 0 },
+            HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             Knockback::default(),
             Hitbox { x: sx, y: sy, w: 9.0, h: 9.0 },
         ));
@@ -132,7 +132,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         HollowStar { x: sx, y: sy, anim: 0, meteor: None, meteor_cd: 220, beam_cd: 200, nova_cd: 170, ring_img },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(4), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: sx + 3.0, y: sy + 3.0, w: 14.0, h: 14.0 },
     ));

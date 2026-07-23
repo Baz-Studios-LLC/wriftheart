@@ -126,7 +126,7 @@ pub fn spawn_knight(commands: &mut Commands, images: &mut Assets<Image>, x: f32,
             DarkKnight { x, y, left: false, swing_t: 0, cd: 30, anim: 0 },
             Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(7), persistent: true, knock: 0.0 },
             Health { hp: (44.0 * crate::actors::mobs::HP_MUL).round() as i32, max: (44.0 * crate::actors::mobs::HP_MUL).round() as i32, defense: 2, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.9), kb_frames: 11 },
+            HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.9, kb_frames: 11 },
             Knockback::default(),
             Hitbox { x: x + 1.0, y: y + 1.0, w: 14.0, h: 15.0 },
         ))

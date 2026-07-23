@@ -162,7 +162,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
             BroodComb { idx: i, hatch_cd: 140 + i as i32 * 45 },
             Combatant { team: Team::Enemy, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
             Health { hp: COMB_HP, max: COMB_HP, defense: 0, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 8, flash: 6, kb_base: 0.0, kb_frames: 0 },
+            HurtProfile { invuln: 8, flash: 6, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             Knockback::default(),
             Hitbox { x: *cx + 1.0, y: *cy + 1.0, w: 14.0, h: 14.0 },
         ));
@@ -180,7 +180,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
                     RoyalGuard { slot },
                     Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
                     Health { hp: GUARD_HP, max: GUARD_HP, defense: 0, invuln: 0, flash: 0 },
-                    HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_frames: 0 },
+                    HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
                     Knockback::default(),
                     Hitbox { x: qx, y: qy, w: 10.0, h: 10.0 },
                 ))
@@ -209,7 +209,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.85), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.85, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: qx + 2.0, y: qy + 4.0, w: 14.0, h: 14.0 },
     ));

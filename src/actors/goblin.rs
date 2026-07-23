@@ -130,7 +130,7 @@ pub fn goblin_bundle(kind: GoblinKind, x: f32, y: f32) -> impl Bundle {
             knock: 0.0,
         },
         Health { hp: (2.0 * HP_MUL) as i32, max: (2.0 * HP_MUL) as i32, defense: 0, invuln: 0, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.0, kb_frames: 11 },
         Knockback::default(),
         Blood(0xd82800),
         Hitbox { x: x + 3.0, y: y + 4.0, w: 10.0, h: 10.0 },

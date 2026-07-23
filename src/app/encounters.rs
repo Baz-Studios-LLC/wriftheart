@@ -1035,7 +1035,7 @@ pub fn spawn_victims(commands: &mut Commands, scene: &Scene) {
             // Generous i-frames (js invuln 48) so a swarm can't delete it instantly.
             crate::combat::Combatant { team: crate::combat::Team::Player, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
             crate::combat::Health { hp: 8, max: 8, defense: 0, invuln: 0, flash: 0 },
-            crate::combat::HurtProfile { invuln: 48, flash: 10, kb_base: 0.0, kb_frames: 0 },
+            crate::combat::HurtProfile { invuln: 48, flash: 10, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             crate::combat::Blood(0xd82800),
             crate::combat::Hitbox { x: *x + 3.0, y: *y + 4.0, w: 10.0, h: 10.0 },
         ));

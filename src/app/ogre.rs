@@ -242,7 +242,7 @@ pub fn spawn_ogre(commands: &mut Commands, x: f32, y: f32) -> Entity {
             Ogre { x, y, facing: 0, st: 0, t: 0, cd: 0, cd2: 0, cvx: 0.0, cvy: 0.0, anim: 0 },
             Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(4), persistent: true, knock: 0.0 },
             Health { hp: 24, max: 24, defense: 1, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.85), kb_frames: 11 },
+            HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.85, kb_frames: 11 },
             Knockback::default(),
             Hitbox { x: x + 1.0, y: y + 2.0, w: 14.0, h: 13.0 },
         ))

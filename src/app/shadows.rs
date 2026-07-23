@@ -164,6 +164,9 @@ fn sync_shadows(
     }
     for (e, m, h, spr, sh, rf) in &mobs {
         let d = &MOB_DEFS[m.def];
+        if d.kind == "sandmaw" {
+            continue; // it IS a hole in the ground — a pit casts no shadow (Baz)
+        }
         // The hitbox is the FEET box: centre on it; fliers hover, so fainter.
         let w = if m.small { 8 } else { (d.hb.2 as u32 + 4).clamp(10, 16) & !1 };
         let w = if d.fly { (w.saturating_sub(4)).max(6) & !1 } else { w };

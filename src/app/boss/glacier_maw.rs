@@ -176,7 +176,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>, blocker
         },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: None, persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 1, invuln: 30, flash: 0 }, // the js cave-line armor
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: -40.0, y: -40.0, w: 1.0, h: 1.0 }, // parked while burrowed
     ));

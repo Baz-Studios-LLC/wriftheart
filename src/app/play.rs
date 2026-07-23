@@ -549,7 +549,7 @@ fn setup(
             let (hp, max, def) = loaded.0.as_ref().map_or((HP_BASE, HP_BASE, 0), |d| (d.hp.max(1), d.max_hp.max(HP_BASE), d.defense));
             Health { hp, max, defense: def, invuln: 0, flash: 0 }
         },
-        HurtProfile { invuln: 72, flash: 72, kb_base: 2.6, kb_frames: 8 },
+        HurtProfile { invuln: 72, flash: 72, kb_base: 2.6, kb_resist: 0.0, kb_frames: 8 },
         Knockback::default(),
         Hitbox { x: px + 3.0, y: py + 2.0, w: 10.0, h: 13.0 },
         Sprite::from_image(first),

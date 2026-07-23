@@ -158,7 +158,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
             TitanPlate { slot },
             Combatant { team: Team::Enemy, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
             Health { hp: 9, max: 9, defense: 0, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_frames: 0 },
+            HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             Knockback::default(),
             Hitbox { x: tx + dx, y: ty + dy, w, h: hh },
         ));
@@ -173,7 +173,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         AshTitan { x: tx, y: ty, anim: 0, plates_left: 3, dash: None, dash_cd: 150, nova_cd: 180, trail_cd: 0, fire_img },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(4), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: tx + 2.0, y: ty + 4.0, w: 18.0, h: 24.0 },
     ));

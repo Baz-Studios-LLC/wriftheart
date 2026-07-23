@@ -108,7 +108,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         Broodmother { x: bx, y: by, anim: 0, phase: 0, web_cd: 90, swarm_cd: 130, shot_cd: 70, web_img },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(3), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.0 * (1.0 - 0.55), kb_frames: 10 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.0, kb_resist: 0.55, kb_frames: 10 },
         Knockback::default(),
         Hitbox { x: bx + 2.0, y: by + 4.0, w: 12.0, h: 12.0 },
     ));

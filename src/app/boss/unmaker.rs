@@ -109,7 +109,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         Unmaker { x: ux, y: uy, anim: 0, crossed: 0, hex_cd: 300, blink_cd: 140, bolt_cd: 90, tear_cd: 240, glint: 0, img, tear_img },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(4), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: ux + 2.0, y: uy + 3.0, w: 14.0, h: 18.0 },
     ));
@@ -155,7 +155,7 @@ pub(crate) fn tick(
                 FalseSelf { x: cx, y: cy, drift: 0.7 + i as f32 * 0.4 },
                 Combatant { team: Team::Enemy, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
                 Health { hp: 1, max: 1, defense: 0, invuln: 20, flash: 0 },
-                HurtProfile { invuln: 2, flash: 4, kb_base: 0.0, kb_frames: 0 },
+                HurtProfile { invuln: 2, flash: 4, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
                 Knockback::default(),
                 Hitbox { x: cx + 2.0, y: cy + 3.0, w: 14.0, h: 18.0 },
             ));

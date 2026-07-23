@@ -67,7 +67,7 @@ fn node_bundle(
         GatherTool(tool, req_tier),
         Combatant { team: Team::Object, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 0, flash: 0 },
-        HurtProfile { invuln: 0, flash: 0, kb_base: 0.0, kb_frames: 0 },
+        HurtProfile { invuln: 0, flash: 0, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
         Blood(chips),
         hitbox,
     )

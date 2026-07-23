@@ -564,7 +564,7 @@ pub(crate) fn spawn_room_dprops(
             DProp { kind: d.kind, c: d.c, r: d.r, blocker, debris },
             crate::combat::Combatant { team: crate::combat::Team::Object, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
             crate::combat::Health { hp, max: hp, defense: 0, invuln: 0, flash: 0 },
-            crate::combat::HurtProfile { invuln: 0, flash: 6, kb_base: 0.0, kb_frames: 0 },
+            crate::combat::HurtProfile { invuln: 0, flash: 6, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
             crate::combat::Blood(debris),
             crate::combat::Hitbox { x: px + 1.0, y: py + 2.0, w: w as f32 - 2.0, h: 13.0 },
             Sprite::from_image(img),
@@ -909,7 +909,7 @@ pub(crate) fn spawn_mimic(commands: &mut Commands, images: &mut Assets<Image>, x
         crate::combat::Combatant { team: crate::combat::Team::Enemy, hurt_team: Some(crate::combat::Team::Player), damage: if sprung { Some(3) } else { None }, persistent: true, knock: 0.0 },
         crate::combat::Health { hp, max: hp, defense: 0, invuln: 2, flash: 0 },
         // js mimic: knockResist 0.5, the standard 11-frame flinch.
-        crate::combat::HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * 0.5, kb_frames: 11 },
+        crate::combat::HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.5, kb_frames: 11 },
         crate::combat::Knockback::default(),
         crate::combat::Hitbox { x: x as f32 + 1.0, y: y as f32 + 2.0, w: 14.0, h: 12.0 },
     ));

@@ -120,7 +120,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         TheWriftheart { x: hx, y: hy, anim: 0, phase: 0, beat_cd: 170, storm_cd: 90, tear_cd: 260, call_cd: 200, lunge: None, lunge_cd: 120 },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(4), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: hx + 8.0, y: hy + 6.0, w: 44.0, h: 44.0 },
     ));

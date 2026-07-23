@@ -89,7 +89,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         DreadKnight { x: bx, y: by, anim: 0, phase: 0, charge_cd: 120, sweep_cd: 70, mode: 0, t: 0, vx: 0.0, vy: 0.0, fx: 0.0, fy: 1.0 },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(3), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 1, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.0 * (1.0 - 0.85), kb_frames: 10 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.0, kb_resist: 0.85, kb_frames: 10 },
         Knockback::default(),
         Hitbox { x: bx + 2.0, y: by + 4.0, w: 12.0, h: 14.0 },
     ));

@@ -114,7 +114,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>, blocker
         CavernTyrant { x: bx, y: by, anim: 0, phase: 0, slam_cd: 150, erupt_cd: 90, windup: 0, spike_img },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(3), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 1, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.0 * (1.0 - 0.9), kb_frames: 10 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.0, kb_resist: 0.9, kb_frames: 10 },
         Knockback::default(),
         Hitbox { x: bx + 1.0, y: by + 6.0, w: 14.0, h: 14.0 },
     ));

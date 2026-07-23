@@ -250,7 +250,7 @@ pub fn mob_bundle(def_idx: usize, x: f32, y: f32) -> impl Bundle {
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(d.damage), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: d.defense, invuln: 0, flash: 0 },
         // js mob onHurt: kb (2.2 + knock) * (1 - knockResist), a clear 11-frame flinch.
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - d.knock_resist), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: d.knock_resist, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: x + d.hb.0, y: y + d.hb.1, w: d.hb.2, h: d.hb.3 },
         Sprite::default(),
@@ -271,7 +271,7 @@ pub fn mob_bundle_small(def_idx: usize, x: f32, y: f32) -> impl Bundle {
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(d.damage), persistent: true, knock: 0.0 },
         // Spawn i-frames so the killing blow's lingering hitbox can't instantly pop them (js).
         Health { hp, max: hp, defense: d.defense, invuln: 30, flash: 6 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - d.knock_resist), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: d.knock_resist, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: x + 5.0, y: y + 9.0, w: 6.0, h: 5.0 },
         Sprite::default(),

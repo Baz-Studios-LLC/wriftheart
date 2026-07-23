@@ -177,7 +177,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(2), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_frames: 0 }, // rooted
+        HurtProfile { invuln: 10, flash: 8, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 }, // rooted
         Knockback::default(),
         Hitbox { x: qx + 3.0, y: qy + 2.0, w: 14.0, h: 12.0 },
     ));
@@ -244,7 +244,7 @@ pub(crate) fn tick(
                     BriarRoot { t: 220, x: rx, y: ry },
                     Combatant { team: Team::Enemy, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
                     Health { hp: 6, max: 6, defense: 0, invuln: 10, flash: 0 },
-                    HurtProfile { invuln: 6, flash: 6, kb_base: 0.0, kb_frames: 0 },
+                    HurtProfile { invuln: 6, flash: 6, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
                     Knockback::default(),
                     Hitbox { x: rx + 1.0, y: ry + 1.0, w: 10.0, h: 8.0 },
                 ));
@@ -272,7 +272,7 @@ pub(crate) fn tick(
                             ThornHedge { slot, t: 720, blocker },
                             Combatant { team: Team::Enemy, hurt_team: None, damage: None, persistent: false, knock: 0.0 },
                             Health { hp: 6, max: 6, defense: 0, invuln: 0, flash: 0 },
-                            HurtProfile { invuln: 6, flash: 6, kb_base: 0.0, kb_frames: 0 },
+                            HurtProfile { invuln: 6, flash: 6, kb_base: 0.0, kb_resist: 0.0, kb_frames: 0 },
                             Knockback::default(),
                             Hitbox { x: hx + 1.0, y: hy + 2.0, w: 13.0, h: 11.0 },
                         ));

@@ -163,7 +163,7 @@ pub fn spawn_lootgoblin(commands: &mut Commands, images: &mut Assets<Image>, x: 
             // Harmless (js damage: null) — it never hurts you, it only runs.
             Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: None, persistent: true, knock: 0.0 },
             Health { hp, max: 10, defense: 0, invuln: 0, flash: 0 },
-            HurtProfile { invuln: 8, flash: 8, kb_base: 2.6, kb_frames: 12 }, // knockback closes the gap
+            HurtProfile { invuln: 8, flash: 8, kb_base: 2.6, kb_resist: 0.0, kb_frames: 12 }, // knockback closes the gap
             Knockback::default(),
             Blood(0xfcd000),
             Hitbox { x: x + 3.0, y: y + 4.0, w: 10.0, h: 11.0 },

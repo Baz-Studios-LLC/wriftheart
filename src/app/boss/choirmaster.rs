@@ -79,7 +79,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         Choirmaster { x: cx, y: cy, anim: 0, phase: 0, toll_cd: 150, chorus_cd: 80, summon_cd: 220, still: 0 },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(4), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: cx + 4.0, y: cy + 4.0, w: 24.0, h: 26.0 },
     ));

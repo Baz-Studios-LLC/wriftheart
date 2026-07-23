@@ -215,7 +215,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>, x: f32,
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(3), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
         // js boss knockResist 0.92: it barely flinches.
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.92), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.92, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: x + 4.0, y: y + 16.0, w: 36.0, h: 22.0 },
     ));

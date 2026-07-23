@@ -74,7 +74,7 @@ pub(crate) fn spawn(commands: &mut Commands, images: &mut Assets<Image>) {
         StormHerald { x: bx, y: by, anim: 0, phase: 0, storm_cd: 120, volley_cd: 80 },
         Combatant { team: Team::Enemy, hurt_team: Some(Team::Player), damage: Some(3), persistent: true, knock: 0.0 },
         Health { hp, max: hp, defense: 0, invuln: 30, flash: 0 },
-        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2 * (1.0 - 0.5), kb_frames: 11 },
+        HurtProfile { invuln: 10, flash: 8, kb_base: 2.2, kb_resist: 0.5, kb_frames: 11 },
         Knockback::default(),
         Hitbox { x: bx + 2.0, y: by + 4.0, w: 12.0, h: 12.0 },
     ));

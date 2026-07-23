@@ -363,6 +363,28 @@ pub fn mob_think(
         }
         Ai::Suction { pull_r, min_r, pull } => {
             m.anim += 1;
+            // THE TONGUE (Baz): stray too close and it SNAPS out and reels you into
+            // the teeth — the frog's lash grammar on a rooted maw. st 1 = reeling.
+            if m.st == 1 {
+                m.t -= 1;
+                if m.t <= 0 {
+                    m.st = 0;
+                    m.cd = 110 + (rand() * 50.0) as i32;
+                    return None;
+                }
+                if m.t < 14 {
+                    return Some(MobAct::PullPlayer { tx: m.x, ty: m.y, pull: 2.6 });
+                }
+                return None;
+            }
+            if m.cd > 0 {
+                m.cd -= 1;
+            } else if dist > *min_r && dist < 46.0 {
+                m.st = 1;
+                m.t = 20;
+                return Some(MobAct::Tongue { ax: m.x + 8.0, ay: m.y + 6.0, ux, uy, len: dist.min(48.0) });
+            }
+            // The ambient sand-drag, always on inside the ring.
             if dist > *min_r && dist < *pull_r {
                 return Some(MobAct::PullPlayer { tx: m.x, ty: m.y, pull: *pull });
             }
