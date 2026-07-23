@@ -46,7 +46,7 @@ pub const WIDGETS: &[WidgetDef] = &[
     WidgetDef { id: "clock", name: "CLOCK", core: false, gate: Some("clock") },
     WidgetDef { id: "minimap", name: "MINIMAP", core: false, gate: Some("compass") },
     WidgetDef { id: "quests", name: "QUESTS", core: false, gate: None },
-    WidgetDef { id: "buffs", name: "BUFFS", core: false, gate: None },
+    WidgetDef { id: "buffs", name: "BUFFS/DEBUFFS", core: false, gate: None }, // it shows both kinds (Baz)
     WidgetDef { id: "shards", name: "SHARDS", core: false, gate: None },
     WidgetDef { id: "coins", name: "COIN", core: false, gate: None },
     WidgetDef { id: "hint", name: "HINTS", core: false, gate: None },
