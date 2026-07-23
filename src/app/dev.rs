@@ -517,12 +517,15 @@ fn drive(
             log.add("dev", "MAGE KIT", 1, 0xb890ff, false, true);
         }
         Cmd::TravelKit => {
-            for id in ["grapplehook", "springboots", "bubblering"] {
+            // + the compass (Baz): the pocket-watch's sibling — worn, it will drive
+            // the MINIMAP widget; a dev kit spawn beats scouring the epic pool.
+            for id in ["grapplehook", "springboots", "bubblering", "compass"] {
                 ctx.inv.add_item(id, 1);
             }
             ctx.inv.auto_equip("grapplehook");
             ctx.inv.auto_equip("springboots");
             ctx.inv.auto_equip("bubblering");
+            ctx.inv.auto_equip("compass");
             log.add("dev", "TRAVEL KIT", 1, 0x8ad0ff, false, true);
         }
         Cmd::ShieldKit => {
