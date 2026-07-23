@@ -183,7 +183,7 @@ pub fn layout_tick(
     let mut out: HashMap<&'static str, f32> = HashMap::new();
     // Bottom stack, REVERSED: the arranger lists this section top-to-bottom exactly
     // as it renders (Baz: it read upside down) — the LAST listed row hugs the edge.
-    let mut bot = CANVAS_H as f32 - 4.0;
+    let mut bot = CANVAS_H as f32 - PAD; // bottom margin == side margins (Baz)
     for r in cfg.0.iter().filter(|r| r.on && r.pin == 1).rev() {
         let (Some(d), Some(h)) = (def(&r.id), height(&r.id)) else { continue };
         bot -= h;
