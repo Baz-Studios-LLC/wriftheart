@@ -153,6 +153,8 @@ pub struct MobDef {
     pub blood: u32,
     pub defense: i32,
     pub knock_resist: f32,
+    /// Lava-native (Baz): walks and stands in lava unburnt; everyone else avoids it.
+    pub fireproof: bool,
     /// On-hit status for the player (js o.slow / o.poison / o.burn / o.shock): (id, frames).
     pub afflicts: (&'static str, i32),
     pub fly: bool,
@@ -171,7 +173,7 @@ pub struct MobDef {
 
 /// Field defaults so the def rows below state only what their js factory states.
 pub(crate) const DEF_BASE: MobDef = MobDef {
-    kind: "", hp: 1, damage: 1, xp: 1, blood: 0xd82800, defense: 0, knock_resist: 0.0, afflicts: ("", 0),
+    kind: "", hp: 1, damage: 1, xp: 1, blood: 0xd82800, defense: 0, knock_resist: 0.0, fireproof: false, afflicts: ("", 0),
     fly: false, hb: (3.0, 4.0, 10.0, 9.0), coin: Coin::Default, potion: 0.0, drops: None,
     down_revive: 0, splits: false, ghost: false, volatile: false, scale: 1.0, ai: Ai::Walker { spd: 0.5, range: 1e9 },
 };

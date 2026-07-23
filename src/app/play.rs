@@ -472,7 +472,8 @@ fn setup(
     // A save resumes in ITS room with ITS gather/growth stamps (they shape the room spawn);
     // apply_save restores the rest of the resources right after startup.
     let (rx, ry) = loaded.0.as_ref().map_or((0, 0), |d| (d.rx, d.ry));
-    let grid = RoomGrid::from_map(&world.generate(rx, ry));
+    let mut grid = RoomGrid::from_map(&world.generate(rx, ry));
+    grid.bake_lava(&world, rx, ry);
 
     let mut prop_art = PropArt::build(&mut images);
     let ents = world.room_entities(rx, ry);
@@ -1361,7 +1362,8 @@ pub fn tick(
 
     let nrx = cur.rx + ddx;
     let nry = cur.ry + ddy;
-    let new_grid = RoomGrid::from_map(&world.0.generate(nrx, nry));
+    let mut new_grid = RoomGrid::from_map(&world.0.generate(nrx, nry));
+    new_grid.bake_lava(&world.0, nrx, nry);
     let (mut ex, mut ey) = (p.x, p.y);
     if ddx == 1 {
         ex = 2.0;

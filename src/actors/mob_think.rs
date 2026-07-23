@@ -741,6 +741,11 @@ pub fn mob_step(
         if grid.box_hits_solid(bx, by, bw, bh) {
             return false;
         }
+        // Nothing walks INTO lava unless it was born there (Baz) — the fire kin
+        // (fireproof) cross freely; everyone else treats it as a wall.
+        if !d.fireproof && grid.box_hits_lava(bx, by, bw, bh) {
+            return false;
+        }
         if blockers.blocks((m.x + d.hb.0, m.y + d.hb.1, bw, bh), (bx, by, bw, bh)) {
             return false;
         }

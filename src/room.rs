@@ -12,16 +12,52 @@ pub const PX_H: i32 = ROWS * TILE; // 208
 /// A room's tile grid with the collision queries every mover needs.
 pub struct RoomGrid {
     rows: Vec<Vec<char>>,
+    /// Overworld lava tiles (baked by `bake_lava` after from_map; empty elsewhere) —
+    /// non-fireproof grounded mobs refuse to step in, and standing in it burns.
+    lava: Vec<bool>,
 }
 
 impl RoomGrid {
     pub fn from_map(map: &RoomMap) -> Self {
-        Self { rows: map.map.iter().map(|r| r.chars().collect()).collect() }
+        Self { rows: map.map.iter().map(|r| r.chars().collect()).collect(), lava: Vec::new() }
     }
 
     /// A grid from raw row strings (dungeon rooms synthesize theirs from solidity).
     pub fn from_rows(rows: Vec<String>) -> Self {
-        Self { rows: rows.iter().map(|r| r.chars().collect()).collect() }
+        Self { rows: rows.iter().map(|r| r.chars().collect()).collect(), lava: Vec::new() }
+    }
+
+    /// Bake the room's lava tiles (the water.rs overlay rule: open ground whose
+    /// ground variant is lava). Overworld rooms only — dungeons/interiors stay empty.
+    pub fn bake_lava(&mut self, world: &crate::worldgen::World, rx: i32, ry: i32) {
+        let (gx0, gy0) = (rx * COLS, ry * ROWS);
+        let mut v = vec![false; (COLS * ROWS) as usize];
+        let mut any = false;
+        for r in 0..ROWS {
+            for c in 0..COLS {
+                if self.code_at(c, r) == '.' && world.ground_name(gx0 + c, gy0 + r) == "lava" {
+                    v[(r * COLS + c) as usize] = true;
+                    any = true;
+                }
+            }
+        }
+        self.lava = if any { v } else { Vec::new() };
+    }
+
+    /// Is the room-pixel (x, y) on a lava tile?
+    pub fn lava_at(&self, x: f32, y: f32) -> bool {
+        if self.lava.is_empty() {
+            return false;
+        }
+        let col = (x / TILE as f32).floor() as i32;
+        let row = (y / TILE as f32).floor() as i32;
+        (0..COLS).contains(&col) && (0..ROWS).contains(&row) && self.lava[(row * COLS + col) as usize]
+    }
+
+    /// Does an axis-aligned box touch lava? (Corner sampling, the box_hits_solid twin.)
+    pub fn box_hits_lava(&self, x: f32, y: f32, w: f32, h: f32) -> bool {
+        !self.lava.is_empty()
+            && (self.lava_at(x, y) || self.lava_at(x + w, y) || self.lava_at(x, y + h) || self.lava_at(x + w, y + h))
     }
 
     /// Tile code at (col, row); out of bounds reads as a tree wall, exactly like the JS.

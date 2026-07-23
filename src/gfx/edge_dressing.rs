@@ -74,6 +74,12 @@ pub fn dressing_rects(grid: &RoomGrid, world: &World, rx: i32, ry: i32) -> Vec<(
                 if Some(kh) != kv || Some(kh) != kd || kh == k_t {
                     continue; // need a clean convex corner into ONE other kind
                 }
+                if kh == "lava" || k_t == "lava" {
+                    // Lava NEVER rounds: the crusted overlay owns its edge. A rounded
+                    // nook painted the raw molten base tile onto the land — the naked
+                    // red corner wedge (Baz).
+                    continue;
+                }
                 let color = col_of(Some(kh));
                 for (j, w) in NOOK.into_iter().enumerate() {
                     let rx_ = if dx < 0 { px } else { px + t - w };

@@ -71,7 +71,7 @@ impl Plugin for WaterPlugin {
             .add_systems(Update, (rebake_mask, tick_water).chain())
             .add_systems(
                 bevy::app::FixedUpdate,
-                (lava_burn, lava_bubbles).run_if(super::screen::playing),
+                (lava_burn, lava_mob_burn, lava_bubbles).run_if(super::screen::playing),
             );
     }
 }
@@ -420,6 +420,36 @@ fn tick_water(
 /// cost, so an unlucky field never soft-locks a room; springboots hop it clean,
 /// god mode shrugs.
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+/// Mobs caught standing in lava IGNITE (Baz): the wand-fire affliction carries
+/// the DoT, the clinging flames, and the panic — the fire kin are immune, and
+/// fliers never touch the ground.
+fn lava_mob_burn(
+    mut commands: Commands,
+    grid: Res<CurGrid>,
+    clock: Res<super::room_render::FrameClock>,
+    mut mobs: Query<(Entity, &crate::actors::mobs::Mob, Option<&mut super::uniques::MobAfflictions>)>,
+) {
+    if clock.0 % 20 != 0 {
+        return;
+    }
+    for (e, m, aff) in &mut mobs {
+        let d = &crate::actors::mobs::MOB_DEFS[m.def];
+        if d.fly || d.fireproof {
+            continue;
+        }
+        let (fx, fy) = (m.x + d.hb.0 + d.hb.2 / 2.0, m.y + d.hb.1 + d.hb.3 - 1.0);
+        if !grid.0.lava_at(fx, fy) {
+            continue;
+        }
+        match aff {
+            Some(mut a) => a.burn = a.burn.max(90),
+            None => {
+                commands.entity(e).insert(super::uniques::MobAfflictions { burn: 90, ..Default::default() });
+            }
+        }
+    }
+}
+
 fn lava_burn(
     mut commands: Commands,
     grid: Res<CurGrid>,

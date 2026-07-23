@@ -240,7 +240,8 @@ pub(crate) fn swap_world_room(
     swap.sliding.0 = false;
     swap.inside.0 = None; // standing up an OUTDOOR room always ends any interior visit
     swap.in_dungeon.0 = None; // ...and any dungeon run (death + load land outdoors too)
-    let grid = RoomGrid::from_map(&swap.world.0.generate(rx, ry));
+    let mut grid = RoomGrid::from_map(&swap.world.0.generate(rx, ry));
+    grid.bake_lava(&swap.world.0, rx, ry);
     let ents = swap.world.0.room_entities(rx, ry);
     swap.armed.0 = None; // no half-fought camp survives a world swap
     let (root, blockers) = spawn_room_root(
