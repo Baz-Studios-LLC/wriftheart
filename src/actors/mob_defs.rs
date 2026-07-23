@@ -9,7 +9,8 @@ pub static MOB_DEFS: &[MobDef] = &[
     MobDef {
         kind: "boar", hp: 4, damage: 2, xp: 5, blood: 0xa85820, defense: 0, knock_resist: 0.0,
         afflicts: ("", 0),
-        fly: false, hb: (2.0, 5.0, 12.0, 8.0), coin: Coin::Default, potion: 0.1, drops: None,
+        // Beasts carry their hides (Baz: hunting is a real leather path; shops stay the convenience).
+        fly: false, hb: (2.0, 5.0, 12.0, 8.0), coin: Coin::Default, potion: 0.1, drops: Some(("leather", 0.4, 1, 1)),
         volatile: false,
         scale: 1.0,
         ai: Ai::Chaser { spd: 0.5, chase_r: 150.0, vec: false, refaces: false,
@@ -39,7 +40,7 @@ pub static MOB_DEFS: &[MobDef] = &[
         kind: "wolf", hp: 3, damage: 2, xp: 5, blood: 0xa85820, defense: 0, knock_resist: 0.0,
         afflicts: ("", 0),
         fly: false, hb: (3.0, 4.0, 10.0, 9.0), coin: Coin::Default, potion: 0.0,
-        drops: Some(("fiber", 0.15, 1, 0)),
+        drops: Some(("leather", 0.3, 1, 1)), // was a stray fiber tuft - a pelt makes sense
         volatile: false,
         scale: 1.0,
         ai: Ai::Chaser { spd: 0.95, chase_r: 150.0, vec: true, refaces: true,
@@ -49,7 +50,7 @@ pub static MOB_DEFS: &[MobDef] = &[
     MobDef {
         kind: "bear", hp: 8, damage: 3, xp: 10, blood: 0xa85820, defense: 0, knock_resist: 0.7,
         afflicts: ("", 0),
-        fly: false, hb: (2.0, 3.0, 12.0, 12.0), coin: Coin::Range(4, 5), potion: 0.5, drops: None,
+        fly: false, hb: (2.0, 3.0, 12.0, 12.0), coin: Coin::Range(4, 5), potion: 0.5, drops: Some(("leather", 0.6, 1, 1)),
         volatile: false,
         scale: 1.0,
         ai: Ai::Walker { spd: 0.45, range: 1e9 },
