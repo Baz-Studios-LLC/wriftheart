@@ -9,9 +9,12 @@ use bevy::prelude::*;
 
 #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Screen {
-    /// The start menu (js gameState 'title') — the game BOOTS here; the world spawns
-    /// beneath it, frozen, and the title's opaque flyover covers it.
+    /// The NEW CITY ENTERTAINMENT boot card (app/splash) — the game boots here,
+    /// then hands to the title. Any press skips.
     #[default]
+    Splash,
+    /// The start menu (js gameState 'title') — the world spawns beneath it,
+    /// frozen, and the title's opaque flyover covers it.
     Title,
     /// The settings-only pause panel opened from the title's OPTIONS row.
     TitleOptions,

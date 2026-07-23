@@ -255,7 +255,10 @@ struct BakeJob(std::sync::Mutex<std::sync::mpsc::Receiver<Baked>>);
 /// the first frame could present (Baz: "can we jump right into the game?"). The banks
 /// fill a beat after the title appears; every consumer already tolerates a missing key
 /// (play_sfx skips, music_tick retries each tick until its track exists).
-fn bake(mut commands: Commands) {
+fn bake(mut commands: Commands, mut sfx_bank: ResMut<SfxBank>, mut sources: ResMut<Assets<AudioSource>>) {
+    // The splash sting is pre-encoded WAV bytes - it joins the bank NOW, before the
+    // off-thread bake, so the boot card is never silent.
+    sfx_bank.0.insert("ncelogo", sources.add(AudioSource { bytes: crate::app::splash::LOGO_WAV.into() }));
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let sfx = SFX_KEYS

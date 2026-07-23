@@ -58,6 +58,7 @@ pub mod fanfare;
 pub mod shard_fanfare;
 pub mod services;
 pub mod sfx;
+pub mod splash;
 pub mod shield;
 pub mod skystrike;
 pub mod station_art;
