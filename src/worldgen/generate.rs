@@ -103,35 +103,58 @@ impl World {
         ];
         let mut road_strip: Vec<usize> = Vec::new();
         if p_edges.iter().any(|&e| e) {
-            let mut pave = |c: i32, r: i32, grid: &mut Vec<Vec<char>>, prot: &mut HashSet<usize>| {
-                if c < 0 || c >= COLS || r < 0 || r >= ROWS || grid[r as usize][c as usize] == wall {
-                    return;
+            // Roads respect the water-travel law (Baz: full-lake causeways were
+            // insane): a water run of MAX_BRIDGE tiles or fewer gets planked - the
+            // charming brook bridge - but a real LAKE interrupts the road, which
+            // resumes on the far shore.
+            const ROAD_BRIDGE_MAX: usize = 3;
+            let mut lay = |tiles: &[(i32, i32)], grid: &mut Vec<Vec<char>>, prot: &mut HashSet<usize>| {
+                let mut pave_one = |c: i32, r: i32, as_bridge: bool, grid: &mut Vec<Vec<char>>, prot: &mut HashSet<usize>| {
+                    road_strip.push(idx(r, c));
+                    grid[r as usize][c as usize] = if as_bridge { 'B' } else { '.' };
+                    prot.insert(idx(r, c));
+                };
+                let ok = |c: i32, r: i32, grid: &Vec<Vec<char>>| c >= 0 && c < COLS && r >= 0 && r < ROWS && grid[r as usize][c as usize] != wall;
+                let mut i = 0;
+                while i < tiles.len() {
+                    let (c, r) = tiles[i];
+                    if !ok(c, r, grid) {
+                        i += 1; // walls skip, exactly as the old pave did
+                        continue;
+                    }
+                    if grid[r as usize][c as usize] == '~' {
+                        let mut j = i;
+                        while j < tiles.len() && ok(tiles[j].0, tiles[j].1, grid) && grid[tiles[j].1 as usize][tiles[j].0 as usize] == '~' {
+                            j += 1;
+                        }
+                        if j - i <= ROAD_BRIDGE_MAX {
+                            for &(bc, br) in &tiles[i..j] {
+                                pave_one(bc, br, true, grid, prot);
+                            }
+                        }
+                        i = j; // a longer run stays LAKE - the road breaks at the shore
+                    } else {
+                        pave_one(c, r, false, grid, prot);
+                        i += 1;
+                    }
                 }
-                road_strip.push(idx(r, c));
-                grid[r as usize][c as usize] =
-                    if grid[r as usize][c as usize] == '~' { 'B' } else { '.' };
-                prot.insert(idx(r, c));
             };
-            pave(MID_C, MID_R, &mut grid, &mut prot); // centre junction
+            lay(&[(MID_C, MID_R)], &mut grid, &mut prot); // centre junction
             if p_edges[3] {
-                for c in 0..MID_C {
-                    pave(c, MID_R, &mut grid, &mut prot);
-                }
+                let tiles: Vec<(i32, i32)> = (0..MID_C).map(|c| (c, MID_R)).collect();
+                lay(&tiles, &mut grid, &mut prot);
             }
             if p_edges[2] {
-                for c in MID_C..COLS {
-                    pave(c, MID_R, &mut grid, &mut prot);
-                }
+                let tiles: Vec<(i32, i32)> = (MID_C..COLS).map(|c| (c, MID_R)).collect();
+                lay(&tiles, &mut grid, &mut prot);
             }
             if p_edges[0] {
-                for r in 0..MID_R {
-                    pave(MID_C, r, &mut grid, &mut prot);
-                }
+                let tiles: Vec<(i32, i32)> = (0..MID_R).map(|r| (MID_C, r)).collect();
+                lay(&tiles, &mut grid, &mut prot);
             }
             if p_edges[1] {
-                for r in MID_R..ROWS {
-                    pave(MID_C, r, &mut grid, &mut prot);
-                }
+                let tiles: Vec<(i32, i32)> = (MID_R..ROWS).map(|r| (MID_C, r)).collect();
+                lay(&tiles, &mut grid, &mut prot);
             }
         }
 
