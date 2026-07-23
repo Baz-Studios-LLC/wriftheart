@@ -15,7 +15,7 @@
 use bevy::prelude::*;
 
 use super::battle::projectiles::{EBolt, EnemyArrow};
-use super::battle::{spawn_burst, GameRng, RoomActor};
+use super::battle::{spawn_burst, GameRng};
 use super::play::Player;
 use super::room_render::{actor_z, PLAY_X, PLAY_Y};
 use crate::actors::hero::Facing;
@@ -192,7 +192,7 @@ fn shield_overlay(
                 _ => (&SHIELD_FACE, 10.0, 12.0),
             };
             let img = images.add(bake(grid, &[]));
-            commands.spawn((Sprite::from_image(img), at(0.0, 0.0, w, h, 0.0), PIXEL_LAYER, RoomActor, ShieldFx));
+            commands.spawn((Sprite::from_image(img), at(0.0, 0.0, w, h, 0.0), PIXEL_LAYER, ShieldFx)); // player-bound: never room cast
         }
     }
     let Some(f) = want else { return };
@@ -326,7 +326,7 @@ fn bubble_overlay(
             let img = images.add(img);
             let mut spr = Sprite::from_image(img);
             spr.color = spr.color.with_alpha(0.7);
-            commands.spawn((spr, at(0.0, 0.0, 22.0, 22.0, 8.2), PIXEL_LAYER, RoomActor, BubbleFx));
+            commands.spawn((spr, at(0.0, 0.0, 22.0, 22.0, 8.2), PIXEL_LAYER, BubbleFx)); // player-bound: never room cast (Baz: it rode out with the room)
         }
     }
     // The side frames draw the body 2px off the frame middle (cols 2..9 right,

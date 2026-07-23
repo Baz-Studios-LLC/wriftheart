@@ -1558,7 +1558,7 @@ fn charge_aura(
     } else {
         let mut spr = Sprite::from_image(outline);
         spr.color = Color::srgba(0.55, 0.85, 1.0, a);
-        commands.spawn((spr, tf, PIXEL_LAYER, RoomActor, ChargeAura));
+        commands.spawn((spr, tf, PIXEL_LAYER, ChargeAura)); // player-bound: never room cast
     }
 }
 
@@ -1604,7 +1604,7 @@ fn god_aura(
     } else {
         let mut spr = Sprite::from_image(outline);
         spr.color = Color::srgba(1.0, 0.85, 0.35, a);
-        commands.spawn((spr, tf, PIXEL_LAYER, RoomActor, GodAura));
+        commands.spawn((spr, tf, PIXEL_LAYER, GodAura)); // player-bound: never room cast
     }
 }
 
@@ -1662,7 +1662,7 @@ fn charge_hold(
         spr.image = img;
         *htf = tf;
     } else {
-        commands.spawn((Sprite::from_image(img), tf, PIXEL_LAYER, RoomActor, ChargeHold));
+        commands.spawn((Sprite::from_image(img), tf, PIXEL_LAYER, ChargeHold)); // player-bound: never room cast
     }
 }
 
