@@ -31,7 +31,8 @@ pub struct FishState {
     win: u32,
     water: &'static str,
     hooked: Option<Catch>,
-    hp: i32, // a hit while rooted snaps the line
+    hp: i32,    // a hit while rooted snaps the line
+    pool: bool, // the bobber sits in a fishing POOL (double roll; lands count the school down)
 }
 
 #[derive(PartialEq)]
@@ -53,14 +54,160 @@ struct BiteAlert;
 #[derive(Component)]
 struct PromptBar;
 
+// --- FISHING POOLS (Baz: WoW-style) — a rippling school surfaces at a random
+// CASTABLE spot (never out past rod reach), bites fast and rolls the table twice
+// while it lasts, and after POOL_CATCHES fish it hops to a new spot in the room.
+// Daily-seeded: tomorrow the schools run somewhere else entirely. -----------------
+
+pub const POOL_CATCHES: u8 = 3;
+
+/// Per-room school state for TODAY: (hop generation, catches from the current spot).
+/// Runtime-only — the daily dice re-seed everything anyway.
+#[derive(Resource, Default)]
+pub struct FishPools {
+    day: i64,
+    rooms: std::collections::HashMap<(i32, i32), (u8, u8)>,
+}
+
+impl FishPools {
+    fn roll_day(&mut self, today: i64) {
+        if self.day != today {
+            self.day = today;
+            self.rooms.clear();
+        }
+    }
+}
+
+/// Where the room's pool ripples today (None = no school here): ~28% of rooms with
+/// enough REACHABLE water hold one. A spot is reachable when the cast can land on or
+/// next to it — one tile of slack around a water tile that borders standable ground
+/// (shore, road, or dock planks). `hop` re-picks the spot each time a school is
+/// fished out, so the school hops around the room instead of squatting one tile.
+pub fn pool_at(world: &crate::worldgen::World, rx: i32, ry: i32, today: i64, hop: u8) -> Option<(i32, i32)> {
+    use crate::worldgen::rng::{hash, Mulberry32};
+    let salt = 0x0f15_4009u32 ^ (today as u32).wrapping_mul(0x9E37_79B9);
+    // The room dice ignore `hop`: whether a school runs here is fixed for the day.
+    if Mulberry32::new(hash(world.seed, rx, ry, salt)).next_f64() >= 0.28 {
+        return None;
+    }
+    let map = world.generate(rx, ry).map;
+    let ch = |c: i32, r: i32| -> char {
+        if (0..COLS).contains(&c) && (0..ROWS).contains(&r) {
+            map[r as usize].as_bytes()[c as usize] as char
+        } else {
+            '#'
+        }
+    };
+    let standable = |c: i32, r: i32| matches!(ch(c, r), '.' | '=' | 'B');
+    let castable = |c: i32, r: i32| {
+        ch(c, r) == '~'
+            && [(1, 0), (-1, 0), (0, 1), (0, -1)].iter().any(|&(dx, dy)| standable(c + dx, r + dy))
+    };
+    let mut spots: Vec<(i32, i32)> = vec![];
+    for r in 0..ROWS {
+        for c in 0..COLS {
+            if ch(c, r) != '~' {
+                continue;
+            }
+            let near = (-1..=1).any(|dx| (-1..=1).any(|dy| castable(c + dx, r + dy)));
+            if near {
+                spots.push((c, r));
+            }
+        }
+    }
+    if spots.len() < 8 {
+        return None;
+    }
+    let mut pick = Mulberry32::new(hash(world.seed, rx, ry, salt ^ (0x51ac_ed00 + hop as u32)));
+    Some(spots[(pick.next_f64() * spots.len() as f64) as usize % spots.len()])
+}
+
+#[derive(Component)]
+struct PoolFx;
+
+/// Stand the room's pool ripples up / tear them down; two frames breathe on the clock.
+#[allow(clippy::too_many_arguments)]
+fn pool_fx(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    clock: Res<FrameClock>,
+    cur: Res<CurRoom>,
+    world: Res<GameWorld>,
+    in_dungeon: Res<super::dungeon::InDungeon>,
+    mut pools: ResMut<FishPools>,
+    mut frames: Local<Option<[Handle<Image>; 2]>>,
+    mut fx: Query<(Entity, &mut Sprite), With<PoolFx>>,
+    mut shown: Local<Option<(i32, i32, i32, i32)>>,
+) {
+    let today = super::gather::farm_day(clock.0);
+    pools.roll_day(today);
+    let hop = pools.rooms.get(&(cur.rx, cur.ry)).map_or(0, |s| s.0);
+    let live = if in_dungeon.0.is_none() {
+        pool_at(&world.0, cur.rx, cur.ry, today, hop)
+    } else {
+        None
+    };
+    let key = live.map(|(c, r)| (cur.rx, cur.ry, c, r));
+    if *shown != key {
+        *shown = key;
+        for (e, _) in &fx {
+            commands.entity(e).despawn();
+        }
+        if let Some((c, r)) = live {
+            let f = frames.get_or_insert_with(|| {
+                const A: &[&str] = &[
+                    "................", "................", "....w.......w...", "..w...........w.",
+                    "................", ".....wwWWww.....", "....w..WW...w...", "................",
+                    "..w....ww.....w.", "................", "....w......w....", "................",
+                    "................", "................", "................", "................",
+                ];
+                const B: &[&str] = &[
+                    "................", "....w......w....", "................", "......wWWw......",
+                    "..w..w....w..w..", "....w..WW..w....", "................", "...w...ww...w...",
+                    "................", "....w......w....", "......w..w......", "................",
+                    "................", "................", "................", "................",
+                ];
+                let pal: &[(char, u32)] = &[('w', 0xa8d8f8), ('W', 0xf0f8ff)];
+                [images.add(crate::gfx::bake(A, pal)), images.add(crate::gfx::bake(B, pal))]
+            });
+            let mut spr = Sprite::from_image(f[0].clone());
+            spr.color = Color::srgba(1.0, 1.0, 1.0, 0.85);
+            commands.spawn((
+                spr,
+                at(PLAY_X + (c * TILE) as f32, PLAY_Y + (r * TILE) as f32, 16.0, 16.0, 2.9),
+                PIXEL_LAYER,
+                super::battle::RoomActor, // room scenery: rides slides, dies with the room
+                PoolFx,
+            ));
+        }
+    }
+    if let Some(f) = frames.as_ref() {
+        let frame = ((clock.0 / 18) % 2) as usize;
+        for (_, mut spr) in &mut fx {
+            spr.image = f[frame].clone();
+        }
+    }
+}
+
+/// Junk loses to any fish; between fish, the rarer wins (the pool's double roll).
+fn catch_rank(c: &Catch) -> i32 {
+    match c {
+        Catch::Junk(_) => -1,
+        Catch::Fish { rarity, .. } => rarity.tier(),
+    }
+}
+
 pub struct FishingPlugin;
 
 impl Plugin for FishingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Fishing>().add_systems(
-            bevy::app::FixedUpdate,
-            fish_tick.before(super::play::EndTick).run_if(playing),
-        );
+        app.init_resource::<Fishing>()
+            .init_resource::<FishPools>()
+            .add_systems(
+                bevy::app::FixedUpdate,
+                fish_tick.before(super::play::EndTick).run_if(playing),
+            )
+            .add_systems(Update, pool_fx.run_if(playing));
     }
 }
 
@@ -99,7 +246,7 @@ fn fish_tick(
     mut fishing: ResMut<Fishing>,
     mut dock_toast: Local<Option<(i32, i32)>>, // one BOARDS toast per room visit
     mut input: ResMut<ActionState>,
-    mut rng: ResMut<GameRng>,
+    rng_pools: (ResMut<GameRng>, ResMut<FishPools>),
     mut inv: ResMut<crate::inventory::PlayerInv>,
     mut log: ResMut<super::rewards::LootLog>,
     ctx: CastCtx,
@@ -111,6 +258,7 @@ fn fish_tick(
     mut alerts: Query<&mut Visibility, With<BiteAlert>>,
     bindings: Res<crate::input::Bindings>,
 ) {
+    let (mut rng, mut pools) = rng_pools;
     let Ok((p, health)) = players.single() else { return };
     let end = |commands: &mut Commands, fishing: &mut Fishing, fx: &Query<Entity, With<FishFx>>| {
         fishing.0 = None;
@@ -155,13 +303,22 @@ fn fish_tick(
             *dock_toast = Some((ctx.cur.rx, ctx.cur.ry));
             log.add("fish", "THE FISH GATHER UNDER THE BOARDS", 1, 0x8ab0d0, false, true);
         }
-        let bite_at = if docked {
+        // A cast INTO the day's pool (WoW-style, Baz): the bobber on or beside the
+        // ripples means near-instant bites and a doubled roll — while the school holds.
+        let today = super::gather::farm_day(ctx.clock.0);
+        pools.roll_day(today);
+        let pgen = pools.rooms.get(&(ctx.cur.rx, ctx.cur.ry)).map_or(0, |s| s.0);
+        let in_pool = pool_at(&ctx.world.0, ctx.cur.rx, ctx.cur.ry, today, pgen)
+            .is_some_and(|(pc2, pr2)| (pc2 - c).abs() <= 1 && (pr2 - r).abs() <= 1);
+        let bite_at = if in_pool {
+            28 + (rng.0.next_f64() * 55.0) as u32
+        } else if docked {
             40 + (rng.0.next_f64() * 90.0) as u32
         } else {
             55 + (rng.0.next_f64() * 150.0) as u32 // (js lure gear shortens this — with the trinket port)
         };
         let (bx, by) = ((c * TILE + 8) as f32, (r * TILE + 9) as f32);
-        fishing.0 = Some(FishState { phase: Phase::Cast, t: 0, bx, by, bite_at, win: 0, water, hooked: None, hp: health.hp });
+        fishing.0 = Some(FishState { phase: Phase::Cast, t: 0, bx, by, bite_at, win: 0, water, hooked: None, hp: health.hp, pool: in_pool });
         // The scene: bobber (red cap / white float), a faint line from the rod hand, and
         // the prompt bar. (The js line is a live 1px stroke; ours is a thin rotated quad.)
         let (hx, hy) = (p.x + 8.0, p.y + 2.0);
@@ -239,7 +396,14 @@ fn fish_tick(
             if f.t >= f.bite_at {
                 // A fish bites! Rarer fish = a tighter reaction window.
                 let biome = ctx.world.0.biome_key_at(ctx.cur.rx, ctx.cur.ry);
-                let catch = crate::items::roll_fish(biome, season_name(ctx.clock.0), ctx.weather.cur, f.water, || rng.0.next_f64());
+                let mut catch = crate::items::roll_fish(biome, season_name(ctx.clock.0), ctx.weather.cur, f.water, || rng.0.next_f64());
+                if f.pool {
+                    // The pool rolls TWICE and keeps the better catch (junk always loses).
+                    let second = crate::items::roll_fish(biome, season_name(ctx.clock.0), ctx.weather.cur, f.water, || rng.0.next_f64());
+                    if catch_rank(&second) > catch_rank(&catch) {
+                        catch = second;
+                    }
+                }
                 f.win = match &catch {
                     Catch::Fish { rarity, .. } => match rarity {
                         crate::items::Rarity::Epic | crate::items::Rarity::Legendary => 14,
@@ -270,11 +434,20 @@ fn fish_tick(
             }
             let hooked = f.hooked.take();
             let ok = tapped;
+            let from_pool = f.pool;
             end(&mut commands, &mut fishing, &fx);
             match (ok, hooked) {
                 (true, Some(Catch::Fish { id, name, rarity, lb })) => {
                     inv.add_item(id, 1);
                     log.add("fish", &format!("CAUGHT {}  {lb} LB", name.to_uppercase()), 1, rarity.color(), false, true);
+                    if from_pool {
+                        let s = pools.rooms.entry((ctx.cur.rx, ctx.cur.ry)).or_insert((0, 0));
+                        s.1 += 1;
+                        if s.1 >= POOL_CATCHES {
+                            *s = (s.0.wrapping_add(1), 0); // the school hops to a fresh spot
+                            log.add("fish", "THE SCHOOL MOVES ON", 1, 0x8ab0d0, false, true);
+                        }
+                    }
                 }
                 (true, Some(Catch::Junk(id))) => {
                     inv.add_item(id, 1);

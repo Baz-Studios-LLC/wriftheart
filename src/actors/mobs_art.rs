@@ -142,17 +142,30 @@ pub static DEEPCRAWLER_FRAMES: &[MobFrame] = &[
     },
 ];
 
-/// Walking bomb (emberling): a small lump of smoldering coal (idle body; it swells + blows).
-pub static EMBERLING_FRAMES: &[MobFrame] = &[MobFrame {
-    grid: &[
-        "................", "................", "................",
-        "................", "................", ".....KKKK.......",
-        "....KnrnrK......", "....KrnrnK......", "....KnrnrK......",
-        ".....KKKK.......", "....K.KK.K......", "................",
-        "................", "................", "................", "................",
-    ],
-    pal: &[('K', 0x000000), ('n', 0x585858), ('r', 0xd82800)],
-}];
+/// Walking bomb (emberling): frame 0 = the smoldering lump, frame 1 = the js
+/// S_EMBERLING_HOT swell (fx.rs strobes it while the fuse burns, m.st == 1).
+pub static EMBERLING_FRAMES: &[MobFrame] = &[
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            "................", "................", ".....KKKK.......",
+            "....KnrnrK......", "....KrnrnK......", "....KnrnrK......",
+            ".....KKKK.......", "....K.KK.K......", "................",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('K', 0x000000), ('n', 0x585858), ('r', 0xd82800)],
+    },
+    MobFrame {
+        grid: &[
+            "................", "................", "................",
+            "................", ".....oooo.......", "....KooooK......",
+            "...KoWooWoK.....", "...KooooooK.....", "...KoWooWoK.....",
+            "....KooooK......", "....K.KK.K......", "................",
+            "................", "................", "................", "................",
+        ],
+        pal: &[('K', 0x000000), ('o', 0xff8c1e), ('W', 0xffe8b0)],
+    },
+];
 
 /// Every simple-frame kind -> its animation strip (wolf is per-facing, above).
 // HAND-AUTHORED (past-js): the two water lurkers. spitgill frame 0 = the ripple

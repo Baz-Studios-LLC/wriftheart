@@ -322,8 +322,17 @@ impl World {
             if b.alt == "lava" {
                 let (rx, ry) = (gx.div_euclid(COLS), gy.div_euclid(ROWS));
                 let (c, r) = (gx.rem_euclid(COLS), gy.rem_euclid(ROWS));
+                // NO LAVA IN TOWN (Baz): a molten main street is a worldgen prank,
+                // not a place. Town rooms (and the castle) paint plain ground, and
+                // flows stop short of the town line exactly like a biome seam.
+                let towny = |nx: i32, ny: i32| {
+                    self.is_town(nx, ny) || (nx == 1 && ny == 0) || World::is_castle(nx, ny)
+                };
+                if towny(rx, ry) {
+                    return b.ground;
+                }
                 let me = self.biome_key_at(rx, ry);
-                let foreign = |nx: i32, ny: i32| self.biome_key_at(nx, ny) != me;
+                let foreign = |nx: i32, ny: i32| self.biome_key_at(nx, ny) != me || towny(nx, ny);
                 if (c < 3 && foreign(rx - 1, ry))
                     || (c >= COLS - 3 && foreign(rx + 1, ry))
                     || (r < 3 && foreign(rx, ry - 1))
