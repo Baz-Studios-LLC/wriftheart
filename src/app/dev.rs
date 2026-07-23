@@ -43,6 +43,9 @@ fn tab_chips() -> Vec<(usize, f32, f32, f32, f32)> {
 const WEATHERS: [&str; 10] =
     ["natural", "clear", "overcast", "windy", "fog", "rain", "thunderstorm", "snow", "blizzard", "sandstorm"];
 
+/// Rows that fit between the chips (y 52) and the hint line — SPAWN overflows and scrolls.
+const VIS_ROWS: usize = 11;
+
 /// One command row: what it says, and what pressing it does.
 #[derive(Clone, Copy, PartialEq)]
 enum Cmd {
@@ -76,7 +79,7 @@ enum Cmd {
     GemKit,
     WoodKit,
     MatsKit,
-    SpawnMob, // cycle row: left/right picks the kind, press spawns it
+    SpawnKind(u8), // one row per MOB_DEFS kind — the whole roster lists under SPAWN
     SpawnGoblin,
     SpawnSpear,
     ClearRoom,
@@ -86,8 +89,23 @@ enum Cmd {
     God, // cycle-ish row: shows ON/OFF, INTERACT toggles
 }
 
-fn rows(cat: usize) -> &'static [(&'static str, Cmd)] {
-    match cat {
+/// Rows for a category. SPAWN is built live: every MOB_DEFS kind plus the legacy
+/// goblin pair (separate bundle under the hood, same list to the eye), alphabetized,
+/// CLEAR ROOM pinned on top. The rest stay static tables.
+fn rows(cat: usize) -> Vec<(String, Cmd)> {
+    if cat == 6 {
+        let mut list: Vec<(String, Cmd)> = crate::actors::mobs::MOB_DEFS
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (d.kind.to_uppercase(), Cmd::SpawnKind(i as u8)))
+            .collect();
+        list.push(("GOBLIN".to_string(), Cmd::SpawnGoblin));
+        list.push(("SPEAR GOBLIN".to_string(), Cmd::SpawnSpear));
+        list.sort_by(|a, b| a.0.cmp(&b.0));
+        list.insert(0, ("CLEAR ROOM".to_string(), Cmd::ClearRoom));
+        return list;
+    }
+    let s: &[(&str, Cmd)] = match cat {
         0 => &[
             ("TIME +1 HOUR", Cmd::TimeHour),
             ("SKIP TO DAWN", Cmd::NextDawn),
@@ -129,14 +147,9 @@ fn rows(cat: usize) -> &'static [(&'static str, Cmd)] {
             ("LEARN ALL BLUEPRINTS", Cmd::BlueprintsAll),
             ("LOOT ROLL", Cmd::LootRoll),
         ],
-        6 => &[
-            ("SPAWN MOB", Cmd::SpawnMob),
-            ("SPAWN GOBLIN", Cmd::SpawnGoblin),
-            ("SPAWN SPEAR GOBLIN", Cmd::SpawnSpear),
-            ("CLEAR ROOM", Cmd::ClearRoom),
-        ],
         _ => &[("GRANT NEXT SHARD", Cmd::ShardNext), ("GRANT ALL SHARDS", Cmd::ShardAll), ("CLEAR SHARDS", Cmd::ShardClear)],
-    }
+    };
+    s.iter().map(|&(n, c)| (n.to_string(), c)).collect()
 }
 
 /// Invulnerability (dev): hits can't land, the bar stays full. G toggles from play;
@@ -212,7 +225,7 @@ pub struct DevState {
     row: usize,
     weather_idx: usize,
     shard_idx: usize,
-    mob_idx: usize,
+    scroll: usize, // first visible row (SPAWN's roster overflows the panel)
     dirty: bool,
 }
 
@@ -229,6 +242,7 @@ fn dev_tab_click(ptr: Res<crate::input::Pointer>, mut state: ResMut<DevState>) {
     {
         state.cat = i;
         state.row = 0;
+        state.scroll = 0;
         state.dirty = true;
     }
 }
@@ -372,13 +386,22 @@ fn drive(
         state.row = (state.row as i32 - refs.ptr.wheel_steps).clamp(0, nrows as i32 - 1) as usize;
         state.dirty = true;
     }
+    // The window follows the cursor (SPAWN's roster runs past the panel).
+    if state.row < state.scroll {
+        state.scroll = state.row;
+        state.dirty = true;
+    } else if state.row >= state.scroll + VIS_ROWS {
+        state.scroll = state.row + 1 - VIS_ROWS;
+        state.dirty = true;
+    }
     // Mouse on the rows (Baz: "the options aren't clickable"): hover selects (a
     // flat menu), a click RUNS the row — except the cycle rows, whose value IS the
     // action: a click steps them right. Injected as presses so the key handlers
     // below treat mouse and keyboard identically. Same geometry as redraw (52 + i*12).
     if let Some(pp) = refs.ptr.pos {
-        for i in 0..nrows {
-            let ry = 52.0 + i as f32 * 12.0;
+        for slot in 0..VIS_ROWS.min(nrows.saturating_sub(state.scroll)) {
+            let i = state.scroll + slot;
+            let ry = 52.0 + slot as f32 * 12.0;
             if pp.x >= 8.0 && pp.x < CANVAS_W as f32 - 8.0 && pp.y >= ry - 2.0 && pp.y < ry + 10.0 {
                 if refs.ptr.moved && state.row != i {
                     state.row = i;
@@ -386,12 +409,12 @@ fn drive(
                 }
                 if refs.ptr.click {
                     state.row = i;
-                    // The `< value >` side cycles; the label side RUNS (SpawnMob and
-                    // WarpShard have both; Weather's value is its only action).
+                    // The `< value >` side cycles; the label side RUNS (WarpShard
+                    // has both; Weather's value is its only action).
                     let on_value = pp.x > CANVAS_W as f32 * 0.62;
                     match rows(state.cat)[i].1 {
                         Cmd::Weather => input.press(Action::Right),
-                        Cmd::WarpShard | Cmd::SpawnMob if on_value => input.press(Action::Right),
+                        Cmd::WarpShard if on_value => input.press(Action::Right),
                         _ => input.press(Action::Interact),
                     }
                 }
@@ -402,15 +425,17 @@ fn drive(
         input.consume(Action::TabNext);
         state.cat = (state.cat + 1) % CATS.len();
         state.row = 0;
+        state.scroll = 0;
         state.dirty = true;
     }
     if input.pressed(Action::TabPrev) {
         input.consume(Action::TabPrev);
         state.cat = (state.cat + CATS.len() - 1) % CATS.len();
         state.row = 0;
+        state.scroll = 0;
         state.dirty = true;
     }
-    let (_, cmd) = rows(state.cat)[state.row];
+    let cmd = rows(state.cat)[state.row].1;
     // Cycle rows adjust with left/right (and left/right does nothing elsewhere).
     let dir = i32::from(input.pressed(Action::Right)) - i32::from(input.pressed(Action::Left));
     if dir != 0 {
@@ -427,11 +452,6 @@ fn drive(
             Cmd::WarpShard => {
                 let n = swap.world.0.shard_sites().len().max(1) as i32;
                 state.shard_idx = ((state.shard_idx as i32 + dir + n) % n) as usize;
-                state.dirty = true;
-            }
-            Cmd::SpawnMob => {
-                let n = crate::actors::mobs::MOB_DEFS.len() as i32;
-                state.mob_idx = ((state.mob_idx as i32 + dir + n) % n) as usize;
                 state.dirty = true;
             }
             _ => {}
@@ -617,12 +637,12 @@ fn drive(
             }
             log.add("dev", "MATS KIT", 1, 0x9aa0aa, false, true);
         }
-        Cmd::SpawnMob => {
+        Cmd::SpawnKind(k) => {
             let (fdx, fdy) = p.facing.offset();
             let sx = (p.x + fdx * 40.0).clamp(16.0, crate::room::PX_W as f32 - 32.0);
             let sy = (p.y + fdy * 40.0).clamp(16.0, crate::room::PX_H as f32 - 32.0);
-            let d = &crate::actors::mobs::MOB_DEFS[state.mob_idx];
-            commands.spawn((crate::actors::mobs::mob_bundle(state.mob_idx, sx, sy), super::battle::RoomActor, PIXEL_LAYER));
+            let d = &crate::actors::mobs::MOB_DEFS[k as usize];
+            commands.spawn((crate::actors::mobs::mob_bundle(k as usize, sx, sy), super::battle::RoomActor, PIXEL_LAYER));
             log.add("dev", &format!("A {} ANSWERS THE CALL", d.kind.to_uppercase()), 1, 0xfc8868, false, true);
         }
         Cmd::SpawnGoblin | Cmd::SpawnSpear => {
@@ -758,8 +778,9 @@ fn redraw(
     line(&mut commands, 45.0);
 
     // Commands, full width under the chips: label left, live value right, cursor row lit.
-    for (i, (name, cmd)) in rows(state.cat).iter().enumerate() {
-        let y = 52.0 + i as f32 * 12.0;
+    let all = rows(state.cat);
+    for (i, (name, cmd)) in all.iter().enumerate().skip(state.scroll).take(VIS_ROWS) {
+        let y = 52.0 + (i - state.scroll) as f32 * 12.0;
         let sel = i == state.row;
         if sel {
             commands.spawn((
@@ -780,15 +801,17 @@ fn redraw(
                 .map(|(b, (rx, ry))| format!("< {} {rx},{ry} >", b.to_uppercase())),
             Cmd::God => Some(if god.0 { "ON".into() } else { "OFF".into() }),
             Cmd::Strip => Some(if strip.0 { "ON".into() } else { "OFF".into() }),
-            Cmd::SpawnMob => {
-                Some(format!("< {} >", crate::actors::mobs::MOB_DEFS[state.mob_idx].kind.to_uppercase()))
-            }
             _ => None,
         };
         if let Some(v) = value {
             let vw = font::measure(&v) as f32;
             label(&mut commands, &mut images, &v, w - 12.0 - vw, y, if sel { 0xa8e0ff } else { 0x6a7a8a }, Z + 0.2, DevUi);
         }
+    }
+    if all.len() > state.scroll + VIS_ROWS {
+        let more = format!("+{} MORE", all.len() - state.scroll - VIS_ROWS);
+        let mw = font::measure(&more) as f32;
+        label(&mut commands, &mut images, &more, w - 10.0 - mw, 52.0 + VIS_ROWS as f32 * 12.0, 0x6a7a8a, Z + 0.2, DevUi);
     }
     line(&mut commands, h - 16.0);
     // EVERY prompt derives from the LIVE bindings (and flips to pad glyphs with a
