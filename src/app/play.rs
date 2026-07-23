@@ -1387,7 +1387,9 @@ pub fn tick(
     // starts at identity so nothing moves this frame — and the settle's recursive
     // root despawn reaps them with the tiles.
     for e in &actors {
-        commands.entity(e).insert(ChildOf(active.0));
+        // try_insert: a cast member can die this same frame (a burn tick, a bomb) —
+        // a late ChildOf on a corpse must be a no-op, not a crash.
+        commands.entity(e).try_insert(ChildOf(active.0));
     }
     slide.0 = Some(Slide {
         frame: 0,
@@ -1440,7 +1442,7 @@ fn adopt_room_cast(
         return;
     }
     for e in &orphans {
-        commands.entity(e).insert(ChildOf(target));
+        commands.entity(e).try_insert(ChildOf(target)); // same-frame deaths are no-ops
     }
 }
 

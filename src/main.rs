@@ -13,6 +13,10 @@ use wriftheart::{CANVAS_H, CANVAS_W};
 
 fn main() {
     App::new()
+        // A command that lands on a despawned entity is a WARNING, never a crash
+        // (Baz's 7/23 crash: transition-frame commands raced the room root's
+        // recursive despawn and the default handler panicked the whole game).
+        .insert_resource(bevy::ecs::error::FallbackErrorHandler(bevy::ecs::error::warn))
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest()) // pixel art: never smooth it

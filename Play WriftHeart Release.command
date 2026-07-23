@@ -8,7 +8,7 @@
 cd "$(dirname "$0")"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 export PATH="$HOME/.cargo/bin:$PATH"
-cargo run --release
+cargo run --release --features bevy/debug # debug NAMES stay on until the crash hunts close
 status=$?
 if [ $status -ne 0 ]; then
   echo ""
