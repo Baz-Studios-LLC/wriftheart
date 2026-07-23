@@ -105,7 +105,7 @@ fn hole_cut(t: f32) -> f32 {
 /// (ambient alpha bits, light list) — the rebuild key: skip the raster when it's unchanged.
 type OverlayKey = (u32, Vec<(i32, i32, i32)>, Vec<(i32, i32, i32, i32)>);
 /// Per-room encounter camp lights: (room, [(x, y, r)]).
-type CampCache = Option<((i32, i32), Vec<(i32, i32, i32)>)>;
+type CampCache = Vec<((i32, i32), Vec<(i32, i32, i32)>)>; // 2 slots: current + the room we just left
 
 /// The room-scene inputs (grouped under Bevy's 16-param cap).
 #[derive(bevy::ecs::system::SystemParam)]
@@ -214,19 +214,28 @@ fn update_overlay(
         // (the same class of bug the trees had; light positions sit in the cache key,
         // so the moving offset re-renders every slide frame).
         let (sox, soy) = slide.incoming_offset().map_or((0, 0), |(x, y)| (x.round() as i32, y.round() as i32));
-        for e in world.0.room_entities(cur.rx, cur.ry) {
-            let (x, y) = (e.x + sox, e.y + soy);
-            match e.kind {
-                "torch" => lights.push((ox + x + 8, oy + y + 4, 40)),
-                "gravebrazier" => lights.push((ox + x + 8, oy + y + 4, 44)),
-                "dungeon" => lights.push((ox + x + 8, oy + y - 6, 44)),
-                "wisp" => lights.push((ox + x, oy + y, 20)),
-                _ => {}
+        let flames = |rx: i32, ry: i32, fox: i32, foy: i32, lights: &mut Vec<(i32, i32, i32)>| {
+            for e in world.0.room_entities(rx, ry) {
+                let (x, y) = (e.x + fox, e.y + foy);
+                match e.kind {
+                    "torch" => lights.push((ox + x + 8, oy + y + 4, 40)),
+                    "gravebrazier" => lights.push((ox + x + 8, oy + y + 4, 44)),
+                    "dungeon" => lights.push((ox + x + 8, oy + y - 6, 44)),
+                    "wisp" => lights.push((ox + x, oy + y, 20)),
+                    _ => {}
+                }
             }
+        };
+        flames(cur.rx, cur.ry, sox, soy, &mut lights);
+        // The OUTGOING room's flames ride OUT with it (Baz: town torch glow cut the
+        // moment you left) — same flames, keyed off the departing room, on the
+        // outgoing offset.
+        if let (Some((orx, ory)), Some((fx, fy))) = (slide.outgoing_room(cur.rx, cur.ry), slide.outgoing_offset()) {
+            flames(orx, ory, fx.round() as i32, fy.round() as i32, &mut lights);
         }
         // Encounter camp light (js collectLights: campfire r44, crystal r30) — the
         // scene is deterministic, so it bakes once per room into a local cache.
-        if camp_cache.as_ref().map(|(room, _)| *room) != Some((cur.rx, cur.ry)) {
+        if !camp_cache.iter().any(|(room, _)| *room == (cur.rx, cur.ry)) {
             let mut v = Vec::new();
             let now = super::encounters::Now::at(clock.0);
             if let Some((def, h)) = super::encounters::live_at(&world.0, &scene.cleared, cur.rx, cur.ry, now) {
@@ -253,11 +262,22 @@ fn update_overlay(
                     }
                 }
             }
-            *camp_cache = Some(((cur.rx, cur.ry), v));
+            camp_cache.push(((cur.rx, cur.ry), v));
+            if camp_cache.len() > 2 {
+                camp_cache.remove(0); // keep current + the room we just left
+            }
         }
-        if let Some((_, camps)) = camp_cache.as_ref() {
+        if let Some((_, camps)) = camp_cache.iter().find(|(room, _)| *room == (cur.rx, cur.ry)) {
             for &(x, y, r) in camps {
                 lights.push((ox + x + sox, oy + y + soy, r));
+            }
+        }
+        // The departing room's campfires/crystals/lava glow ride out with it too.
+        if let (Some((orx, ory)), Some((fx, fy))) = (slide.outgoing_room(cur.rx, cur.ry), slide.outgoing_offset()) {
+            if let Some((_, camps)) = camp_cache.iter().find(|(room, _)| *room == (orx, ory)) {
+                for &(x, y, r) in camps {
+                    lights.push((ox + x + fx.round() as i32, oy + y + fy.round() as i32, r));
+                }
             }
         }
     }

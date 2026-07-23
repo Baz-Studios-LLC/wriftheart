@@ -9,7 +9,7 @@
 //! * Crossing: pushing an edge with the body centre within 12px slides both rooms over PX/8
 //!   frames; the previous room's cast despawns at slide start, the new roster spawns on land.
 
-use super::battle::{despawn_room_actors, spawn_room_mobs, RoomActor};
+use super::battle::{spawn_room_mobs, RoomActor};
 use super::gather::{GatherState, TreeGrowth};
 use super::slideout::TreeStats;
 use super::room_props::{sway_grass, RoomBlockers};
@@ -67,6 +67,7 @@ impl Plugin for PlayPlugin {
                     // Presses are consumed ONCE per fixed tick (the JS endFrame contract).
                     // Every UI system that reads presses must be ordered before this.
                     bash_tick,
+                    adopt_room_cast.after(tick),
                     clear_pressed.after(tick).after(super::menu::menu_tick).in_set(EndTick),
                 ),
             )
@@ -177,6 +178,15 @@ impl SlideState {
         self.0.as_ref().map(|s| {
             let t = (s.frame as f32 / s.total as f32).min(1.0);
             (-s.delta.x * t, s.delta.y * t) // Bevy y-up -> screen y-down
+        })
+    }
+    /// The OUTGOING room's coords while a slide is in flight (`cur` already names the
+    /// incoming room) — derived from the slide delta's direction.
+    pub fn outgoing_room(&self, cur_rx: i32, cur_ry: i32) -> Option<(i32, i32)> {
+        self.0.as_ref().map(|s| {
+            let ddx = (s.delta.x / crate::room::PX_W as f32).round() as i32;
+            let ddy = (-s.delta.y / crate::room::PX_H as f32).round() as i32;
+            (cur_rx - ddx, cur_ry - ddy)
         })
     }
 }
@@ -603,7 +613,7 @@ pub fn tick(
     ctx: RoomCtx,
     mut armed: ResMut<super::encounters::ArmedEncounter>,
     mut roots: Query<&mut Transform, With<super::room_render::RoomRoot>>,
-    actors: Query<Entity, With<RoomActor>>,
+    actors: Query<Entity, (With<RoomActor>, Without<ChildOf>)>, // top-level cast only (children already ride their root)
     mut q: Query<(&mut Player, &mut Knockback, &mut Hitbox, &mut Health)>,
     mut uses: UseRoutes,
     descending: Res<super::dungeon::Descending>,
@@ -663,25 +673,8 @@ pub fn tick(
                     super::dungeon::spawn_room_secret(&mut commands, &mut images, droom, &mut room_blockers);
                     super::dungeon::spawn_room_boss(&mut commands, &mut images, &mut room_blockers, run.rift, run.mini, inv.has_item("kingsplitter"), droom, run.dungeon.theme.key, run.biome.as_deref(), run.is_final, &modes.relics);
                 }
-            } else {
-                visited.0.insert((cur.rx, cur.ry));
-                // The new room wakes — a same-day snapshot re-seats exactly what was left.
-                super::room_cache::spawn_or_restore(
-                    &mut commands,
-                    &mut images,
-                    &mut uses.rng,
-                    &mut uses.human_art,
-                    &room_cache,
-                    &world.0,
-                    &modes.cleared,
-                    &mut armed,
-                    &world.0.room_entities(cur.rx, cur.ry),
-                    (cur.rx, cur.ry),
-                    super::encounters::Now::at(clock.0),
-                    uses.house.0.as_ref().is_some_and(|h| h.room == (cur.rx, cur.ry)),
-                );
-                banners.room_entered(&world.0, &mut town_names, cur.rx, cur.ry); // announce towns/regions
             }
+            // (Overworld: the incoming cast spawned at slide START and rode in.)
         }
         return;
     }
@@ -1381,7 +1374,13 @@ pub fn tick(
         &modes.farm, &modes.cleared, &modes.caves, &modes.songs_opened, nrx, nry, delta, clock.0,
     );
     room_blockers.0 = blockers; // movement is frozen mid-slide; ready when we land
-    despawn_room_actors(&mut commands, &actors); // the old room's cast leaves with it
+    // The OUTGOING cast RIDES OUT with its room (Baz: mobs + the guildhall popped
+    // at transitions): reparent every top-level actor to the old root — the parent
+    // starts at identity so nothing moves this frame — and the settle's recursive
+    // root despawn reaps them with the tiles.
+    for e in &actors {
+        commands.entity(e).insert(ChildOf(active.0));
+    }
     slide.0 = Some(Slide {
         frame: 0,
         total: if ddx != 0 { (PX_W / 8) as u32 } else { (PX_H / 8) as u32 },
@@ -1396,6 +1395,45 @@ pub fn tick(
     grid.0 = new_grid;
     cur.rx = nrx;
     cur.ry = nry;
+    // The INCOMING cast spawns NOW and rides in with its tiles — adopt_room_cast
+    // parents these fresh spawns to the sliding new root this same frame, so the
+    // settle pops nothing in (Baz: the guildhall vanished during transitions).
+    visited.0.insert((nrx, nry));
+    super::room_cache::spawn_or_restore(
+        &mut commands,
+        &mut images,
+        &mut uses.rng,
+        &mut uses.human_art,
+        &room_cache,
+        &world.0,
+        &modes.cleared,
+        &mut armed,
+        &new_ents,
+        (nrx, nry),
+        super::encounters::Now::at(clock.0),
+        uses.house.0.as_ref().is_some_and(|h| h.room == (nrx, nry)),
+    );
+    banners.room_entered(&world.0, &mut town_names, nrx, nry); // announce towns/regions
+}
+
+/// Every top-level RoomActor becomes a CHILD of its room's root the frame it spawns,
+/// so the whole cast rides room slides with the tiles (Baz: no more transition pops).
+/// Mid-slide spawns belong to the INCOMING room; at rest, to the active root. Moments
+/// without a live root (loader teardown) leave orphans for the next frame.
+fn adopt_room_cast(
+    mut commands: Commands,
+    slide: Res<SlideState>,
+    active: Res<ActiveRoot>,
+    roots: Query<(), With<super::room_render::RoomRoot>>,
+    orphans: Query<Entity, (With<RoomActor>, Without<ChildOf>)>,
+) {
+    let target = slide.0.as_ref().map_or(active.0, |s| s.new_root);
+    if !roots.contains(target) {
+        return;
+    }
+    for e in &orphans {
+        commands.entity(e).insert(ChildOf(target));
+    }
 }
 
 /// Worn armor changed -> re-bake the hero's sprite bank in the new gear (js

@@ -102,6 +102,7 @@ struct FxCtx<'w> {
 #[allow(clippy::type_complexity, clippy::too_many_arguments)] // ECS system params are wide by nature
 fn sync_shadows(
     mut commands: Commands,
+    sliding: Res<crate::app::play::SlideActive>,
     mut fx: FxCtx,
     players: Query<(Entity, &Player, &Health, &Sprite, Option<&Shadowed>, Option<&Reflected>), Without<ShadowOf>>,
     villagers: Query<(Entity, &Villager, &Sprite, Option<&Shadowed>, Option<&Reflected>), Without<ShadowOf>>,
@@ -136,6 +137,17 @@ fn sync_shadows(
         )>,
     >,
 ) {
+    if sliding.0 {
+        // Mid-slide the cast rides its root but shadow anchors are room-space —
+        // blink the shadow pass off for the slide (the old pre-ride behavior).
+        for (_, _, _, _, mut vis) in &mut shadows {
+            *vis = Visibility::Hidden;
+        }
+        for (_, _, _, _, mut vis) in &mut refls {
+            *vis = Visibility::Hidden;
+        }
+        return;
+    }
     let FxCtx { ref images, ref mut materials, ref mut refl_materials, ref quad, ref clock, ref water, ref weather } = fx;
 
     let sil_of = |spr: &Sprite| -> Option<(Handle<Image>, Vec2)> {
