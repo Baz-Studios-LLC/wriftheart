@@ -58,12 +58,13 @@ fn rain_sheet(px: vec2<f32>, t: f32, wind: f32, scale: f32, speed: f32, cut: f32
     return step(ly, len) * on_x * wet;
 }
 
-// One sheet of snow: quantized flakes drifting down. The fall is slow; the sway is a
-// BOUNDED per-flake sine (the old version multiplied the sway by total elapsed time,
-// which sent everything racing sideways — Baz caught it).
-fn snow_sheet(px: vec2<f32>, t: f32, wind: f32, windx: f32, scale: f32, speed: f32, heavy: f32) -> f32 {
-    let cell = 14.0 / scale;
-    let wx = windx * (72.0 + heavy * 220.0); // js windAmt*1.2 (5 heavy) per frame
+// One PARALLAX sheet of snow: quantized flakes in a cell lattice that rides the wind
+// and the fall as a body, each depth with its OWN cell size, fall speed and wind
+// answer — the old two sheets shared one speed and one wind shift, so a blizzard
+// slid across as rigid planes and the lattice gaps read as BANDS (Baz). Sway and
+// bob stay BOUNDED per-flake sines (a time-multiplied sway once raced sideways).
+fn snow_sheet(px: vec2<f32>, t: f32, wind: f32, windx: f32, cell: f32, speed: f32, windmul: f32, heavy: f32) -> f32 {
+    let wx = windx * windmul;
     let sp = vec2(px.x - wx, px.y - t * speed);
     let id = floor(sp / cell);
     let h = hash21(id);
@@ -71,12 +72,20 @@ fn snow_sheet(px: vec2<f32>, t: f32, wind: f32, windx: f32, scale: f32, speed: f
         return 0.0;
     }
     let fp = fract(sp / cell) * cell;
-    // The flake's home in its cell + a gentle sway at its own tempo — floaty, not fast.
-    let sway = sin(t * (0.8 + h * 0.7) + h * 6.28318) * 1.8;
-    let home = vec2(clamp(1.0 + h * (cell - 3.0) + sway, 0.5, cell - 1.5), 1.0 + fract(h * 13.7) * (cell - 3.0));
+    // The flake's home in its cell: side sway + a vertical bob, each at its own tempo,
+    // harder in a blizzard — neighbours never move in lockstep.
+    let sway = sin(t * (0.8 + h * 0.7) + h * 6.28318) * (1.8 + heavy * 1.2);
+    let bob = sin(t * (0.5 + fract(h * 7.7) * 0.6) + h * 9.42) * (0.8 + heavy * 1.6);
+    let home = vec2(
+        clamp(1.0 + h * (cell - 3.0) + sway, 0.5, cell - 1.5),
+        clamp(1.0 + fract(h * 13.7) * (cell - 3.0) + bob, 0.5, cell - 1.5),
+    );
     let d = abs(fp - floor(home));
     let size = 1.0 + step(0.5, fract(h * 29.3)); // 1px or 2px flakes
-    return step(max(d.x, d.y), size * 0.5 + 0.5);
+    // Blizzard wind whips the NEAR depths into short sideways streaks: the closer the
+    // sheet (bigger windmul), the longer its flakes stretch with the instant wind.
+    let streak = 1.0 + heavy * min(2.0, windmul / 160.0) * abs(wind);
+    return step(max(d.x / streak, d.y), size * 0.5 + 0.5);
 }
 
 // Dust: SPARSE horizontal streaks racing with the wind (the haze carries the storm's
@@ -112,10 +121,20 @@ fn layer(px: vec2<f32>, kind: f32, v: f32, heavy: f32, t: f32, wind: f32, windx:
         let base = select(0.42, 0.40, heavy > 0.5);
         return vec4(0.737, 0.831, 0.910, a * base * v); // #bcd4e8
     }
-    if (kind < 2.5) { // SNOW — two depths of drifting flakes
-        var a = snow_sheet(px, t, wind, windx, 1.0, select(18.0, 34.0, heavy > 0.5), heavy);
-        a = max(a, snow_sheet(px + vec2(37.0, 11.0), t, wind, windx, 1.7, select(11.0, 20.0, heavy > 0.5), heavy) * 0.6);
-        return vec4(0.933, 0.949, 0.984, a * v); // #eef2fb
+    if (kind < 2.5) { // SNOW — FOUR parallax depths; the blizzard leans on them hard.
+        // Far -> near: co-prime-ish cells (23/17/14/29) so the lattices never line up,
+        // slower + wind-deaf at the back, faster + wind-whipped up front.
+        let hv = heavy;
+        var a = snow_sheet(px + vec2(91.0, 47.0), t, wind, windx, 23.0, mix(7.0, 12.0, hv), mix(40.0, 90.0, hv), hv) * 0.35;
+        a = max(a, snow_sheet(px + vec2(37.0, 11.0), t, wind, windx, 17.0, mix(11.0, 20.0, hv), mix(55.0, 160.0, hv), hv) * 0.6);
+        a = max(a, snow_sheet(px, t, wind, windx, 14.0, mix(18.0, 34.0, hv), mix(72.0, 240.0, hv), hv));
+        if (hv > 0.5) {
+            // The nearest sheet only rides a true blizzard: sparse big flakes racing by.
+            a = max(a, snow_sheet(px + vec2(5.0, 71.0), t, wind, windx, 29.0, 55.0, 380.0, hv) * 0.9);
+        }
+        // Ground-blizzard haze: a faint rolling whiteout that carries the storm's weight.
+        let haze = select(0.0, smoothstep(0.8, 1.6, vnoise(px * 0.02 + vec2(windx * 0.15 + t * 0.2, t * 0.03))) * 0.16, hv > 0.5);
+        return vec4(0.933, 0.949, 0.984, min(1.0, a + haze) * v); // #eef2fb
     }
     if (kind < 3.5) { // DUST — streaks + the haze the js flooded over everything
         let s = dust_sheet(px, t, windx, 1.0) * 0.30 + dust_sheet(px + vec2(0.0, 1.7), t, windx, 1.6) * 0.16;
