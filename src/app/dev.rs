@@ -50,6 +50,7 @@ enum Cmd {
     NextDawn,
     SeasonNext,
     Weather, // cycle row
+    Strip,   // pin the status line to the viewport top
     WarpHome,
     WarpCastle,
     WarpShard, // cycle row
@@ -92,6 +93,7 @@ fn rows(cat: usize) -> &'static [(&'static str, Cmd)] {
             ("SKIP TO DAWN", Cmd::NextDawn),
             ("SEASON +1", Cmd::SeasonNext),
             ("WEATHER", Cmd::Weather),
+            ("STATUS STRIP", Cmd::Strip),
         ],
         1 => &[("WARP HOME", Cmd::WarpHome), ("WARP TO CASTLE", Cmd::WarpCastle), ("WARP TO SHARD SITE", Cmd::WarpShard)],
         2 => &[
@@ -141,6 +143,68 @@ fn rows(cat: usize) -> &'static [(&'static str, Cmd)] {
 /// the HERO category mirrors it with a live value.
 #[derive(Resource, Default)]
 pub struct GodMode(pub bool);
+
+/// Dev toggle: pin the panel's status line (room/biome/tiers/weather/shards) to the
+/// top of the viewport while playing (Baz).
+#[derive(Resource, Default)]
+pub struct StatusStrip(pub bool);
+
+#[derive(Component)]
+struct StripUi;
+
+/// The one status-line builder — the dev panel and the strip must never drift.
+fn status_line(
+    world: &super::play::GameWorld,
+    cur: &super::play::CurRoom,
+    weather: &super::weather::WeatherState,
+    relics: &super::dungeon::Relics,
+) -> String {
+    format!(
+        "ROOM {},{}  -  {}  -  ZONE {}  -  THREAT {}  -  {}  -  {} OF {} SHARDS",
+        cur.rx,
+        cur.ry,
+        world.0.biome_key_at(cur.rx, cur.ry).to_uppercase(),
+        crate::worldgen::World::zone_tier(cur.rx, cur.ry),
+        crate::worldgen::World::threat_tier(cur.rx, cur.ry),
+        crate::weather::get(weather.cur).label,
+        relics.0.len(),
+        world.0.shard_biomes().len()
+    )
+}
+
+/// Rebuild the strip when its text flips (room move, weather, a shard) or the toggle.
+#[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
+fn strip_tick(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    strip: Res<StatusStrip>,
+    world: Res<super::play::GameWorld>,
+    cur: Res<super::play::CurRoom>,
+    weather: Res<super::weather::WeatherState>,
+    relics: Res<super::dungeon::Relics>,
+    old: Query<Entity, With<StripUi>>,
+    mut last: Local<Option<String>>,
+) {
+    let want = strip.0.then(|| status_line(&world, &cur, &weather, &relics));
+    if want == *last {
+        return;
+    }
+    *last = want.clone();
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    let Some(text) = want else { return };
+    use super::room_render::{PLAY_X, PLAY_Y};
+    use crate::room::PX_W;
+    commands.spawn((
+        Sprite::from_color(bevy::color::Color::srgba(0.0, 0.0, 0.0, 0.55), bevy::math::Vec2::new(PX_W as f32, 10.0)),
+        crate::gfx::at(PLAY_X, PLAY_Y, PX_W as f32, 10.0, 15.35), // under the banners (15.5)
+        crate::gfx::PIXEL_LAYER,
+        StripUi,
+    ));
+    let tw = crate::gfx::font::measure(&text) as f32;
+    crate::ui::label(&mut commands, &mut images, &text, PLAY_X + ((PX_W as f32 - tw) / 2.0).round(), PLAY_Y + 2.0, 0x8a8a92, 15.4, StripUi);
+}
 
 #[derive(Resource, Default)]
 pub struct DevState {
@@ -197,6 +261,8 @@ impl Plugin for DevPlugin {
         // panel ignoring keys). redraw stays in Update: it's pure visuals.
         app.init_resource::<DevState>()
             .init_resource::<GodMode>()
+            .init_resource::<StatusStrip>()
+            .add_systems(Update, strip_tick)
             .add_systems(
                 bevy::app::FixedUpdate,
                 (god_toggle, god_tick).before(super::play::EndTick).run_if(super::screen::playing),
@@ -279,10 +345,11 @@ fn drive(
     actors: Query<Entity, With<RoomActor>>,
     mut players: Query<(&mut Player, &mut Health)>,
     mut next: ResMut<NextState<Screen>>,
-    mut god: ResMut<GodMode>,
+    toggles: (ResMut<GodMode>, ResMut<StatusStrip>), // tuple: drive sits AT the 16-param cap
     badges: Query<Entity, With<GodBadge>>,
     mut refs: DevRefs,
 ) {
+    let (mut god, mut strip) = toggles;
     let nrows = rows(state.cat).len();
     if input.pressed(Action::Pause) || input.pressed(Action::Slot2) {
         input.consume(Action::Pause);
@@ -595,6 +662,10 @@ fn drive(
             }
             log.add("dev", "THE WRIFTHEART IS WHOLE", 1, 0xc882ff, false, true);
         }
+        Cmd::Strip => {
+            strip.0 = !strip.0;
+            log.add("dev", if strip.0 { "STATUS STRIP ON" } else { "STATUS STRIP OFF" }, 1, 0xffd34d, false, true);
+        }
         Cmd::God => {
             god.0 = !god.0;
             set_badge(&mut commands, &mut images, god.0, &badges);
@@ -623,6 +694,7 @@ fn redraw(
     bindings: Res<crate::input::Bindings>,
     input: Res<ActionState>,
     god: Res<GodMode>,
+    strip: Res<StatusStrip>,
 ) {
     if !state.dirty {
         return;
@@ -662,17 +734,7 @@ fn redraw(
     );
     let iw = font::measure(&info) as f32;
     label(&mut commands, &mut images, &info, w - 10.0 - iw, 8.0, 0x8a8a92, Z + 0.2, DevUi);
-    let info2 = format!(
-        "ROOM {},{}  -  {}  -  ZONE {}  -  THREAT {}  -  {}  -  {} OF {} SHARDS",
-        cur.rx,
-        cur.ry,
-        world.0.biome_key_at(cur.rx, cur.ry).to_uppercase(),
-        crate::worldgen::World::zone_tier(cur.rx, cur.ry),
-        crate::worldgen::World::threat_tier(cur.rx, cur.ry),
-        crate::weather::get(weather.cur).label,
-        relics.0.len(),
-        world.0.shard_biomes().len()
-    );
+    let info2 = status_line(&world, &cur, &weather, &relics);
     label(&mut commands, &mut images, &info2, 10.0, 18.0, 0x8a8a92, Z + 0.2, DevUi);
     line(&mut commands, 28.0);
 
@@ -716,6 +778,7 @@ fn redraw(
                 .get(state.shard_idx)
                 .map(|(b, (rx, ry))| format!("< {} {rx},{ry} >", b.to_uppercase())),
             Cmd::God => Some(if god.0 { "ON".into() } else { "OFF".into() }),
+            Cmd::Strip => Some(if strip.0 { "ON".into() } else { "OFF".into() }),
             Cmd::SpawnMob => {
                 Some(format!("< {} >", crate::actors::mobs::MOB_DEFS[state.mob_idx].kind.to_uppercase()))
             }

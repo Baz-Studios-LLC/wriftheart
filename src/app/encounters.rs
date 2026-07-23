@@ -827,6 +827,15 @@ pub fn spawn_decor(
             if d.kind == "oldwell" {
                 commands.entity(e).insert(WhisperWell { x, y });
             }
+            if d.kind == "web" {
+                // Encounter webs are REAL webs (Baz): the same sword-cut string node
+                // the dungeons and spider nests use, not set dressing.
+                let hb = crate::combat::Hitbox { x: x + 1.0, y, w: 13.0, h: 8.0 };
+                commands.entity(e).insert(super::room_props::node_bundle(
+                    "cobweb", (x / 16.0) as i32, (y / 16.0) as i32,
+                    crate::combat::Tool::Sword, 2, hb, None, 0xe8e8f0, false, 0, 0,
+                ));
+            }
             if d.kind == "campfire" {
                 commands.entity(e).insert(Campfire {
                     frames: [images.add(bake(art::CAMP_A, &[])), images.add(bake(art::CAMP_B, &[]))],

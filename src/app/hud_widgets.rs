@@ -70,7 +70,7 @@ impl Default for HudConfig {
             row("buffs", 0, true),
             row("shards", 0, true),
             row("hint", 1, true),
-            row("coins", 0, false),
+            row("coins", 0, true),
         ])
     }
 }
@@ -270,6 +270,15 @@ pub fn coins_tick(
         commands.entity(e).despawn();
     }
     label(&mut commands, &mut images, "COPPER", PAD, COINS_BASE, 0xfcfcfc, HUD_Z + 1.0, (CoinHud, InWidget("coins")));
+    // The coin pip + the purse, side by side (Baz: a proper coin widget).
+    let img = images.add(crate::gfx::bake(crate::actors::items_art::COIN_ICON, &[]));
+    commands.spawn((
+        Sprite::from_image(img),
+        crate::gfx::at(PAD, COINS_BASE + 7.0, 8.0, 8.0, HUD_Z + 1.0),
+        crate::gfx::PIXEL_LAYER,
+        CoinHud,
+        InWidget("coins"),
+    ));
     let amount = format!("{}", inv.money);
-    label(&mut commands, &mut images, &amount, PAD, COINS_BASE + 8.0, 0xfcd000, HUD_Z + 1.0, (CoinHud, InWidget("coins")));
+    label(&mut commands, &mut images, &amount, PAD + 10.0, COINS_BASE + 8.0, 0xfcd000, HUD_Z + 1.0, (CoinHud, InWidget("coins")));
 }

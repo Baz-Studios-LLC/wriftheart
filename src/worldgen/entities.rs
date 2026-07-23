@@ -433,6 +433,17 @@ impl World {
             } else {
                 let kind = eligible[(mrng.next_f64() * eligible.len() as f64).floor() as usize];
                 out.push(RoomEntity { kind: "mob", sub: kind.into(), x: c * TILE, y: r * TILE, seed: 0, champ, elite });
+                if kind == "spider" {
+                    // Spider ground is WEBBED (Baz): the dungeon's string-webs dress
+                    // every nest — cut them for thread (room_props "cobweb" node).
+                    for (dc, dr) in [(-1, 0), (1, 1), (0, -1)] {
+                        let (wc, wr) = (c + dc, r + dr);
+                        if ground_at(wc, wr) && !used[key(wc, wr)] && mrng.next_f64() < 0.75 {
+                            used[key(wc, wr)] = true;
+                            out.push(ent("cobweb", wc, wr));
+                        }
+                    }
+                }
                 if kind == "wasp" || kind == "bat" || kind == "wolf" || kind == "gnat" {
                     out.push(ent_mob(kind, c * TILE - 14, r * TILE + 10));
                     if mrng.next_f64() < 0.6 {

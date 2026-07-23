@@ -408,6 +408,12 @@ fn drops_for(kind: &str, tier: i32, biome: &str, rng: &mut GameRng) -> Vec<&'sta
                 out.push(ore_at_tier(tier));
             }
         }
+        "cobweb" => {
+            out.push("string"); // a cut web ALWAYS yields its thread (the dungeon rule)
+            if rng.0.next_f64() < 0.2 {
+                out.push("string");
+            }
+        }
         "cactus" => {
             out.push("fiber");
             out.push("fiber");

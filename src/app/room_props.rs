@@ -49,7 +49,7 @@ pub(crate) fn is_big_prop(kind: &str) -> bool {
 
 /// The combat side of a gatherable node: health + the tool that bites + chip colour.
 #[allow(clippy::too_many_arguments)] // (identity, tool, hp, boxes, chips, tier gate) IS the node's arity
-fn node_bundle(
+pub(crate) fn node_bundle(
     kind: &'static str,
     c: i32,
     r: i32,
@@ -113,7 +113,7 @@ pub fn spawn_room_props(
         let (c, r) = (x.div_euclid(TILE), y.div_euclid(TILE));
         let fx = x as f32;
         let fy = y as f32;
-        let gatherable = is_big_prop(e.kind) || matches!(e.kind, "bush" | "boulder" | "grass");
+        let gatherable = is_big_prop(e.kind) || matches!(e.kind, "bush" | "boulder" | "grass" | "cobweb");
         if gatherable && gather.taken(room, c, r, today) {
             continue; // gathered earlier today — regrows on the next day's first entry
         }
@@ -198,6 +198,14 @@ pub fn spawn_room_props(
                 // Gate on biome tier (uniform per region); drop tier stays ztier (deeper = better).
                 commands.entity(pe).insert(node_bundle("boulder", c, r, Tool::Pick, 3, hb, Some(blocker), 0xa8a8a8, false, ztier, btier.max(1)));
                 blockers.push(blocker);
+            }
+            "cobweb" => {
+                // The dungeon's string-web, outdoors (spider nests): sword-cut,
+                // walk-through, always yields its thread (gather::drops_for).
+                let img = images.add(crate::gfx::bake(crate::actors::encounter_art::WEB, &[]));
+                let pe = child(commands, root, Sprite::from_image(img), at(PLAY_X + fx, PLAY_Y + fy + 4.0, 16.0, 8.0, 3.35));
+                let hb = Hitbox { x: fx + 1.0, y: fy + 4.0, w: 13.0, h: 8.0 };
+                commands.entity(pe).insert(node_bundle("cobweb", c, r, Tool::Sword, 2, hb, None, 0xe8e8f0, false, ztier, 0));
             }
             "grass" => {
                 // Spawn ON the live sway phase — frame 0 would freeze the new room's
