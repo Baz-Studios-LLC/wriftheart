@@ -46,7 +46,7 @@ impl Plugin for SplashPlugin {
     }
 }
 
-fn enter(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut sfx: MessageWriter<super::sfx::Sfx>) {
+fn enter(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.spawn((
         Sprite::from_color(Color::BLACK, Vec2::new(CANVAS_W as f32, CANVAS_H as f32)),
         at(0.0, 0.0, CANVAS_W as f32, CANVAS_H as f32, Z),
@@ -72,9 +72,11 @@ fn enter(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut sfx: Mes
         SplashUi,
         SplashLogo,
     ));
-    sfx.write(super::sfx::Sfx("ncelogo"));
+    // (The sting fires from tick() when the logo LANDS — playing it here meant
+    // sound over a still-black window while the renderer warmed up.)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn tick(
     mut t: ResMut<SplashT>,
     state: Res<ActionState>,
@@ -82,8 +84,21 @@ fn tick(
     mouse: Res<ButtonInput<MouseButton>>,
     mut next: ResMut<NextState<super::screen::Screen>>,
     mut logos: Query<&mut Sprite, With<SplashLogo>>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    frames: Res<bevy::diagnostic::FrameCount>,
+    mut last_frame: Local<u32>,
 ) {
+    // One timeline step per RENDERED frame: fixed-tick catch-up after the boot
+    // stall was bursting straight through the fade-in (logo popped, sting early).
+    if frames.0 == *last_frame {
+        return;
+    }
+    *last_frame = frames.0;
     t.0 += 1;
+    if t.0 == FADE_IN {
+        // The logo has landed — NOW the sting.
+        sfx.write(super::sfx::Sfx("ncelogo"));
+    }
     // ANY key, click, or bound pad button skips (Baz) — by jumping to the fade,
     // never a hard cut. (`pressed`/held, not just_pressed: edge flags can slip
     // between fixed ticks on high-refresh panels.)
