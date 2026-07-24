@@ -602,6 +602,9 @@ fn donate_tick(
         }
     };
     let pad = input.pad_present;
+    // On the pad, Interact IS D-pad up — but the book turns the D-pad into arrows
+    // (set_dpad_dirs), so GIVE/OPEN prompt the confirm button there instead.
+    let give_act = if pad { Action::MenuConfirm } else { Action::Interact };
     match bsel {
         None => {
             // THE BUNDLE BOOK: the wing's named sets, each with its running tally.
@@ -639,7 +642,7 @@ fn donate_tick(
             }
             let hint = format!(
                 "{} OPEN   {} CLOSE",
-                extras.0.prompt(Action::Interact, pad),
+                extras.0.prompt(give_act, pad),
                 extras.0.prompt(Action::Slot2, pad)
             );
             let hw = crate::gfx::font::measure(&hint) as f32;
@@ -672,7 +675,7 @@ fn donate_tick(
                         .flatten()
                         .filter_map(|uid| inv.entry(*uid))
                         .any(|e| req_matches(req.matches, e.id));
-                let give_key = extras.0.prompt(Action::Interact, pad);
+                let give_key = extras.0.prompt(give_act, pad);
                 let tag = format!(
                     "{}/{}{}",
                     counts2.get(i).copied().unwrap_or(0),
@@ -690,7 +693,7 @@ fn donate_tick(
             }
             let hint = format!(
                 "{} GIVE   {} BACK",
-                extras.0.prompt(Action::Interact, pad),
+                extras.0.prompt(give_act, pad),
                 extras.0.prompt(Action::Slot2, pad)
             );
             let hw = crate::gfx::font::measure(&hint) as f32;

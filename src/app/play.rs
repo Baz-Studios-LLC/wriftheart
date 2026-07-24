@@ -100,10 +100,14 @@ impl Plugin for PlayPlugin {
 fn set_dpad_dirs(
     screen: Res<State<super::screen::Screen>>,
     fluting: Res<super::flute::Fluting>,
+    donate: Res<super::guildhall::DonateState>,
     mut dirs: ResMut<crate::input::DpadDirs>,
 ) {
     // Mid-song the D-pad is the four notes, not the shortcut cluster (js dpadDirs).
-    dirs.0 = *screen.get() != super::screen::Screen::Play || fluting.0.is_some();
+    // The guildhall's BUNDLE BOOK too (Baz: "press up but nothing happens") — the
+    // pad's Interact IS D-pad up, so in the book the D-pad must be arrows and the
+    // give button moves to MenuConfirm (donate_tick prompts it).
+    dirs.0 = *screen.get() != super::screen::Screen::Play || fluting.0.is_some() || donate.0.is_some();
 }
 
 /// The press-consumption boundary of each fixed tick: `clear_pressed` lives here; systems
