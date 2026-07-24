@@ -22,6 +22,13 @@ struct SplashUi;
 #[derive(Component)]
 struct SplashLogo;
 
+/// The hand-off veil: black over the title, lifting — the splash FADES INTO the
+/// title instead of cutting (Baz). Spawned by exit(), reaped when it clears.
+#[derive(Component)]
+struct TitleFade(u32);
+
+const TITLE_FADE: u32 = 30;
+
 #[derive(Resource, Default)]
 struct SplashT(u32);
 
@@ -32,7 +39,10 @@ impl Plugin for SplashPlugin {
         app.init_resource::<SplashT>()
             .add_systems(OnEnter(super::screen::Screen::Splash), enter)
             .add_systems(OnExit(super::screen::Screen::Splash), exit)
-            .add_systems(Update, tick.run_if(in_state(super::screen::Screen::Splash)));
+            // FixedUpdate: frame counts mean 60ths of a second on ANY display —
+            // in Update a 120hz panel halved the whole card (Baz's ProMotion).
+            .add_systems(bevy::app::FixedUpdate, tick.run_if(in_state(super::screen::Screen::Splash)))
+            .add_systems(bevy::app::FixedUpdate, title_fade);
     }
 }
 
@@ -68,10 +78,24 @@ fn enter(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut sfx: Mes
 fn tick(
     mut t: ResMut<SplashT>,
     state: Res<ActionState>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     mut next: ResMut<NextState<super::screen::Screen>>,
     mut logos: Query<&mut Sprite, With<SplashLogo>>,
 ) {
     t.0 += 1;
+    // ANY key, click, or bound pad button skips (Baz) — by jumping to the fade,
+    // never a hard cut. (`pressed`/held, not just_pressed: edge flags can slip
+    // between fixed ticks on high-refresh panels.)
+    let skip = keys.get_pressed().next().is_some()
+        || mouse.get_pressed().next().is_some()
+        || state.pressed(Action::Slot1)
+        || state.pressed(Action::MenuConfirm)
+        || state.pressed(Action::Pause)
+        || state.pressed(Action::Interact);
+    if skip && t.0 < FADE_IN + HOLD {
+        t.0 = FADE_IN + HOLD;
+    }
     let a = if t.0 < FADE_IN {
         t.0 as f32 / FADE_IN as f32
     } else if t.0 < FADE_IN + HOLD {
@@ -82,11 +106,7 @@ fn tick(
     for mut s in &mut logos {
         s.color = s.color.with_alpha(a);
     }
-    let skip = state.pressed(Action::Slot1)
-        || state.pressed(Action::MenuConfirm)
-        || state.pressed(Action::Pause)
-        || state.pressed(Action::Interact);
-    if t.0 >= FADE_IN + HOLD + FADE_OUT || skip {
+    if t.0 >= FADE_IN + HOLD + FADE_OUT {
         next.set(super::screen::Screen::Title);
     }
 }
@@ -94,5 +114,25 @@ fn tick(
 fn exit(mut commands: Commands, ui: Query<Entity, With<SplashUi>>) {
     for e in &ui {
         commands.entity(e).despawn();
+    }
+    // Leave the veil behind: the title starts under black and surfaces.
+    commands.spawn((
+        Sprite::from_color(Color::BLACK, Vec2::new(CANVAS_W as f32, CANVAS_H as f32)),
+        at(0.0, 0.0, CANVAS_W as f32, CANVAS_H as f32, Z),
+        PIXEL_LAYER,
+        TitleFade(TITLE_FADE),
+    ));
+}
+
+/// Lift the hand-off veil, then reap it (runs everywhere; the query is empty
+/// except the few frames after the splash).
+fn title_fade(mut commands: Commands, mut veils: Query<(Entity, &mut TitleFade, &mut Sprite)>) {
+    for (e, mut f, mut s) in &mut veils {
+        f.0 = f.0.saturating_sub(1);
+        if f.0 == 0 {
+            commands.entity(e).despawn();
+        } else {
+            s.color = Color::BLACK.with_alpha(f.0 as f32 / TITLE_FADE as f32);
+        }
     }
 }
