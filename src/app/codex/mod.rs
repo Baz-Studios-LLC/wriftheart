@@ -151,9 +151,16 @@ fn codex_tick(
     mut images: ResMut<Assets<Image>>,
     lore: Res<lore_tab::LoreDex>,
     ptr: Res<crate::input::Pointer>,
+    donate: Res<super::guildhall::DonateState>,
 ) {
     match screen.get() {
         Screen::Play => {
+            // The guildhall's BUNDLE BOOK owns the screen while open (Baz: menu
+            // conflicts) - it runs in FixedUpdate, so a consumed press can't be
+            // trusted on frames the fixed clock skipped. Gate, don't race.
+            if donate.0.is_some() {
+                return;
+            }
             // EVERY opener jumps to ITS page — Map included (Baz: "M should always
             // open the map"; it used to reopen the last-viewed tab). Each tab also
             // has its own quick-access action (unbound by default; CONTROLS offers all).

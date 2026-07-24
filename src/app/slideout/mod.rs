@@ -145,16 +145,23 @@ fn slideout_tick(
     god: Res<super::dev::GodMode>,
     mut rune: ResMut<super::wands::WandRune>,
     mut sfx: MessageWriter<super::sfx::Sfx>,
-    placing: Res<super::placing::Placing>,
+    // Tuple (the fn sits at Bevy's 16-param cap): ghost placement + the bundle book.
+    placing_donate: (Res<super::placing::Placing>, Res<super::guildhall::DonateState>),
 ) {
     let SlideCtx { ref mut inv, ref mut craft, ref mut stats, ref mut rng, ref hero, ref skill_art, ref skills, ref alloc, ref learned, ref mut stash, ref inside, ref house, ref cur, ref mut bags, ref mut pins } = sc;
     // At home — INSIDE the house, or anywhere in the HOME ROOM (Baz: a yard bench should
     // reach the chest too) — crafting also draws from the storage chest.
     let home = inside.0.as_ref().is_some_and(|st| st.def.kind == "house")
         || (inside.0.is_none() && house.0.as_ref().is_some_and(|h| h.room == (cur.rx, cur.ry)));
+    let (placing, donate) = placing_donate;
     let Ok((player, mut health)) = players.single_mut() else { return };
     match screen.get() {
         Screen::Play => {
+            // The guildhall's BUNDLE BOOK owns the screen while open (Baz: menu
+            // conflicts) - same gate as the codex opener.
+            if donate.0.is_some() {
+                return;
+            }
             // EVERY opener jumps to ITS page — Inventory (I) to CHAR, SkillTree (K) to
             // SKILLS, and each page's quick-access action (unbound by default, all in
             // CONTROLS). (Inventory used to reopen the LAST tab — pressing I after

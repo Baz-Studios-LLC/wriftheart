@@ -188,10 +188,13 @@ pub fn menu_tick(
     ptr: Res<crate::input::Pointer>,
     mut hcfg: ResMut<super::hud_widgets::HudConfig>,
     inv: Res<crate::inventory::PlayerInv>,
+    donate: Res<super::guildhall::DonateState>,
 ) {
     match screen.get() {
         Screen::Play => {
-            if state.pressed(Action::Pause) {
+            // ESC in the guildhall's BUNDLE BOOK is BACK, never the pause menu
+            // (Baz: menu conflicts; the book runs in FixedUpdate - gate, don't race).
+            if state.pressed(Action::Pause) && donate.0.is_none() {
                 *menu = MenuState::default();
                 next.set(Screen::Pause);
                 redraw(&mut commands, &ui, &mut images, &menu, &settings, &bindings, &state, &hcfg, &inv, false);
