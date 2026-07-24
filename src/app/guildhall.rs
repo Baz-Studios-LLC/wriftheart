@@ -17,7 +17,7 @@ use super::battle::RoomActor;
 use super::play::{CurRoom, Player};
 use super::room_render::{actor_z, PLAY_X, PLAY_Y};
 use crate::gfx::{at, PIXEL_LAYER};
-use crate::guildhall::{req_matches, wing_progress, WINGS};
+use crate::guildhall::{bundle_progress, req_matches, WINGS};
 use crate::input::{Action, ActionState};
 use crate::ui::label;
 
@@ -38,7 +38,7 @@ pub struct CurrentHall(pub Option<String>);
 
 /// The open donation window (js guildDonate; transient).
 #[derive(Resource, Default)]
-pub struct DonateState(pub Option<(usize, usize)>); // (wing index, cursor)
+pub struct DonateState(pub Option<(usize, Option<usize>, usize)>); // (wing, open bundle, cursor)
 
 /// The current city's live perks, refreshed on room change — shops/inns read this.
 #[derive(Resource, Default)]
@@ -156,11 +156,12 @@ fn perks_tick(
     let done = city_key(&world.0, cur.rx, cur.ry)
         .and_then(|k| ledger.0.get(&k).map(|g| g.done.clone()))
         .unwrap_or_default();
-    perks.fish_mult = if done.iter().any(|d| d == "anglers") { 1.5 } else { 1.0 };
-    perks.free_inn = done.iter().any(|d| d == "provisioners");
-    perks.smith_stock = done.iter().any(|d| d == "smiths");
-    perks.tome_half = done.iter().any(|d| d == "scholars");
-    perks.produce_stall = done.iter().any(|d| d == "tillers");
+    let home = |id: &str| crate::guildhall::home_by_id(&done, id);
+    perks.fish_mult = if home("anglers") { 1.5 } else { 1.0 };
+    perks.free_inn = home("provisioners");
+    perks.smith_stock = home("smiths");
+    perks.tome_half = home("scholars");
+    perks.produce_stall = home("tillers");
 }
 
 /// Wing altars stand up with the room (called from spawn_room_chests' wake path).
@@ -179,7 +180,7 @@ pub(crate) fn spawn_room_altar(
         .0
         .as_ref()
         .and_then(|k| ledger.0.get(k))
-        .map(|g| g.done.iter().any(|d| d == w.id))
+        .map(|g| crate::guildhall::wing_home(&g.done, w))
         .unwrap_or(false);
     let pal: &[(char, u32)] = &[
         ('C', if restored { w.crest } else { 0x4a4a52 }),
@@ -259,7 +260,7 @@ fn altar_wake(
             HallCast,
         ));
         let seed = key_seed(&key_s);
-        let line = match done.len() {
+        let line = match crate::guildhall::wings_home(&done) {
             0 => "THE GUILDS ARE SCATTERED. BRING WHAT THE WINGS ASK AND THEY COME HOME.".to_string(),
             5 => "THE HALL STANDS WHOLE. YOU DID THIS. EVERY GUILD REMEMBERS.".to_string(),
             n => format!(
@@ -285,7 +286,7 @@ fn altar_wake(
     // members of the order, wandering their restored hall, talking shop.
     if let Some(gw) = run.dungeon.cur().room(run.drx, run.dry).and_then(|r| r.gwing) {
         if let Some(widx) = WINGS.iter().position(|w| w.id == gw) {
-            if done.iter().any(|d| d == gw) {
+            if crate::guildhall::wing_home(&done, &WINGS[widx]) {
                 for i in 0..3usize {
                     let seed = key_seed(&key_s) ^ (widx as u32 + 1).wrapping_mul(0x9e37_79b9) ^ (i as u32 + 1).wrapping_mul(0x85eb_ca6b);
                     let (mx, my) = (70.0 + i as f32 * 62.0, 88.0 + ((i * 37) % 40) as f32);
@@ -322,7 +323,7 @@ fn altar_interact(
         let ab = (a.x - 6.0, a.y + 4.0, 24.0, 22.0);
         if hitbox.0 < ab.0 + ab.2 && hitbox.0 + hitbox.2 > ab.0 && hitbox.1 < ab.1 + ab.3 && hitbox.1 + hitbox.3 > ab.1 {
             input.consume(Action::Interact);
-            donate.0 = Some((a.wing, 0));
+            donate.0 = Some((a.wing, None, 0));
             sfx.write(super::sfx::Sfx("open"));
             return;
         }
@@ -332,8 +333,10 @@ fn altar_interact(
 #[derive(Component)]
 struct GuildUi;
 
-/// The checklist window (js updateGuildDonate + drawGuildDonate): up/down picks a
-/// line, PRESS donates one matching bag item, filled wings bring the guild home.
+/// The wing's BUNDLE BOOK (Baz: Coral Island museum scale): the altar opens the
+/// wing's list of named bundles; pick one for its checklist. Every filled bundle
+/// pays its reward on the spot; the LAST one brings the guild home - perk, wing
+/// capstone, and (at five wings) the seal.
 #[allow(clippy::too_many_arguments)]
 fn donate_tick(
     mut commands: Commands,
@@ -352,10 +355,10 @@ fn donate_tick(
     mut altars: Query<(&GuildAltar, &mut Sprite)>,
     old_ui: Query<Entity, With<GuildUi>>,
     // Tuple-nested (the flat list sits at Bevy's 16-param cap): the live bindings
-    // for the GIVE/CLOSE prompts, the player query, and the mouse pointer.
+    // for the prompts, the player query, and the mouse pointer.
     extras: (Res<crate::input::Bindings>, Query<&Player>, Res<crate::input::Pointer>),
 ) {
-    let Some((widx, mut cur)) = donate.0 else {
+    let Some((widx, bsel, mut cur)) = donate.0 else {
         for e in &old_ui {
             commands.entity(e).despawn();
         }
@@ -363,104 +366,127 @@ fn donate_tick(
     };
     let w = &WINGS[widx];
     let key = hall.0.clone().unwrap_or_else(|| "lost".into());
-    let gh = ledger.0.entry(key).or_default();
-    let counts = gh.donated.entry(w.id.to_string()).or_insert_with(|| vec![0; w.reqs.len()]);
-    let done = gh.done.iter().any(|d| d == w.id);
     let mut dirty = donate.is_changed();
+    // Back out one level: checklist -> bundle book -> closed.
     if input.pressed(Action::Slot2) || input.pressed(Action::Pause) {
         input.consume(Action::Slot2);
         input.consume(Action::Pause);
-        donate.0 = None;
+        donate.0 = if bsel.is_some() { Some((widx, None, 0)) } else { None };
         sfx.write(super::sfx::Sfx("open"));
         return;
     }
-    // The checklist OWNS the buttons while open (the menus rule): nothing leaks to
-    // the ability slots (Baz: B closed the menu on paper but played the flute in
-    // practice — flute_tick is ordered after this and finds the press spent).
+    // The window OWNS the buttons while open (the menus rule).
     for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
         input.consume(a);
     }
+    let rows = match bsel {
+        None => w.bundles.len(),
+        Some(bi) => w.bundles[bi].reqs.len(),
+    };
     if input.pressed(Action::Up) {
-        cur = (cur + w.reqs.len() - 1) % w.reqs.len();
+        cur = (cur + rows - 1) % rows;
         sfx.write(super::sfx::Sfx("menuMove"));
         dirty = true;
     }
     if input.pressed(Action::Down) {
-        cur = (cur + 1) % w.reqs.len();
+        cur = (cur + 1) % rows;
         sfx.write(super::sfx::Sfx("menuMove"));
         dirty = true;
     }
-    // Mouse: hover a requirement highlights it, a click donates to it. Rows mirror the draw
-    // (bx+6, by+30+i*16-2, bw-12, 14).
-    let mut req_click = false;
-    {
-        use super::room_render::{PLAY_X, PLAY_Y};
-        use crate::room::{PX_H, PX_W};
-        let bw = 250.0;
-        let bh = 64.0 + w.reqs.len() as f32 * 16.0;
-        let bx = PLAY_X + (PX_W as f32 - bw) / 2.0;
-        let by = PLAY_Y + (PX_H as f32 - bh) / 2.0;
-        for i in 0..w.reqs.len() {
-            if extras.2.over(bx + 6.0, by + 30.0 + i as f32 * 16.0 - 2.0, bw - 12.0, 14.0) {
-                if extras.2.moved && cur != i {
-                    cur = i;
-                    sfx.write(super::sfx::Sfx("menuMove"));
-                    dirty = true;
-                }
-                if extras.2.click {
-                    cur = i;
-                    req_click = true;
-                }
+    // Shared window geometry (draw + mouse agree by construction).
+    let (bw, bh) = (250.0, 64.0 + rows as f32 * 16.0);
+    let bx = PLAY_X + (crate::room::PX_W as f32 - bw) / 2.0;
+    let by = PLAY_Y + (crate::room::PX_H as f32 - bh) / 2.0;
+    let mut row_click = false;
+    for i in 0..rows {
+        if extras.2.over(bx + 6.0, by + 30.0 + i as f32 * 16.0 - 2.0, bw - 12.0, 14.0) {
+            if extras.2.moved && cur != i {
+                cur = i;
+                sfx.write(super::sfx::Sfx("menuMove"));
+                dirty = true;
+            }
+            if extras.2.click {
+                cur = i;
+                row_click = true;
             }
         }
     }
-    if donate.0 != Some((widx, cur)) {
-        donate.0 = Some((widx, cur));
+    if donate.0 != Some((widx, bsel, cur)) {
+        donate.0 = Some((widx, bsel, cur));
     }
-    if (input.pressed(Action::Interact) || input.pressed(Action::MenuConfirm) || req_click) && !done {
+    let confirm = input.pressed(Action::Interact) || input.pressed(Action::MenuConfirm) || row_click;
+    if confirm {
         input.consume(Action::Interact);
         input.consume(Action::MenuConfirm);
-        let req = &w.reqs[cur];
-        if counts[cur] >= req.n {
-            sfx.write(super::sfx::Sfx("tink"));
-        } else if let Some(id) = inv
-            .bag
-            .iter()
-            .flatten()
-            .filter_map(|uid| inv.entry(*uid))
-            .map(|e| e.id)
-            .find(|id| req_matches(req.matches, id))
-        {
-            inv.remove_one(id);
-            counts[cur] += 1;
-            sfx.write(super::sfx::Sfx("craft"));
-            dirty = true;
-            let (_, _, whole) = wing_progress(w, counts);
-            if whole {
-                // THE WING IS WHOLE — the guild comes home.
-                gh.done.push(w.id.to_string());
-                log.add("gh", &format!("{} RETURN TO THE CITY", w.name), 1, w.crest, false, true);
-                sfx.write(super::sfx::Sfx("itemget"));
-                donate.0 = None;
-                for (a, mut s) in &mut altars {
-                    if a.wing == widx {
-                        s.color = Color::WHITE; // rebake shortcut: the banner lights on re-entry
-                    }
-                }
-                grant_loot(w.id, &mut commands, &mut images, &mut inv, &mut alloc, &mut rng, &mut log, &mut sfx, extras.1.single().ok());
-                if gh.done.len() >= WINGS.len() {
-                    // THE CAPSTONE: every guild home.
-                    if let Some(def) = crate::items::get("guildseal") {
-                        inv.add_item(def.id, 1);
-                    }
-                    banners.interior("THE GUILDHALL STANDS WHOLE");
-                    sfx.write(super::sfx::Sfx("levelup"));
-                }
+    }
+    match bsel {
+        None => {
+            // The book: pick a bundle.
+            if confirm && rows > 0 {
+                donate.0 = Some((widx, Some(cur), 0));
+                sfx.write(super::sfx::Sfx("open"));
+                return;
             }
-            saves.write(super::save::SaveRequest);
-        } else {
-            log.add("gh", "NOTHING IN YOUR BAG FITS THAT LINE", 1, 0xfc8868, false, true);
-            sfx.write(super::sfx::Sfx("tink"));
+        }
+        Some(bi) => {
+            let b = &w.bundles[bi];
+            let gh = ledger.0.entry(key.clone()).or_default();
+            let bdone = gh.done.iter().any(|d| d == b.id);
+            if confirm && !bdone {
+                let counts = gh.donated.entry(b.id.to_string()).or_insert_with(|| vec![0; b.reqs.len()]);
+                let req = &b.reqs[cur];
+                if counts[cur] >= req.n {
+                    sfx.write(super::sfx::Sfx("tink"));
+                } else if let Some(id) = inv
+                    .bag
+                    .iter()
+                    .flatten()
+                    .filter_map(|uid| inv.entry(*uid))
+                    .map(|e| e.id)
+                    .find(|id| req_matches(req.matches, id))
+                {
+                    inv.remove_one(id);
+                    counts[cur] += 1;
+                    sfx.write(super::sfx::Sfx("craft"));
+                    dirty = true;
+                    let (_, _, whole) = bundle_progress(b, counts);
+                    if whole {
+                        // THE BUNDLE IS FILLED - it pays on the spot.
+                        gh.done.push(b.id.to_string());
+                        log.add("gh", &format!("{} - COMPLETE", b.name), 1, w.crest, false, true);
+                        sfx.write(super::sfx::Sfx("itemget"));
+                        let (px, py) = extras.1.single().map(|p| (p.x, p.y)).unwrap_or((144.0, 100.0));
+                        if !inv.add_item(b.reward.0, b.reward.1) {
+                            super::gather::spawn_pickup(&mut commands, &mut images, b.reward.0, b.reward.1, px + 4.0, py + 18.0, false, None);
+                        }
+                        if crate::guildhall::wing_home(&gh.done, w) {
+                            // THE LAST BUNDLE - the guild comes home.
+                            log.add("gh", &format!("{} RETURN TO THE CITY", w.name), 1, w.crest, false, true);
+                            for (a, mut spr) in &mut altars {
+                                if a.wing == widx {
+                                    spr.color = Color::WHITE; // rebake shortcut: the banner lights on re-entry
+                                }
+                            }
+                            grant_loot(w.id, &mut commands, &mut images, &mut inv, &mut alloc, &mut rng, &mut log, &mut sfx, extras.1.single().ok());
+                            if crate::guildhall::wings_home(&gh.done) >= WINGS.len() {
+                                // THE CAPSTONE: every guild home.
+                                if let Some(def) = crate::items::get("guildseal") {
+                                    inv.add_item(def.id, 1);
+                                }
+                                banners.interior("THE GUILDHALL STANDS WHOLE");
+                                sfx.write(super::sfx::Sfx("levelup"));
+                            }
+                            donate.0 = Some((widx, None, 0)); // back out to the finished book
+                        }
+                    }
+                    saves.write(super::save::SaveRequest);
+                } else {
+                    log.add("gh", "NOTHING IN YOUR BAG FITS THAT LINE", 1, 0xfc8868, false, true);
+                    sfx.write(super::sfx::Sfx("tink"));
+                }
+            } else if confirm {
+                sfx.write(super::sfx::Sfx("tink"));
+            }
         }
     }
     if !dirty {
@@ -470,20 +496,8 @@ fn donate_tick(
     for e in &old_ui {
         commands.entity(e).despawn();
     }
-    let done_now = ledger
-        .0
-        .get(hall.0.as_deref().unwrap_or("lost"))
-        .map(|g| g.done.iter().any(|d| d == w.id))
-        .unwrap_or(false);
-    let counts2 = ledger
-        .0
-        .get(hall.0.as_deref().unwrap_or("lost"))
-        .and_then(|g| g.donated.get(w.id))
-        .cloned()
-        .unwrap_or_else(|| vec![0; w.reqs.len()]);
-    let (bw, bh) = (250.0, 64.0 + w.reqs.len() as f32 * 16.0);
-    let bx = PLAY_X + (crate::room::PX_W as f32 - bw) / 2.0;
-    let by = PLAY_Y + (crate::room::PX_H as f32 - bh) / 2.0;
+    let gh_r = ledger.0.get(&key);
+    let done_list: Vec<String> = gh_r.map(|g| g.done.clone()).unwrap_or_default();
     const Z: f32 = crate::gfx::layers::WINDOW;
     let quad = |commands: &mut Commands, c: Color, x: f32, y: f32, qw: f32, qh: f32, z: f32| {
         commands.spawn((Sprite::from_color(c, Vec2::new(qw, qh)), at(x, y, qw, qh, z), PIXEL_LAYER, GuildUi));
@@ -492,47 +506,85 @@ fn donate_tick(
     let [cr, cg, cb] = [(w.crest >> 16) as u8, (w.crest >> 8) as u8, w.crest as u8];
     quad(&mut commands, Color::srgb_u8(cr, cg, cb), bx, by, bw, 1.0, Z + 0.01);
     quad(&mut commands, Color::srgb_u8(cr, cg, cb), bx, by + bh - 1.0, bw, 1.0, Z + 0.01);
-    let title_w = crate::gfx::font::measure(w.name) as f32;
-    label(&mut commands, &mut images, w.name, (bx + (bw - title_w) / 2.0).floor(), by + 6.0, w.crest, Z + 0.02, GuildUi);
-    let sub = if done_now { "THE WING IS RESTORED" } else { w.desc };
-    let sub_w = crate::gfx::font::measure(sub) as f32;
-    label(&mut commands, &mut images, sub, (bx + (bw - sub_w) / 2.0).floor(), by + 16.0, if done_now { 0x7ee08a } else { 0x8a8a92 }, Z + 0.02, GuildUi);
-    for (i, req) in w.reqs.iter().enumerate() {
-        let y = by + 30.0 + i as f32 * 16.0;
-        let full = counts2.get(i).copied().unwrap_or(0) >= req.n;
-        let on = i == cur && !done_now;
-        if on {
-            quad(&mut commands, Color::srgba(0.98, 0.88, 0.66, 0.12), bx + 6.0, y - 2.0, bw - 12.0, 14.0, Z + 0.015);
+    let pad = input.pad_present;
+    match bsel {
+        None => {
+            // THE BUNDLE BOOK: the wing's named sets, each with its running tally.
+            let title_w = crate::gfx::font::measure(w.name) as f32;
+            label(&mut commands, &mut images, w.name, (bx + (bw - title_w) / 2.0).floor(), by + 6.0, w.crest, Z + 0.02, GuildUi);
+            let home = crate::guildhall::wing_home(&done_list, w);
+            let sub = if home { "THE WING IS RESTORED" } else { w.desc };
+            let sub_w = crate::gfx::font::measure(sub) as f32;
+            label(&mut commands, &mut images, sub, (bx + (bw - sub_w) / 2.0).floor(), by + 16.0, if home { 0x7ee08a } else { 0x8a8a92 }, Z + 0.02, GuildUi);
+            for (i, b) in w.bundles.iter().enumerate() {
+                let y = by + 30.0 + i as f32 * 16.0;
+                let bdone = done_list.iter().any(|d| d == b.id);
+                let on = i == cur;
+                if on {
+                    quad(&mut commands, Color::srgba(0.98, 0.88, 0.66, 0.12), bx + 6.0, y - 2.0, bw - 12.0, 14.0, Z + 0.015);
+                }
+                let col = if bdone { 0x7ee08a } else if on { 0xfcfcfc } else { 0xb4b4bc };
+                label(&mut commands, &mut images, b.name, bx + 12.0, y + 1.0, col, Z + 0.02, GuildUi);
+                let counts = gh_r.and_then(|g| g.donated.get(b.id)).cloned().unwrap_or_default();
+                let (have, need, _) = bundle_progress(b, &counts);
+                let tag = if bdone { "COMPLETE".to_string() } else { format!("{have}/{need}") };
+                let tw = crate::gfx::font::measure(&tag) as f32;
+                let tcol = if bdone { 0x7ee08a } else if have > 0 { 0xffd34d } else { 0x5a5a62 };
+                label(&mut commands, &mut images, &tag, bx + bw - 12.0 - tw, y + 1.0, tcol, Z + 0.02, GuildUi);
+            }
+            let hint = format!(
+                "{} OPEN   {} CLOSE",
+                extras.0.prompt(Action::Interact, pad),
+                extras.0.prompt(Action::Slot2, pad)
+            );
+            let hw = crate::gfx::font::measure(&hint) as f32;
+            label(&mut commands, &mut images, &hint, (bx + (bw - hw) / 2.0).floor(), by + bh - 14.0, 0x6c6c74, Z + 0.02, GuildUi);
         }
-        let col = if full { 0x7ee08a } else if on { 0xfcfcfc } else { 0xb4b4bc };
-        label(&mut commands, &mut images, req.label, bx + 12.0, y + 1.0, col, Z + 0.02, GuildUi);
-        let has = !full
-            && inv
-                .bag
-                .iter()
-                .flatten()
-                .filter_map(|uid| inv.entry(*uid))
-                .any(|e| req_matches(req.matches, e.id));
-        // LIVE bindings (Baz caught a hardcoded "E GIVE" while interact = F): GIVE is
-        // Action::Interact, CLOSE is Slot2 — rebind in CONTROLS and these follow.
-        let give_key = extras.0.prompt(Action::Interact, input.pad_present);
-        let tag = format!(
-            "{}/{}{}",
-            counts2.get(i).copied().unwrap_or(0),
-            req.n,
-            if !full && has { format!("  {give_key} GIVE") } else { String::new() }
-        );
-        let tw = crate::gfx::font::measure(&tag) as f32;
-        let tcol = if full { 0x7ee08a } else if has { 0xffd34d } else { 0x5a5a62 };
-        label(&mut commands, &mut images, &tag, bx + bw - 12.0 - tw, y + 1.0, tcol, Z + 0.02, GuildUi);
+        Some(bi) => {
+            let b = &w.bundles[bi];
+            let bdone = done_list.iter().any(|d| d == b.id);
+            let counts2 = gh_r.and_then(|g| g.donated.get(b.id)).cloned().unwrap_or_else(|| vec![0; b.reqs.len()]);
+            let title_w = crate::gfx::font::measure(b.name) as f32;
+            label(&mut commands, &mut images, b.name, (bx + (bw - title_w) / 2.0).floor(), by + 6.0, w.crest, Z + 0.02, GuildUi);
+            let sub = if bdone { "THE BUNDLE IS FILLED" } else { w.name };
+            let sub_w = crate::gfx::font::measure(sub) as f32;
+            label(&mut commands, &mut images, sub, (bx + (bw - sub_w) / 2.0).floor(), by + 16.0, if bdone { 0x7ee08a } else { 0x8a8a92 }, Z + 0.02, GuildUi);
+            for (i, req) in b.reqs.iter().enumerate() {
+                let y = by + 30.0 + i as f32 * 16.0;
+                let full = counts2.get(i).copied().unwrap_or(0) >= req.n;
+                let on = i == cur && !bdone;
+                if on {
+                    quad(&mut commands, Color::srgba(0.98, 0.88, 0.66, 0.12), bx + 6.0, y - 2.0, bw - 12.0, 14.0, Z + 0.015);
+                }
+                let col = if full { 0x7ee08a } else if on { 0xfcfcfc } else { 0xb4b4bc };
+                label(&mut commands, &mut images, req.label, bx + 12.0, y + 1.0, col, Z + 0.02, GuildUi);
+                let has = !full
+                    && inv
+                        .bag
+                        .iter()
+                        .flatten()
+                        .filter_map(|uid| inv.entry(*uid))
+                        .any(|e| req_matches(req.matches, e.id));
+                let give_key = extras.0.prompt(Action::Interact, pad);
+                let tag = format!(
+                    "{}/{}{}",
+                    counts2.get(i).copied().unwrap_or(0),
+                    req.n,
+                    if !full && has { format!("  {give_key} GIVE") } else { String::new() }
+                );
+                let tw = crate::gfx::font::measure(&tag) as f32;
+                let tcol = if full { 0x7ee08a } else if has { 0xffd34d } else { 0x5a5a62 };
+                label(&mut commands, &mut images, &tag, bx + bw - 12.0 - tw, y + 1.0, tcol, Z + 0.02, GuildUi);
+            }
+            let hint = format!(
+                "{} GIVE   {} BACK",
+                extras.0.prompt(Action::Interact, pad),
+                extras.0.prompt(Action::Slot2, pad)
+            );
+            let hw = crate::gfx::font::measure(&hint) as f32;
+            label(&mut commands, &mut images, &hint, (bx + (bw - hw) / 2.0).floor(), by + bh - 14.0, 0x6c6c74, Z + 0.02, GuildUi);
+        }
     }
-    let hint = format!(
-        "{} GIVE   {} CLOSE",
-        extras.0.prompt(Action::Interact, input.pad_present),
-        extras.0.prompt(Action::Slot2, input.pad_present)
-    );
-    let hw = crate::gfx::font::measure(&hint) as f32;
-    label(&mut commands, &mut images, &hint, (bx + (bw - hw) / 2.0).floor(), by + bh - 14.0, 0x6c6c74, Z + 0.02, GuildUi);
 }
 
 /// The guild's thank-you (js grantGuildLoot; smiths use the loot roll until the
@@ -632,7 +684,7 @@ fn stall_wake(
         return;
     }
     let open = city_key(&world.0, cur.rx, cur.ry)
-        .and_then(|k| ledger.0.get(&k).map(|g| g.done.iter().any(|d| d == "tillers")))
+        .and_then(|k| ledger.0.get(&k).map(|g| crate::guildhall::home_by_id(&g.done, "tillers")))
         .unwrap_or(false);
     if !open {
         return;

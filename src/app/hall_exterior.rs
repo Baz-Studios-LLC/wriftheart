@@ -241,7 +241,7 @@ pub fn hall_wake(
         .and_then(|k| ledger.0.get(&k).map(|g| g.done.clone()))
         .unwrap_or_default();
     let crests: Vec<u32> =
-        crate::guildhall::WINGS.iter().filter(|w| done.iter().any(|d| d == w.id)).map(|w| w.crest).collect();
+        crate::guildhall::WINGS.iter().filter(|w| crate::guildhall::wing_home(&done, w)).map(|w| w.crest).collect();
     let img = images.add(bake_hall(crests.len(), &crests));
     let z = actor_z(fy + 16.0); // js depthSort anchor
     commands.spawn((

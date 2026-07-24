@@ -164,7 +164,7 @@ pub fn run(
     ));
     frame_rect(&mut commands, px, py, pw, ph, 0x2c2c36, CONTENT_Z + 0.05, tag());
     center_label(&mut commands, &mut images, name, cx2, py + 8.0, 0xfcfcfc, CONTENT_Z + 0.1, tag());
-    let nd = gh.done.len();
+    let nd = guildhall::wings_home(&gh.done);
     let (sub, sub_col) = if nd >= 5 {
         ("THE HALL STANDS WHOLE".to_string(), 0xffd34d)
     } else {
@@ -173,10 +173,16 @@ pub fn run(
     center_label(&mut commands, &mut images, &sub, cx2, py + 19.0, sub_col, CONTENT_Z + 0.1, tag());
     let mut yy = py + 34.0;
     for wing in &guildhall::WINGS {
-        let done = gh.done.iter().any(|d| d == wing.id);
-        let empty = Vec::new();
-        let counts = gh.donated.get(wing.id).unwrap_or(&empty);
-        let (have, need, _) = guildhall::wing_progress(wing, counts);
+        let done = guildhall::wing_home(&gh.done, wing);
+        // Wing progress = the sum across its BUNDLES (Coral-Island scale).
+        let (mut have, mut need) = (0, 0);
+        for b in wing.bundles {
+            let empty = Vec::new();
+            let counts = gh.donated.get(b.id).unwrap_or(&empty);
+            let (h, n, _) = guildhall::bundle_progress(b, counts);
+            have += h;
+            need += n;
+        }
         let pip = if done { wing.crest } else { 0x26262e };
         commands.spawn((
             Sprite::from_color(Color::srgb_u8((pip >> 16) as u8, (pip >> 8) as u8, pip as u8), Vec2::splat(5.0)),

@@ -150,8 +150,8 @@ fn open_codex_shot(
     for w in crate::guildhall::WINGS.iter().take(3) {
         a.done.push(w.id.to_string());
     }
-    let w3 = &crate::guildhall::WINGS[3];
-    a.donated.insert(w3.id.to_string(), vec![w3.reqs[0].n - 1]);
+    let b3 = &crate::guildhall::WINGS[3].bundles[0];
+    a.donated.insert(b3.id.to_string(), vec![b3.reqs[0].n - 1]);
     guilds.0.insert("10,6".into(), a);
     guilds.0.insert("-4,12".into(), super::guildhall::GuildState::default());
     names.0.insert("10,6".into(), "Brightmoor".into());
