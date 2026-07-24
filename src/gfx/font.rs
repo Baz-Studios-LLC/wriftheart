@@ -86,6 +86,27 @@ fn glyph_w(ch: char) -> i32 {
     glyph(ch).map_or(3, |g| g[0].len() as i32)
 }
 
+/// Hi-def glyph grids for `bake_text_2x`: 10 rows, double the 5-row cell. Only
+/// glyphs that NEED the resolution live here — everything else pixel-doubles.
+fn glyph_hd(ch: char) -> Option<&'static [&'static str]> {
+    Some(match ch {
+        // The © the 5-row cell can't hold (Baz): a round ring, a real c.
+        '©' => &[
+            "0001111000",
+            "0110000110",
+            "0100111010",
+            "1001000001",
+            "1001000001",
+            "1001000001",
+            "1001000001",
+            "0100111010",
+            "0110000110",
+            "0001111000",
+        ],
+        _ => return None,
+    })
+}
+
 /// Pixel width of `text` — port of `Font.measure` (uppercases, drops the trailing 1px gap).
 pub fn measure(text: &str) -> i32 {
     let mut w = 0;
@@ -149,6 +170,74 @@ pub fn bake_text(text: &str, color: u32, images: &mut Assets<Image>) -> (Handle<
             }
         }
         cx += gw + 1;
+    }
+    (images.add(img), w)
+}
+
+/// `bake_text` at DOUBLE texel density: normal glyphs draw as 2x2 blocks (identical
+/// look, twice the pixels), but glyphs with a `glyph_hd` grid (©) draw 1:1 in the
+/// doubled space — curves the 5-row cell can't hold. Returns (handle, width IN 2X
+/// PIXELS); draw at HALF scale for the standard text footprint.
+pub fn bake_text_2x(text: &str, color: u32, images: &mut Assets<Image>) -> (Handle<Image>, i32) {
+    let up = text.to_uppercase();
+    let adv = |ch: char| -> i32 {
+        if ch == ' ' {
+            SPACE_ADV * 2
+        } else if let Some(g) = glyph_hd(ch) {
+            g[0].len() as i32 + 2
+        } else {
+            (glyph_w(ch) + 1) * 2
+        }
+    };
+    let w = (up.chars().map(adv).sum::<i32>() - 2).max(1); // drop the trailing gap
+    let img_w = (w + (w & 1)) as u32;
+    let img_h = 12u32; // 10 rows + 2 pad
+    let mut img = Image::new_fill(
+        Extent3d { width: img_w, height: img_h, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        &[0, 0, 0, 0],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+    let rgba = [(color >> 16) as u8, (color >> 8) as u8, color as u8, 0xff];
+    let mut cx: i32 = 0;
+    for ch in up.chars() {
+        if ch == ' ' {
+            cx += SPACE_ADV * 2;
+            continue;
+        }
+        if let Some(g) = glyph_hd(ch) {
+            for (r, row) in g.iter().enumerate() {
+                for (c, bit) in row.bytes().enumerate() {
+                    if bit == b'1'
+                        && let Ok(px) =
+                            img.pixel_bytes_mut(UVec3::new((cx + c as i32) as u32, r as u32, 0))
+                    {
+                        px.copy_from_slice(&rgba);
+                    }
+                }
+            }
+            cx += g[0].len() as i32 + 2;
+        } else {
+            let g = glyph(ch).or_else(|| glyph('?')).unwrap();
+            for (r, row) in g.iter().enumerate() {
+                for (c, bit) in row.bytes().enumerate() {
+                    if bit != b'1' {
+                        continue;
+                    }
+                    for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                        if let Ok(px) = img.pixel_bytes_mut(UVec3::new(
+                            (cx + c as i32 * 2 + dx) as u32,
+                            (r as i32 * 2 + dy) as u32,
+                            0,
+                        )) {
+                            px.copy_from_slice(&rgba);
+                        }
+                    }
+                }
+            }
+            cx += (g[0].len() as i32 + 1) * 2;
+        }
     }
     (images.add(img), w)
 }
