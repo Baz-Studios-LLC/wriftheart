@@ -79,6 +79,18 @@ fn enter(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     spr.custom_size = Some(Vec2::new(LOGO_W, LOGO_W * h / w)); // canvas-unit footprint, native-res texels
     spr.color = Color::srgba(1.0, 1.0, 1.0, 0.0); // fades in from black
     commands.spawn((spr, Transform::from_xyz(0.0, 0.0, Z + 0.1), HIGH_RES_LAYER, SplashUi, SplashLogo));
+    // Copyright line, bottom center (Baz), with the font's new © glyph.
+    // Tagged SplashLogo: it breathes in and out WITH the mark.
+    let (cimg, _cw) = crate::gfx::font::bake_text("© 2026 BAZ STUDIOS LLC", 0x8a8a92, &mut images);
+    let mut cspr = Sprite::from_image(cimg);
+    cspr.color = Color::srgba(1.0, 1.0, 1.0, 0.0);
+    commands.spawn((
+        cspr,
+        Transform::from_xyz(0.0, -(crate::CANVAS_H as f32) / 2.0 + 12.0, Z + 0.1),
+        HIGH_RES_LAYER,
+        SplashUi,
+        SplashLogo,
+    ));
     // (The sting fires from tick() when the logo LANDS — playing it here meant
     // sound over a still-black window while the renderer warmed up.)
 }

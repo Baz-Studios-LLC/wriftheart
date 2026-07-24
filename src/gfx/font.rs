@@ -73,6 +73,9 @@ fn glyph(ch: char) -> Option<&'static [&'static str]> {
         '<' => &["001", "010", "100", "010", "001"],
         '(' => &["001", "010", "010", "010", "001"],
         ')' => &["100", "010", "010", "010", "100"],
+        // The circle-c (Baz: a real copyright mark, not "(C)") — 7 wide like no other,
+        // but the ring needs the room; the c opens right.
+        '©' => &["0111110", "1001101", "1010001", "1001101", "0111110"],
         '?' => &["111", "001", "011", "000", "010"],
         '*' => &["000", "101", "010", "101", "000"],
         _ => return None,
