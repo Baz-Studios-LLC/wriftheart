@@ -90,6 +90,7 @@ pub struct DoorRefs<'w, 's> {
     pub in_dungeon: Res<'w, super::dungeon::InDungeon>,
     pub cave_doors: Query<'w, 's, &'static super::caves::CaveDoor>,
     pub house: Res<'w, super::home::PlayerHouse>,
+    pub stalls: Query<'w, 's, &'static super::guildhall::ProduceStall>,
 }
 
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
@@ -137,6 +138,11 @@ pub(crate) fn door_enter(
         if d.dest == "shop" {
             cands.push(("caveshop".to_string(), d.x as i32, d.y as i32, super::caves::door_zone(d)));
         }
+    }
+    // THE PRODUCE STALL (tillers perk): a dynamic storefront — its doorway joins
+    // the candidates the same way the hidden shops' cave doors do.
+    for s in &refs.stalls {
+        cands.push(("farmstall".to_string(), s.x as i32, s.y as i32, (s.x - 4.0, s.y + 8.0, 24.0, 18.0)));
     }
     // The player's built home (app/home.rs) — its door opens the "house" interior (bed + chest).
     if let Some(h) = &refs.house.0

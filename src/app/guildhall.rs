@@ -585,6 +585,92 @@ fn grant_loot(
     }
 }
 
+/// The tillers' PRODUCE STALL — a dynamic storefront in the city's market room.
+/// door_enter and prompt_tick treat it like any town doorway (its x,y is the door).
+#[derive(Component)]
+pub struct ProduceStall {
+    pub x: f32,
+    pub y: f32,
+}
+
+/// THE PRODUCE STALL OPENS (tillers perk, the js stallspot idea): once the Tillers
+/// are home, the city's Market room grows the farmstall storefront — worldgen
+/// untouched, the stall literally opens with the guild. Deterministic spot: the
+/// first 3x3 patch of open ground with breathing room from the laid-out market.
+#[allow(clippy::too_many_arguments)]
+fn stall_wake(
+    mut commands: Commands,
+    cur: Res<CurRoom>,
+    slide: Res<super::play::SlideState>,
+    world: Res<super::play::GameWorld>,
+    in_dungeon: Res<super::dungeon::InDungeon>,
+    inside: Res<super::interior::Inside>,
+    grid: Res<super::play::CurGrid>,
+    ledger: Res<GuildLedger>,
+    art: Res<crate::actors::props::PropArt>,
+    mut blockers: ResMut<super::room_props::RoomBlockers>,
+    mut woke: Local<Option<(i32, i32)>>,
+    stalls: Query<Entity, With<ProduceStall>>,
+    parents: Query<&ChildOf>,
+) {
+    if in_dungeon.0.is_some() || inside.0.is_some() {
+        *woke = None; // interiors re-stand the stall on the way back out
+        return;
+    }
+    if *woke == Some((cur.rx, cur.ry)) && !ledger.is_changed() {
+        return;
+    }
+    *woke = Some((cur.rx, cur.ry));
+    let outgoing = slide.outgoing_root();
+    for e in &stalls {
+        if outgoing.is_some() && parents.get(e).ok().map(|p| p.parent()) == outgoing {
+            continue;
+        }
+        commands.entity(e).despawn();
+    }
+    if !matches!(world.0.town_role(cur.rx, cur.ry), Some(crate::worldgen::towns::TownRole::Market)) {
+        return;
+    }
+    let open = city_key(&world.0, cur.rx, cur.ry)
+        .and_then(|k| ledger.0.get(&k).map(|g| g.done.iter().any(|d| d == "tillers")))
+        .unwrap_or(false);
+    if !open {
+        return;
+    }
+    let Some(front) = art.fronts.get("farmstall").cloned() else { return };
+    let ents = world.0.room_entities(cur.rx, cur.ry);
+    let mut spot: Option<(i32, i32)> = None;
+    'scan: for r in 4..crate::room::ROWS - 4 {
+        for c in 2..crate::room::COLS - 4 {
+            if !(0..3).all(|dr| (0..3).all(|dc| grid.0.code_at(c + dc, r + dr) == '.')) {
+                continue;
+            }
+            let (px, py) = ((c * crate::room::TILE + 16) as f32, (r * crate::room::TILE + 32) as f32);
+            if ents.iter().all(|e| {
+                let (dx, dy) = (e.x as f32 - px, e.y as f32 - py);
+                dx * dx + dy * dy >= 44.0 * 44.0
+            }) {
+                spot = Some((c, r));
+                break 'scan;
+            }
+        }
+    }
+    let Some((c, r)) = spot else { return };
+    // (x, y) is the DOOR anchor, exactly like a "town" entity's.
+    let (x, y) = ((c * crate::room::TILE + 16) as f32, (r * crate::room::TILE + 32) as f32);
+    let blk = (x - 12.0, y - 28.0, 40.0, 42.0);
+    if !blockers.0.contains(&blk) {
+        blockers.0.push(blk);
+    }
+    commands.spawn((
+        Sprite::from_image(front),
+        at(PLAY_X + x - 16.0, PLAY_Y + y - 32.0, 48.0, 48.0, actor_z(y + 16.0)),
+        PIXEL_LAYER,
+        RoomActor,
+        ProduceStall { x, y },
+    ));
+}
+
 pub struct GuildhallPlugin;
 impl Plugin for GuildhallPlugin {
     fn build(&self, app: &mut App) {
@@ -594,7 +680,7 @@ impl Plugin for GuildhallPlugin {
             .init_resource::<CityPerks>()
             .add_systems(
                 bevy::app::FixedUpdate,
-                (perks_tick, super::hall_exterior::hall_wake, altar_wake, altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
+                (perks_tick, super::hall_exterior::hall_wake, stall_wake, altar_wake, altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
                     .before(super::play::EndTick)
                     .run_if(super::screen::playing),
             );

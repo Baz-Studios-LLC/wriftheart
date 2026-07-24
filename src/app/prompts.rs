@@ -74,8 +74,9 @@ pub(crate) fn prompt_tick(
     old: Query<Entity, With<PromptUi>>,
     mut last: Local<LastPrompt>,
     mut doors: Local<DoorCache>,
-    house: Res<super::home::PlayerHouse>,
+    house_stalls: (Res<super::home::PlayerHouse>, Query<&super::guildhall::ProduceStall>),
 ) {
+    let (house, stalls) = house_stalls;
     let Ok(p) = players.single() else { return };
     let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
 
@@ -110,6 +111,8 @@ pub(crate) fn prompt_tick(
             || house.0.as_ref().is_some_and(|h| {
                 h.room == (cur.rx, cur.ry) && overlap(hitbox, super::home::door_zone(h.x, h.y))
             })
+            // The produce stall's door lives outside the worldgen layout too.
+            || stalls.iter().any(|s| overlap(hitbox, (s.x - 4.0, s.y + 8.0, 24.0, 18.0)))
     };
 
     // A lore tome at your feet (any mode) — its generous js zone reaches the floor
