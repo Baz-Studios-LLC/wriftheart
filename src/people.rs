@@ -135,6 +135,45 @@ pub fn greeting(seed: u32, pts: i32, day: i64, stock_line: &str) -> String {
     line_for(seed, pts, day, stock_line)
 }
 
+// --- THE RUMOR MILL (Baz: Minecraft figure-it-out) ----------------------------------
+// Tips never surface in UI - the town gossips them. Each villager owns ONE rumor for
+// life (seeded pick), so THE OLD MAN BY THE DOCKS TOLD ME is a real, shareable
+// landmark. Keepers talk their trade (routed by the title in their pname); everyone
+// else draws from the broad pool. Nothing is ever gated on hearing one.
+
+fn rumor_pool(pname: Option<&str>) -> &'static [&'static str] {
+    use crate::people_data::*;
+    let Some(n) = pname else { return RUMORS_COMMON };
+    let has = |s: &str| n.contains(s);
+    if has("SMITH") || has("ARMORER") {
+        RUMORS_FORGE
+    } else if has("GROCER") || has("BAKER") || has("INNKEEP") || has("TAVERNER") {
+        RUMORS_HEARTH
+    } else if has("MAGICIAN") || has("ALCHEMIST") {
+        RUMORS_ARCANE
+    } else if has("JEWELER") || has("TRADER") {
+        RUMORS_COIN
+    } else if has("PRIEST") || has("LIBRARIAN") || has("CLERK") || has("STEWARD") {
+        RUMORS_LORE
+    } else if has("FLETCHER") {
+        RUMORS_WILDS
+    } else {
+        RUMORS_COMMON
+    }
+}
+
+/// This person's rumor, if today is a telling day (~1 in 3, on a different day-slot
+/// than world_talk so story, rumor, and smalltalk interleave over a week).
+pub fn rumor_for(seed: u32, pname: Option<&str>, today: i64) -> Option<&'static str> {
+    let h = seed ^ (today as u32).wrapping_mul(0x85eb_ca6b);
+    let h = (h ^ (h >> 16)).wrapping_mul(0xc2b2_ae35);
+    if h % 3 != 1 {
+        return None;
+    }
+    let pool = rumor_pool(pname);
+    Some(pool[((seed >> 9) as usize) % pool.len()])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,6 +204,36 @@ mod tests {
         // At 3+ hearts the tiers own it — greeting == line_for exactly.
         for d in 0..8 {
             assert_eq!(greeting(1337, 350, d, "WELCOME IN."), line_for(1337, 350, d, "WELCOME IN."));
+        }
+    }
+
+    #[test]
+    fn rumor_is_fixed_per_person_and_told_about_a_third_of_days() {
+        for seed in [7u32, 991, 123_457, 0xdead_beef] {
+            let told: Vec<&str> =
+                (0..90).filter_map(|d| rumor_for(seed, Some("MARA THE SMITH"), d)).collect();
+            assert!(told.len() > 12 && told.len() < 50, "~1/3 of 90 days, got {}", told.len());
+            assert!(told.iter().all(|&r| r == told[0]), "one rumor per person, forever");
+            assert!(crate::people_data::RUMORS_FORGE.contains(&told[0]), "keepers talk their trade");
+        }
+    }
+
+    #[test]
+    fn rumors_use_only_font_safe_chars() {
+        use crate::people_data::*;
+        let pools: [&[&str]; 7] = [
+            RUMORS_COMMON, RUMORS_FORGE, RUMORS_HEARTH, RUMORS_ARCANE, RUMORS_COIN, RUMORS_LORE,
+            RUMORS_WILDS,
+        ];
+        for pool in pools {
+            for line in pool {
+                for ch in line.chars() {
+                    assert!(
+                        ch.is_ascii_uppercase() || ch.is_ascii_digit() || " .,-'!?:;()/".contains(ch),
+                        "font can't draw {ch:?} in {line}"
+                    );
+                }
+            }
         }
     }
 

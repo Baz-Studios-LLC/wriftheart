@@ -178,6 +178,11 @@ pub(crate) fn chat_with(
     if let Some(t) = people::world_talk(cx.relics.0.len(), cx.victory.won, v.seed, today) {
         v.line = t.to_string();
     }
+    // THE RUMOR MILL (Baz: Minecraft figure-it-out): folk hearsay that happens to
+    // be true(ish). Each villager owns one fixed rumor, told about a third of days.
+    if let Some(r) = people::rumor_for(v.seed, v.pname.as_deref(), today) {
+        v.line = r.to_string();
+    }
     if !rec.know_love && people::hearts(rec.pts) >= 1 && ((v.seed >> 4) as i64 + today) % 3 == 0 {
         rec.know_love = true;
         v.line = format!("BETWEEN US - I DO LOVE {}.", people::taste_word(people::taste_for(v.seed).love));
