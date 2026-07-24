@@ -1,11 +1,16 @@
 //! splash/ — the NEW CITY ENTERTAINMENT boot card (Baz: Wingman opens on it, so
 //! does WriftHeart): black screen, the studio mark breathing in over its sting,
 //! then the title. Any press skips. Both assets EMBED in the binary — the game
-//! stays one file (the logo pre-scaled to canvas size, the sting a mono WAV).
+//! stays one file (the logo at NATIVE res, the sting a mono WAV).
+//!
+//! The card draws on HIGH_RES_LAYER, not the pixel canvas: the mark is smooth
+//! art, and riding the 384x208 canvas meant antialiased-down-then-nearest-up —
+//! mush (Baz: "the logo is blurry"). Out here the outer camera's world units
+//! still equal canvas pixels (fit_canvas zooms it), so the same 140-unit width
+//! reads identically — just sampled from the 1416px master at window resolution.
 
-use crate::gfx::{at, PIXEL_LAYER};
+use crate::gfx::canvas::HIGH_RES_LAYER;
 use crate::input::{Action, ActionState};
-use crate::{CANVAS_H, CANVAS_W};
 use bevy::prelude::*;
 
 static LOGO_PNG: &[u8] = include_bytes!("nce_logo.png");
@@ -20,7 +25,8 @@ const PRE_HOLD: u32 = 45;
 const FADE_IN: u32 = 30;
 const HOLD: u32 = 100; // the sting runs ~89 frames
 const FADE_OUT: u32 = 25;
-const Z: f32 = 30.0; // over everything — the card owns the boot
+const Z: f32 = 30.0; // over the canvas sprite (z 0) on the outer camera
+const LOGO_W: f32 = 140.0; // mark width in canvas units (~36% of the 384-wide view)
 
 #[derive(Component)]
 struct SplashUi;
@@ -52,10 +58,11 @@ impl Plugin for SplashPlugin {
 }
 
 fn enter(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    // Oversized black quad: covers the canvas AND any letterbox around it.
     commands.spawn((
-        Sprite::from_color(Color::BLACK, Vec2::new(CANVAS_W as f32, CANVAS_H as f32)),
-        at(0.0, 0.0, CANVAS_W as f32, CANVAS_H as f32, Z),
-        PIXEL_LAYER,
+        Sprite::from_color(Color::BLACK, Vec2::new(4000.0, 4000.0)),
+        Transform::from_xyz(0.0, 0.0, Z),
+        HIGH_RES_LAYER,
         SplashUi,
     ));
     let img = Image::from_buffer(
@@ -69,14 +76,9 @@ fn enter(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     .expect("embedded splash png decodes");
     let (w, h) = (img.size().x as f32, img.size().y as f32);
     let mut spr = Sprite::from_image(images.add(img));
+    spr.custom_size = Some(Vec2::new(LOGO_W, LOGO_W * h / w)); // canvas-unit footprint, native-res texels
     spr.color = Color::srgba(1.0, 1.0, 1.0, 0.0); // fades in from black
-    commands.spawn((
-        spr,
-        at(((CANVAS_W as f32 - w) / 2.0).floor(), ((CANVAS_H as f32 - h) / 2.0).floor(), w, h, Z + 0.1),
-        PIXEL_LAYER,
-        SplashUi,
-        SplashLogo,
-    ));
+    commands.spawn((spr, Transform::from_xyz(0.0, 0.0, Z + 0.1), HIGH_RES_LAYER, SplashUi, SplashLogo));
     // (The sting fires from tick() when the logo LANDS — playing it here meant
     // sound over a still-black window while the renderer warmed up.)
 }
@@ -139,9 +141,9 @@ fn exit(mut commands: Commands, ui: Query<Entity, With<SplashUi>>) {
     }
     // Leave the veil behind: the title starts under black and surfaces.
     commands.spawn((
-        Sprite::from_color(Color::BLACK, Vec2::new(CANVAS_W as f32, CANVAS_H as f32)),
-        at(0.0, 0.0, CANVAS_W as f32, CANVAS_H as f32, Z),
-        PIXEL_LAYER,
+        Sprite::from_color(Color::BLACK, Vec2::new(4000.0, 4000.0)),
+        Transform::from_xyz(0.0, 0.0, Z),
+        HIGH_RES_LAYER,
         TitleFade(TITLE_FADE),
     ));
 }
