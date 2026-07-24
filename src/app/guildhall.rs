@@ -421,9 +421,10 @@ fn donate_tick(
     old_ui: Query<Entity, With<GuildUi>>,
     // Tuple-nested (the flat list sits at Bevy's 16-param cap): the live bindings
     // for the prompts, the player query, and the mouse pointer.
-    extras: (Res<crate::input::Bindings>, Query<&Player>, Res<crate::input::Pointer>),
+    mut extras: (Res<crate::input::Bindings>, Query<&Player>, Res<crate::input::Pointer>, Local<Option<(usize, Option<usize>, usize)>>),
 ) {
     let Some((widx, bsel, mut cur)) = donate.0 else {
+        *extras.3 = None;
         for e in &old_ui {
             commands.entity(e).despawn();
         }
@@ -431,7 +432,12 @@ fn donate_tick(
     };
     let w = &WINGS[widx];
     let key = hall.0.clone().unwrap_or_else(|| "lost".into());
-    let mut dirty = donate.is_changed();
+    // A system NEVER sees its own writes as changed (Bevy change detection) — so
+    // level transitions (A opens a bundle, B backs out) redraw off this last-view
+    // echo. is_changed() alone left the window STALE: A "did nothing", the next
+    // cursor nudge revealed the checklist, B "didn't go back" (Baz).
+    let mut dirty = *extras.3 != donate.0;
+    *extras.3 = donate.0;
     // Back out one level: checklist -> bundle book -> closed.
     if input.pressed(Action::Slot2) || input.pressed(Action::Pause) {
         input.consume(Action::Slot2);
