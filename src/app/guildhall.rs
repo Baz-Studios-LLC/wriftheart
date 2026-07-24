@@ -79,6 +79,66 @@ const ALTAR: [&str; 18] = [
     "............",
 ];
 
+const DESK: [&str; 10] = [
+    "KKKKKKKKKKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDDDDDDDDDK",
+    "KDdDDDDWWWDDDDDbDDDDDdDK",
+    "KDDDDDDWWWDDDDDDDDDDDDDK",
+    "KDDDDDDDDDDDDDDDDDDDDDDK",
+    "KddddddddddddddddddddddK",
+    "KDDDDDDDDDDDDDDDDDDDDDDK",
+    "KDDDDDDDDDDDDDDDDDDDDDDK",
+    ".KddddddddddddddddddddK.",
+    "..KKKKKKKKKKKKKKKKKKKK..",
+];
+const DESK_PAL: &[(char, u32)] = &[
+    ('K', 0x000000),
+    ('D', 0x8a6a3a),
+    ('d', 0x6a4a2a),
+    ('W', 0xf0ead0), // the open ledger
+    ('b', 0xd8b040), // the counter bell
+];
+
+/// The hall's PEOPLE and furniture (steward, desk, wing guild members) — swept and
+/// re-stood with each hall room, exactly like the altars.
+#[derive(Component)]
+struct HallCast;
+
+/// What the guild members of a THRIVING wing say (Baz: restored wings bustle).
+/// Indexed [wing][member] — every line font-safe, busy-guild voice.
+const GUILD_CHAT: [[&str; 3]; 5] = [
+    [
+        "THE SOIL HERE REMEMBERS US.",
+        "SEED STOCK COMES BACK ROOM BY ROOM.",
+        "SMELL THAT? FRESH EARTH IN A STONE HALL.",
+    ],
+    [
+        "FIRST CATCH IN YEARS HANGS ON THAT WALL.",
+        "THE RIVERS KNEW OUR LINES ONCE. THEY WILL AGAIN.",
+        "WE OWE THIS WING TO YOU, FRIEND.",
+    ],
+    [
+        "HEAR THE HAMMERS? MUSIC.",
+        "THE FORGE DREW BREATH AGAIN THIS MORNING.",
+        "BRING US ORE AND WE WILL BRING IT TO LIFE.",
+    ],
+    [
+        "EVERY SHELF REFILLS A LITTLE MORE EACH WEEK.",
+        "WHAT WAS WRITTEN IS BEING FOUND AGAIN.",
+        "QUIET, PLEASE - HISTORY IS LISTENING.",
+    ],
+    [
+        "THE LONG TABLE FEEDS ALL COMERS AGAIN.",
+        "STEW'S ON. IT IS ALWAYS ON NOW.",
+        "A FED CITY IS A STANDING CITY.",
+    ],
+];
+
+/// A stable u32 off the city key string (the steward's identity survives forever).
+fn key_seed(key: &str) -> u32 {
+    key.bytes().fold(0x57e3_a4d1u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32))
+}
+
 pub fn city_key(world: &crate::worldgen::World, rx: i32, ry: i32) -> Option<String> {
     crate::worldgen::towns::town_site_of(world.seed, rx, ry).map(|s| format!("{},{}", s.tx, s.ty))
 }
@@ -155,6 +215,7 @@ fn altar_wake(
     mut donate: ResMut<DonateState>,
     mut woke: Local<Option<(i32, i32, usize)>>,
     altars: Query<Entity, With<GuildAltar>>,
+    cast: Query<Entity, With<HallCast>>,
 ) {
     let Some(run) = &in_dungeon.0 else {
         if hall.0.is_some() {
@@ -173,11 +234,74 @@ fn altar_wake(
     }
     *woke = Some(key);
     donate.0 = None;
-    for e in &altars {
+    for e in altars.iter().chain(cast.iter()) {
         commands.entity(e).despawn();
     }
     if let Some(room) = run.dungeon.cur().room(run.drx, run.dry) {
         spawn_room_altar(&mut commands, &mut images, &mut blockers, room, &ledger, &hall);
+    }
+    let key_s = hall.0.clone().unwrap_or_default();
+    let done: Vec<String> = ledger.0.get(&key_s).map(|g| g.done.clone()).unwrap_or_default();
+    // THE STEWARD keeps the entry hall (js inc-2 port): one per city forever, at
+    // his reception desk, his greeting tracking the restoration.
+    if run.drx == 0 && run.dry == 0 {
+        let (dx, dy) = (118.0, 58.0);
+        let desk = images.add(crate::gfx::bake(&DESK, DESK_PAL));
+        let blk = (dx, dy + 2.0, 24.0, 8.0);
+        if !blockers.0.contains(&blk) {
+            blockers.0.push(blk);
+        }
+        commands.spawn((
+            Sprite::from_image(desk),
+            at(PLAY_X + dx, PLAY_Y + dy, 24.0, 10.0, actor_z(dy + 10.0)),
+            PIXEL_LAYER,
+            RoomActor,
+            HallCast,
+        ));
+        let seed = key_seed(&key_s);
+        let line = match done.len() {
+            0 => "THE GUILDS ARE SCATTERED. BRING WHAT THE WINGS ASK AND THEY COME HOME.".to_string(),
+            5 => "THE HALL STANDS WHOLE. YOU DID THIS. EVERY GUILD REMEMBERS.".to_string(),
+            n => format!(
+                "{} OF THE FIVE {} HOME. THE OTHER WINGS STILL WAIT ON YOU.",
+                ["ONE", "TWO", "THREE", "FOUR"][(n - 1).min(3)],
+                if n == 1 { "IS" } else { "ARE" }
+            ),
+        };
+        let (sx, sy) = (dx + 4.0, dy - 12.0); // pressed to the counter's back — talkable across it
+        let mut v = crate::actors::villager::Villager::new(sx, sy, seed, line);
+        v.identify(format!("g:{key_s}"), crate::people::title_for(seed, "ghall"));
+        v.hold_post();
+        commands.spawn((
+            Sprite::default(),
+            at(PLAY_X + sx, PLAY_Y + sy, 16.0, 16.0, actor_z(sy + 16.0)),
+            PIXEL_LAYER,
+            RoomActor,
+            HallCast,
+            v,
+        ));
+    }
+    // A THRIVING WING (Baz): once a guild is home, its room BUSTLES — three named
+    // members of the order, wandering their restored hall, talking shop.
+    if let Some(gw) = run.dungeon.cur().room(run.drx, run.dry).and_then(|r| r.gwing) {
+        if let Some(widx) = WINGS.iter().position(|w| w.id == gw) {
+            if done.iter().any(|d| d == gw) {
+                for i in 0..3usize {
+                    let seed = key_seed(&key_s) ^ (widx as u32 + 1).wrapping_mul(0x9e37_79b9) ^ (i as u32 + 1).wrapping_mul(0x85eb_ca6b);
+                    let (mx, my) = (70.0 + i as f32 * 62.0, 88.0 + ((i * 37) % 40) as f32);
+                    let mut v = crate::actors::villager::Villager::new(mx, my, seed, GUILD_CHAT[widx][i].to_string());
+                    v.identify(format!("gw:{key_s}:{gw}:{i}"), crate::people::name_for(seed).to_string());
+                    commands.spawn((
+                        Sprite::default(),
+                        at(PLAY_X + mx, PLAY_Y + my, 16.0, 16.0, actor_z(my + 16.0)),
+                        PIXEL_LAYER,
+                        RoomActor,
+                        HallCast,
+                        v,
+                    ));
+                }
+            }
+        }
     }
 }
 

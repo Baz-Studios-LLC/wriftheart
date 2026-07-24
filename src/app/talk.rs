@@ -183,6 +183,11 @@ pub(crate) fn chat_with(
     if let Some(r) = people::rumor_for(v.seed, v.pname.as_deref(), today) {
         v.line = r.to_string();
     }
+    // The STEWARD talks hall business, always — his stock line IS the restoration
+    // report (guildhall.rs refreshes it), never weather or hearsay.
+    if v.pkey.as_deref().is_some_and(|k| k.starts_with("g:")) {
+        v.line = v.stock_line.clone();
+    }
     if !rec.know_love && people::hearts(rec.pts) >= 1 && ((v.seed >> 4) as i64 + today) % 3 == 0 {
         rec.know_love = true;
         v.line = format!("BETWEEN US - I DO LOVE {}.", people::taste_word(people::taste_for(v.seed).love));
