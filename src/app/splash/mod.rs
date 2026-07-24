@@ -12,6 +12,11 @@ static LOGO_PNG: &[u8] = include_bytes!("nce_logo.png");
 /// Registered into the SfxBank at audio startup (pre-encoded — no bake needed).
 pub static LOGO_WAV: &[u8] = include_bytes!("nce_logo.wav");
 
+/// Pure black before the fade even starts: the macOS window spends its first
+/// ~second invisible (Metal warm-up) while updates run — without this buffer the
+/// whole fade-in elapsed off-screen and the logo POPPED into the first visible
+/// frame (Baz). The pre-hold soaks that up; on a fast boot it reads as a beat.
+const PRE_HOLD: u32 = 45;
 const FADE_IN: u32 = 30;
 const HOLD: u32 = 100; // the sting runs ~89 frames
 const FADE_OUT: u32 = 25;
@@ -95,7 +100,7 @@ fn tick(
     }
     *last_frame = frames.0;
     t.0 += 1;
-    if t.0 == FADE_IN {
+    if t.0 == PRE_HOLD + FADE_IN {
         // The logo has landed — NOW the sting.
         sfx.write(super::sfx::Sfx("ncelogo"));
     }
@@ -108,20 +113,22 @@ fn tick(
         || state.pressed(Action::MenuConfirm)
         || state.pressed(Action::Pause)
         || state.pressed(Action::Interact);
-    if skip && t.0 < FADE_IN + HOLD {
-        t.0 = FADE_IN + HOLD;
+    if skip && t.0 < PRE_HOLD + FADE_IN + HOLD {
+        t.0 = PRE_HOLD + FADE_IN + HOLD;
     }
-    let a = if t.0 < FADE_IN {
-        t.0 as f32 / FADE_IN as f32
-    } else if t.0 < FADE_IN + HOLD {
+    let a = if t.0 < PRE_HOLD {
+        0.0
+    } else if t.0 < PRE_HOLD + FADE_IN {
+        (t.0 - PRE_HOLD) as f32 / FADE_IN as f32
+    } else if t.0 < PRE_HOLD + FADE_IN + HOLD {
         1.0
     } else {
-        (1.0 - (t.0 - FADE_IN - HOLD) as f32 / FADE_OUT as f32).max(0.0)
+        (1.0 - (t.0 - PRE_HOLD - FADE_IN - HOLD) as f32 / FADE_OUT as f32).max(0.0)
     };
     for mut s in &mut logos {
         s.color = s.color.with_alpha(a);
     }
-    if t.0 >= FADE_IN + HOLD + FADE_OUT {
+    if t.0 >= PRE_HOLD + FADE_IN + HOLD + FADE_OUT {
         next.set(super::screen::Screen::Title);
     }
 }
