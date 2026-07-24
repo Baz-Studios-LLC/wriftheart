@@ -104,6 +104,54 @@ const DESK_PAL: &[(char, u32)] = &[
 #[derive(Component)]
 struct HallCast;
 
+/// The wing ceremony's light burst: a crest-colored star that swells, spins
+/// slowly, and fades (Baz: everything guild-touched should feel epic).
+#[derive(Component)]
+struct WingBurst(u32);
+
+fn spawn_wing_burst(commands: &mut Commands, crest: u32, x: f32, y: f32) {
+    let [r, g, b] = [(crest >> 16) as u8, (crest >> 8) as u8, crest as u8];
+    let mut tf = at(PLAY_X + x - 5.0, PLAY_Y + y - 5.0, 10.0, 10.0, 12.0);
+    tf.rotation = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4);
+    commands.spawn((
+        Sprite::from_color(Color::srgba_u8(r, g, b, 200), Vec2::new(10.0, 10.0)),
+        tf,
+        PIXEL_LAYER,
+        RoomActor,
+        WingBurst(0),
+    ));
+}
+
+fn burst_tick(mut commands: Commands, mut q: Query<(Entity, &mut WingBurst, &mut Sprite, &mut Transform)>) {
+    for (e, mut b, mut spr, mut tf) in &mut q {
+        b.0 += 1;
+        let t = b.0 as f32;
+        let s = 1.0 + t * 0.3;
+        tf.scale = Vec3::new(s, s, 1.0);
+        tf.rotation = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4 + t * 0.04);
+        spr.color = spr.color.with_alpha(((1.0 - t / 55.0).max(0.0)) * 0.8);
+        if b.0 >= 55 {
+            commands.entity(e).despawn();
+        }
+    }
+}
+
+/// A restored wing hangs its crest along the walls (the busy-guild dressing).
+const WING_BANNER: [&str; 12] = [
+    "KKKKKKKK",
+    "KCCCCCCK",
+    "KCcCCcCK",
+    "KCCCCCCK",
+    "KCCWWCCK",
+    "KCCWWCCK",
+    "KCCCCCCK",
+    "KCcCCcCK",
+    "KCCCCCCK",
+    ".KCCCCK.",
+    "..KCCK..",
+    "...KK...",
+];
+
 /// What the guild members of a THRIVING wing say (Baz: restored wings bustle).
 /// Indexed [wing][member] — every line font-safe, busy-guild voice.
 const GUILD_CHAT: [[&str; 3]; 5] = [
@@ -287,6 +335,23 @@ fn altar_wake(
     if let Some(gw) = run.dungeon.cur().room(run.drx, run.dry).and_then(|r| r.gwing) {
         if let Some(widx) = WINGS.iter().position(|w| w.id == gw) {
             if crate::guildhall::wing_home(&done, &WINGS[widx]) {
+                // The guild's livery on every wall (Baz: super fancy, like a busy guild).
+                let pal: &[(char, u32)] = &[
+                    ('K', 0x000000),
+                    ('C', WINGS[widx].crest),
+                    ('c', 0xffffff),
+                    ('W', 0xf0ead0),
+                ];
+                let bimg = images.add(crate::gfx::bake(&WING_BANNER, pal));
+                for bxp in [56.0, 104.0, 184.0, 232.0] {
+                    commands.spawn((
+                        Sprite::from_image(bimg.clone()),
+                        at(PLAY_X + bxp, PLAY_Y + 18.0, 8.0, 12.0, 3.3),
+                        PIXEL_LAYER,
+                        RoomActor,
+                        HallCast,
+                    ));
+                }
                 for i in 0..3usize {
                     let seed = key_seed(&key_s) ^ (widx as u32 + 1).wrapping_mul(0x9e37_79b9) ^ (i as u32 + 1).wrapping_mul(0x85eb_ca6b);
                     let (mx, my) = (70.0 + i as f32 * 62.0, 88.0 + ((i * 37) % 40) as f32);
@@ -394,7 +459,7 @@ fn donate_tick(
         dirty = true;
     }
     // Shared window geometry (draw + mouse agree by construction).
-    let (bw, bh) = (250.0, 64.0 + rows as f32 * 16.0);
+    let (bw, bh) = (250.0, 64.0 + rows as f32 * 16.0 + if bsel.is_some() { 12.0 } else { 0.0 });
     let bx = PLAY_X + (crate::room::PX_W as f32 - bw) / 2.0;
     let by = PLAY_Y + (crate::room::PX_H as f32 - bh) / 2.0;
     let mut row_click = false;
@@ -460,12 +525,18 @@ fn donate_tick(
                             super::gather::spawn_pickup(&mut commands, &mut images, b.reward.0, b.reward.1, px + 4.0, py + 18.0, false, None);
                         }
                         if crate::guildhall::wing_home(&gh.done, w) {
-                            // THE LAST BUNDLE - the guild comes home.
+                            // THE LAST BUNDLE - the guild comes home. CEREMONY:
+                            // the big banner, the fanfare, light bursting off the altar.
                             log.add("gh", &format!("{} RETURN TO THE CITY", w.name), 1, w.crest, false, true);
+                            banners.interior(&format!("{} RETURN TO THE CITY", w.name));
+                            sfx.write(super::sfx::Sfx("levelup"));
                             for (a, mut spr) in &mut altars {
                                 if a.wing == widx {
                                     spr.color = Color::WHITE; // rebake shortcut: the banner lights on re-entry
                                 }
+                            }
+                            if let Some((a, _)) = altars.iter().find(|(a, _)| a.wing == widx) {
+                                spawn_wing_burst(&mut commands, w.crest, a.x + 6.0, a.y + 12.0);
                             }
                             grant_loot(w.id, &mut commands, &mut images, &mut inv, &mut alloc, &mut rng, &mut log, &mut sfx, extras.1.single().ok());
                             if crate::guildhall::wings_home(&gh.done) >= WINGS.len() {
@@ -502,16 +573,50 @@ fn donate_tick(
     let quad = |commands: &mut Commands, c: Color, x: f32, y: f32, qw: f32, qh: f32, z: f32| {
         commands.spawn((Sprite::from_color(c, Vec2::new(qw, qh)), at(x, y, qw, qh, z), PIXEL_LAYER, GuildUi));
     };
-    quad(&mut commands, Color::srgba(0.016, 0.024, 0.04, 0.93), bx, by, bw, bh, Z);
+    quad(&mut commands, Color::srgba(0.016, 0.024, 0.04, 0.94), bx, by, bw, bh, Z);
     let [cr, cg, cb] = [(w.crest >> 16) as u8, (w.crest >> 8) as u8, w.crest as u8];
-    quad(&mut commands, Color::srgb_u8(cr, cg, cb), bx, by, bw, 1.0, Z + 0.01);
-    quad(&mut commands, Color::srgb_u8(cr, cg, cb), bx, by + bh - 1.0, bw, 1.0, Z + 0.01);
+    let crest_c = Color::srgb_u8(cr, cg, cb);
+    let gold = Color::srgb_u8(0xff, 0xd3, 0x4d);
+    // The hall's livery: the guild crest over old gold, rails down the sides,
+    // gold ticks in the corners (Baz: the window should feel like it MATTERS).
+    quad(&mut commands, crest_c, bx, by, bw, 1.0, Z + 0.01);
+    quad(&mut commands, gold, bx + 4.0, by + 2.0, bw - 8.0, 1.0, Z + 0.01);
+    quad(&mut commands, crest_c, bx, by + bh - 1.0, bw, 1.0, Z + 0.01);
+    quad(&mut commands, gold, bx + 4.0, by + bh - 3.0, bw - 8.0, 1.0, Z + 0.01);
+    quad(&mut commands, Color::srgba_u8(cr, cg, cb, 120), bx, by, 1.0, bh, Z + 0.01);
+    quad(&mut commands, Color::srgba_u8(cr, cg, cb, 120), bx + bw - 1.0, by, 1.0, bh, Z + 0.01);
+    for (tx, ty) in [
+        (bx + 2.0, by + 5.0),
+        (bx + bw - 5.0, by + 5.0),
+        (bx + 2.0, by + bh - 6.0),
+        (bx + bw - 5.0, by + bh - 6.0),
+    ] {
+        quad(&mut commands, gold, tx, ty, 3.0, 1.0, Z + 0.01);
+    }
+    // Heraldic diamonds flank whichever title each view draws at by+6.
+    let medallions = |commands: &mut Commands, tx0: f32, tw: f32| {
+        for mx in [tx0 - 12.0, tx0 + tw + 7.0] {
+            let mut mtf = at(mx, by + 7.0, 5.0, 5.0, Z + 0.02);
+            mtf.rotation = Quat::from_rotation_z(std::f32::consts::FRAC_PI_4);
+            commands.spawn((Sprite::from_color(crest_c, Vec2::new(5.0, 5.0)), mtf, PIXEL_LAYER, GuildUi));
+        }
+    };
     let pad = input.pad_present;
     match bsel {
         None => {
             // THE BUNDLE BOOK: the wing's named sets, each with its running tally.
             let title_w = crate::gfx::font::measure(w.name) as f32;
-            label(&mut commands, &mut images, w.name, (bx + (bw - title_w) / 2.0).floor(), by + 6.0, w.crest, Z + 0.02, GuildUi);
+            let tx0 = (bx + (bw - title_w) / 2.0).floor();
+            label(&mut commands, &mut images, w.name, tx0, by + 6.0, w.crest, Z + 0.02, GuildUi);
+            medallions(&mut commands, tx0, title_w);
+            // Bundle pips: one per set, lit as each fills.
+            let nb = w.bundles.iter().filter(|b| done_list.iter().any(|d| d == b.id)).count();
+            let pips_w = w.bundles.len() as f32 * 8.0 - 3.0;
+            for i in 0..w.bundles.len() {
+                let px2 = (bx + (bw - pips_w) / 2.0 + i as f32 * 8.0).floor();
+                let c = if i < nb { crest_c } else { Color::srgb_u8(0x2a, 0x2a, 0x32) };
+                quad(&mut commands, c, px2, by + 25.0, 5.0, 3.0, Z + 0.02);
+            }
             let home = crate::guildhall::wing_home(&done_list, w);
             let sub = if home { "THE WING IS RESTORED" } else { w.desc };
             let sub_w = crate::gfx::font::measure(sub) as f32;
@@ -545,7 +650,9 @@ fn donate_tick(
             let bdone = done_list.iter().any(|d| d == b.id);
             let counts2 = gh_r.and_then(|g| g.donated.get(b.id)).cloned().unwrap_or_else(|| vec![0; b.reqs.len()]);
             let title_w = crate::gfx::font::measure(b.name) as f32;
-            label(&mut commands, &mut images, b.name, (bx + (bw - title_w) / 2.0).floor(), by + 6.0, w.crest, Z + 0.02, GuildUi);
+            let tx0 = (bx + (bw - title_w) / 2.0).floor();
+            label(&mut commands, &mut images, b.name, tx0, by + 6.0, w.crest, Z + 0.02, GuildUi);
+            medallions(&mut commands, tx0, title_w);
             let sub = if bdone { "THE BUNDLE IS FILLED" } else { w.name };
             let sub_w = crate::gfx::font::measure(sub) as f32;
             label(&mut commands, &mut images, sub, (bx + (bw - sub_w) / 2.0).floor(), by + 16.0, if bdone { 0x7ee08a } else { 0x8a8a92 }, Z + 0.02, GuildUi);
@@ -575,6 +682,11 @@ fn donate_tick(
                 let tw = crate::gfx::font::measure(&tag) as f32;
                 let tcol = if full { 0x7ee08a } else if has { 0xffd34d } else { 0x5a5a62 };
                 label(&mut commands, &mut images, &tag, bx + bw - 12.0 - tw, y + 1.0, tcol, Z + 0.02, GuildUi);
+            }
+            if let Some(def) = crate::items::get(b.reward.0) {
+                let rline = format!("REWARD: {} X{}", def.name.to_uppercase(), b.reward.1);
+                let rw2 = crate::gfx::font::measure(&rline) as f32;
+                label(&mut commands, &mut images, &rline, (bx + (bw - rw2) / 2.0).floor(), by + bh - 26.0, if bdone { 0x4a4a52 } else { 0xffd34d }, Z + 0.02, GuildUi);
             }
             let hint = format!(
                 "{} GIVE   {} BACK",
@@ -732,7 +844,7 @@ impl Plugin for GuildhallPlugin {
             .init_resource::<CityPerks>()
             .add_systems(
                 bevy::app::FixedUpdate,
-                (perks_tick, super::hall_exterior::hall_wake, stall_wake, altar_wake, altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
+                (perks_tick, burst_tick, super::hall_exterior::hall_wake, stall_wake, altar_wake, altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
                     .before(super::play::EndTick)
                     .run_if(super::screen::playing),
             );
