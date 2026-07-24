@@ -440,6 +440,10 @@ fn donate_tick(
         sfx.write(super::sfx::Sfx("open"));
         return;
     }
+    // Pad A (Slot1) is the menus' CONFIRM (the shop rule) — read it before the
+    // consume sweep eats it. Keyboard ignores it: LMB is Slot1 there, and stray
+    // clicks must not donate (row_click handles the mouse properly).
+    let a_press = input.pad_present && input.pressed(Action::Slot1);
     // The window OWNS the buttons while open (the menus rule).
     for a in [Action::Slot1, Action::Slot2, Action::Slot3, Action::Slot4] {
         input.consume(a);
@@ -479,7 +483,7 @@ fn donate_tick(
     if donate.0 != Some((widx, bsel, cur)) {
         donate.0 = Some((widx, bsel, cur));
     }
-    let confirm = input.pressed(Action::Interact) || input.pressed(Action::MenuConfirm) || row_click;
+    let confirm = input.pressed(Action::Interact) || input.pressed(Action::MenuConfirm) || a_press || row_click;
     if confirm {
         input.consume(Action::Interact);
         input.consume(Action::MenuConfirm);
@@ -604,7 +608,7 @@ fn donate_tick(
     let pad = input.pad_present;
     // On the pad, Interact IS D-pad up — but the book turns the D-pad into arrows
     // (set_dpad_dirs), so GIVE/OPEN prompt the confirm button there instead.
-    let give_act = if pad { Action::MenuConfirm } else { Action::Interact };
+    let give_act = if pad { Action::Slot1 } else { Action::Interact };
     match bsel {
         None => {
             // THE BUNDLE BOOK: the wing's named sets, each with its running tally.
