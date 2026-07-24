@@ -105,6 +105,7 @@ pub fn stock_up(
     inside: &super::interior::InsideState,
     bought: &BoughtShop,
     people: &super::talk::PeopleLedger,
+    perks: &super::guildhall::CityPerks,
     rx: i32,
     ry: i32,
     today: i64,
@@ -116,6 +117,23 @@ pub fn stock_up(
     } else {
         crate::stock::shop_stock(inside.def.stock, inside.iseed, zt)
     };
+    // THE SMITHS ARE HOME (guildhall perk): gear vendors in this city lay out two
+    // BONUS wares rolled at the zone's tier CEILING — the shelf runs finer.
+    if perks.smith_stock {
+        let gk = match inside.def.stock {
+            "blacksmith" | "fletcher" => Some(crate::procgen::Kind::Weapon),
+            "armory" => Some(crate::procgen::Kind::Armor),
+            _ => None,
+        };
+        if let Some(gk) = gk {
+            let max_t = (zt.clamp(0, 6) / 2).clamp(0, 3);
+            for i in 0..2u32 {
+                let ware = inside.iseed ^ 0x517c_c1b7 ^ (i + 1).wrapping_mul(2_654_435_761);
+                let id = crate::procgen::generate(gk, max_t, ware);
+                stock.push(crate::stock::ShopEntry { id, price: crate::items::price_of(id) });
+            }
+        }
+    }
     let kd = keeper_discount(inside, people);
     if kd < 1.0 {
         for e in &mut stock {

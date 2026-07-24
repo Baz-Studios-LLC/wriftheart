@@ -45,6 +45,9 @@ pub struct DonateState(pub Option<(usize, usize)>); // (wing index, cursor)
 pub struct CityPerks {
     pub fish_mult: f32,
     pub free_inn: bool,
+    pub smith_stock: bool,   // smiths home: gear vendors add ceiling-tier bonus wares
+    pub tome_half: bool,     // scholars home: the library's tome shelf (next increment)
+    pub produce_stall: bool, // tillers home: the produce stall opens (next increment)
 }
 
 /// A wing's donation altar under its crest banner.
@@ -95,6 +98,9 @@ fn perks_tick(
         .unwrap_or_default();
     perks.fish_mult = if done.iter().any(|d| d == "anglers") { 1.5 } else { 1.0 };
     perks.free_inn = done.iter().any(|d| d == "provisioners");
+    perks.smith_stock = done.iter().any(|d| d == "smiths");
+    perks.tome_half = done.iter().any(|d| d == "scholars");
+    perks.produce_stall = done.iter().any(|d| d == "tillers");
 }
 
 /// Wing altars stand up with the room (called from spawn_room_chests' wake path).

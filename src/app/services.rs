@@ -134,7 +134,7 @@ pub(crate) fn interact_tick(
                     input.consume(Action::Interact); // the counter eats the press
                     match *kind {
                         "shop" => {
-                            stock_up(&mut sc.shop, state, &sc.bought, &sc.people, cur.rx, cur.ry, super::gather::farm_day(clock.0));
+                            stock_up(&mut sc.shop, state, &sc.bought, &sc.people, &perks, cur.rx, cur.ry, super::gather::farm_day(clock.0));
                             sc.next.set(Screen::Shop);
                             want = None; // the window replaces the bar (it returns on close)
                         }
