@@ -30,6 +30,7 @@ pub const ART: &[(&str, [&str; 16])] = &[
     ("gnarlwood", ["DddddddDdddddddd", "ddddKddddddddDdd", "ddKdddddddKddddd", "ddKdddDdddKddDdd", "KKKdddddddKKKKdd", "ddddddKKddddddKd", "ddDddddKdddDddKd", "dddddddKdddddddd", "dddddKKKdddddDdd", "ddKKdddddddddKKd", "ddKdddDddddddKdd", "ddKdddddddDddKdd", "ddddddddddKKKddd", "KKddddddddKddddd", "ddddDdddddKdddDd", "ddddddddddKddddd"]),
     ("junglewall", ["lGGGGGGlGGGGGGGG", "GGGGEGGGGGGGGlGG", "GGEGGGGGGGEGGGGG", "GGEGGGlGGGEGGlGG", "EEEGGGGGGGEEEEGG", "GGGGGGEEGGGGGGEG", "GGlGGGGEGGGlGGEG", "GGGGGGGEGGGGGGGG", "GGGGGEEEGGGGGlGG", "GGEEGGGGGGGGGEEG", "GGEGGGlGGGGGGEGG", "GGEGGGGGGGlGGEGG", "GGGGGGGGGGEEEGGG", "EEGGGGGGGGEGGGGG", "GGGGlGGGGGEGGGlG", "GGGGGGGGGGEGGGGG"]),
     ("crystalwall", ["cxxxxxxcxxxxxxxx", "xxxxXxxxxxxxxcxx", "xxXxxxxxxxXxxxxx", "xxXxxxcxxxXxxcxx", "XXXxxxxxxxXXXXxx", "xxxxxxXXxxxxxxXx", "xxcxxxxXxxxcxxXx", "xxxxxxxXxxxxxxxx", "xxxxxXXXxxxxxcxx", "xxXXxxxxxxxxxXXx", "xxXxxxcxxxxxxXxx", "xxXxxxxxxxcxxXxx", "xxxxxxxxxxXXXxxx", "XXxxxxxxxxXxxxxx", "xxxxcxxxxxXxxxcx", "xxxxxxxxxxXxxxxx"]),
+    ("hedgewall", ["LLLLLLLLLLLLLLLL", "LgLLgLLLgLLLLgLL", "gggggggggggggggg", "gglggglgggglgggg", "gggggggggggggggg", "glgggglggglggglg", "gggggggggggggggg", "ggglgggglggglggg", "gggggggggggggggg", "glgggglggglggglg", "gggggggggggggggg", "gglgggglgggglggg", "llgllgllgllgllgl", "llllllllllllllll", "nnnnnnnnnnnnnnnn", "nnnnnnnnnnnnnnnn"]),
     ("cobble", ["aAAnaAAAAnaAanaA", "AAAnAAAdAnAAAnAA", "ssnnsAAAAnssAnss", "nAAAnnnnnnnnAnnn", "nAdAnaAAnaAAAAna", "naAAnAAAnAAdAAnA", "nssAnsAAnsAAAsnA", "nnnnnnssnnnnnnnn", "aAAAAnaAnaAAnaAA", "AAdAAnAAnAAAnAAd", "sAAAsnssnsAAnssA", "nnnnnnnAnnAsnnnn", "aAAnaAAAAnnAAAna", "AAAnAAdAAnAdAAnA", "ssAnsAAAsnAAAsnA", "nnnnnnnnnnnsnnnn"]),
 
     ("castlewall", ["aaaaaaaasaaaaaaa", "AAAAAAAAsAAAAAAA", "AAAAAAAAsAAAAAAA", "ssssssssssssssss", "aaaasaaaaaaasaaa", "AAAAsAAAAAAAsAAA", "AAAAsAAAAAAAsAAA", "ssssssssssssssss", "aaaaaaaasaaaaaaa", "AAAAAAAAsAAAAAAA", "AAAAAAAAsAAAAAAA", "ssssssssssssssss", "aaaasaaaaaaasaaa", "AAAAsAAAAAAAsAAA", "AAAAsAAAAAAAsAAA", "ssssssssssssssss"]),
@@ -88,6 +89,8 @@ pub const CODES: &[(char, &str, bool, &[(char, u32)])] = &[
     // the odd grey stone; 'k' is the KERB course, castle-grey trim along the ways.
     ('q', "cobble", false, &[('A', 0x9c6354), ('a', 0xb8836e), ('s', 0x744a40), ('n', 0x574540), ('d', 0x8a8388)]),
     ('k', "cobble", false, &[('A', 0x8a8a92), ('a', 0xa8acb4), ('s', 0x60646c), ('n', 0x4a4a50), ('d', 0x9aa0a8)]),
+    // The capital's CLIPPED HEDGE: parterre quads, garden walls — solid greenery.
+    ('h', "hedgewall", true, &[('L', 0x79b25c), ('g', 0x4e9350), ('l', 0x2f6a38), ('n', 0x1d4526)]),
 ];
 
 pub const GROUND_DEFS: &[(&str, char, char, &str)] = &[

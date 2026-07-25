@@ -738,6 +738,35 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_BED_V, 100.0, 118.0, false, Some((100.0, 119.0, 10.0, 22.0))),
             (&CP_BED_V, 194.0, 118.0, false, Some((194.0, 119.0, 10.0, 22.0))),
         ],
+        // THE W GATE (0,2): twin towers on the rampart above and below the
+        // mouth, lamplight and blossoms inside — mirrored on the Cross Way.
+        (0, 2) => &[
+            (&CP_TOWER, 8.0, 32.0, false, None),
+            (&CP_TOWER, 8.0, 128.0, false, None),
+            (&CP_LAMP, 36.0, 76.0, false, Some((38.0, 94.0, 4.0, 4.0))),
+            (&CP_LAMP, 36.0, 110.0, false, Some((38.0, 128.0, 4.0, 4.0))),
+            (&CP_BED_V, 40.0, 40.0, false, Some((40.0, 41.0, 10.0, 22.0))),
+            (&CP_BED_V, 40.0, 144.0, false, Some((40.0, 145.0, 10.0, 22.0))),
+        ],
+        // THE E GATE (4,2): the same face, mirrored.
+        (4, 2) => &[
+            (&CP_TOWER, 276.0, 32.0, false, None),
+            (&CP_TOWER, 276.0, 128.0, false, None),
+            (&CP_LAMP, 260.0, 76.0, false, Some((262.0, 94.0, 4.0, 4.0))),
+            (&CP_LAMP, 260.0, 110.0, false, Some((262.0, 128.0, 4.0, 4.0))),
+            (&CP_BED_V, 254.0, 40.0, false, Some((254.0, 41.0, 10.0, 22.0))),
+            (&CP_BED_V, 254.0, 144.0, false, Some((254.0, 145.0, 10.0, 22.0))),
+        ],
+        // THE PARTERRE GARDENS (0,1)/(4,1): benches on the walk's axis, urns
+        // between the hedge quads.
+        (0, 1) | (4, 1) => &[
+            (&CP_BENCH, 142.0, 14.0, false, Some((143.0, 18.0, 18.0, 4.0))),
+            (&CP_BENCH, 142.0, 180.0, false, Some((143.0, 184.0, 18.0, 4.0))),
+            (&CP_URN, 40.0, 76.0, false, Some((42.0, 84.0, 8.0, 5.0))),
+            (&CP_URN, 252.0, 76.0, false, Some((254.0, 84.0, 8.0, 5.0))),
+            (&CP_URN, 40.0, 116.0, false, Some((42.0, 124.0, 8.0, 5.0))),
+            (&CP_URN, 252.0, 116.0, false, Some((254.0, 124.0, 8.0, 5.0))),
+        ],
         _ => &[],
     }
 }
