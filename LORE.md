@@ -80,6 +80,39 @@ to WHY her death unmade him: he had already buried the future once).
 
 ---
 
+## 2c. WRIFTHOLD — the Living Capital (canon, added with the castle town)
+
+**The founding.** In the first years of the Sundered Age, the folk of the broken roads did
+what the Bright Line had taught them without knowing it: they followed the old royal roads
+to where they crossed richest, and there they stopped running. They raised **walls before
+houses** — the phrase survives as the Hold's motto: *THE WALLS FIRST*. The city that grew
+inside them is **Wrifthold**: the hold of the Wrift, where the realm held when the old seat
+fell.
+
+**The deliberate quiet.** Cor Aldane stood where the heart's beat came up loudest, and it
+fell into the wound in a night. Wrifthold's founders chose the opposite: ground where the
+land lies *quiet* underfoot. Visitors from the old age would have called the site unblessed.
+Its people call it safe. (A Tier-2 irony for books: the realm's living capital is the one
+great city built on NO power at all — held up by nothing but people.)
+
+**Two castles.** The Hold's castle is young stone raised by survivors — banners, lit
+windows, guards who talk. It deliberately echoes the old silhouette: same towers, same
+gate-line, the shape every refugee remembered. One castle wears the realm's past
+inside-out (the Black Castle, §2b); the other wears its future. The last march of the age
+runs from the living throne to the dead one.
+
+**The empty throne.** The Bright Line has no heirs (§2b). Wrifthold crowns no king: a
+**Steward of the Realm** keeps the throne empty against the Line's return, and the
+guild-masters sit in council below the dais. Tier-1 folk say the Steward is humble.
+Tier-2 knows the harder truth: there is no one left to return, and the Steward keeps the
+chair empty because a realm that stops waiting starts breaking.
+
+**The guilds came home.** The orders' charters bear the Bright Line's seal and outlived the
+crown (§2b). When the Hold stood, the guilds moved their one great hall inside its walls -
+restore the orders there and their notice boards post work in every market in the realm.
+
+---
+
 ## 3. Timeline (canonical dates)
 
 Years are counted **A.S.** — *After the Sundering*. Before it, the **Whole Age** (W.A.),
