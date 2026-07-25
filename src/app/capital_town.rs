@@ -1206,7 +1206,7 @@ fn shadow_image(w: u32) -> Image {
             let dx = (x as f32 + 0.5 - w as f32 / 2.0) / (w as f32 / 2.0);
             let dy = (y as f32 + 0.5 - h as f32 / 2.0) / (h as f32 / 2.0);
             if dx * dx + dy * dy <= 1.0 {
-                data[((y * w + x) * 4 + 3) as usize] = 56;
+                data[((y * w + x) * 4 + 3) as usize] = 64;
             }
         }
     }
@@ -1538,7 +1538,7 @@ pub fn capital_wake(
         }
         commands.spawn((
             Sprite::from_image(images.add(shadow_image(34))),
-            at(PLAY_X + sx, PLAY_Y + sy + 23.0, 34.0, 8.0, 3.1),
+            at(PLAY_X + sx, PLAY_Y + sy + 23.0, 34.0, 8.0, 3.5),
             PIXEL_LAYER,
             RoomActor,
             CapitalProp,
@@ -1572,7 +1572,7 @@ pub fn capital_wake(
             let img = images.add(crate::gfx::bake(art, HOUSE_PALS[pal]));
             commands.spawn((
                 Sprite::from_image(images.add(shadow_image(w as u32))),
-                at(PLAY_X + hx, PLAY_Y + hy + h - 5.0, w, 8.0, 3.1),
+                at(PLAY_X + hx, PLAY_Y + hy + h - 5.0, w, 8.0, 3.5),
                 PIXEL_LAYER,
                 RoomActor,
                 CapitalProp,
@@ -1625,7 +1625,7 @@ pub fn capital_wake(
         if grounded {
             commands.spawn((
                 Sprite::from_image(images.add(shadow_image(w as u32))),
-                at(PLAY_X + *x, PLAY_Y + *y + h - 5.0, w, 8.0, 3.1),
+                at(PLAY_X + *x, PLAY_Y + *y + h - 5.0, w, 8.0, 3.5),
                 PIXEL_LAYER,
                 RoomActor,
                 CapitalProp,
