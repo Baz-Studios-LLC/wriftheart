@@ -1065,10 +1065,10 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_TOWER, 92.0, 160.0, false, None), // stand ON the rampart (already solid)
             (&CP_TOWER, 192.0, 160.0, false, None),
             (&CP_ARCH, 110.0, 156.0, true, None),
-            (&CP_BED_V, 100.0, 118.0, false, Some((100.0, 119.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 118.0, false, Some((194.0, 119.0, 10.0, 22.0))),
-            (&CP_LAMP, 100.0, 136.0, false, Some((102.0, 154.0, 4.0, 4.0))),
-            (&CP_LAMP, 196.0, 136.0, false, Some((198.0, 154.0, 4.0, 4.0))),
+            (&CP_BED_V, 100.0, 88.0, false, Some((100.0, 89.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 88.0, false, Some((194.0, 89.0, 10.0, 22.0))),
+            (&CP_LAMP, 100.0, 100.0, false, Some((102.0, 118.0, 4.0, 4.0))),
+            (&CP_LAMP, 196.0, 100.0, false, Some((198.0, 118.0, 4.0, 4.0))),
         ],
         // THE GRAND PLAZA (2,2): the fountain roundabout at the crossing of the
         // ways — traffic flows around it — benches and blossom urns at the
@@ -1232,12 +1232,12 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_URN, 240.0, 124.0, false, Some((242.0, 132.0, 8.0, 5.0))),
             (&CP_BENCH, 120.0, 146.0, false, Some((121.0, 150.0, 18.0, 4.0))),
             (&CP_BENCH, 212.0, 146.0, false, Some((213.0, 150.0, 18.0, 4.0))),
-            (&CP_HEADSTONE, 40.0, 44.0, false, Some((41.0, 52.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 60.0, 44.0, false, Some((61.0, 52.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 40.0, 84.0, false, Some((41.0, 92.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 60.0, 84.0, false, Some((61.0, 92.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 40.0, 124.0, false, Some((41.0, 132.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 60.0, 124.0, false, Some((61.0, 132.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 40.0, 36.0, false, Some((41.0, 44.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 60.0, 36.0, false, Some((61.0, 44.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 40.0, 68.0, false, Some((41.0, 76.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 60.0, 68.0, false, Some((61.0, 76.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 40.0, 148.0, false, Some((41.0, 156.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 60.0, 148.0, false, Some((61.0, 156.0, 8.0, 4.0))),
         ],
         // THE SHOP DISTRICT (1,3)/(3,3): shopfronts on a cobbled high street,
         // awnings out, lamps at the ends. Doors open the trades' shelves.
