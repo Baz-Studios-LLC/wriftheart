@@ -1290,6 +1290,20 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_LAMP, 60.0, 132.0, false, Some((62.0, 150.0, 4.0, 4.0))),
             (&CP_LAMP, 236.0, 132.0, false, Some((238.0, 150.0, 4.0, 4.0))),
         ],
+        // THE MARKET SQUARES (1,2)/(3,2): lamplit corners, benches on the south
+        // rail, baskets and blossom strips between the stalls (self-symmetric
+        // about x152, so one arm serves both mirrored rooms).
+        (1, 2) | (3, 2) => &[
+            (&CP_LAMP, 52.0, 24.0, false, Some((54.0, 42.0, 4.0, 4.0))),
+            (&CP_LAMP, 244.0, 24.0, false, Some((246.0, 42.0, 4.0, 4.0))),
+            (&CP_LAMP, 52.0, 160.0, false, Some((54.0, 178.0, 4.0, 4.0))),
+            (&CP_LAMP, 244.0, 160.0, false, Some((246.0, 178.0, 4.0, 4.0))),
+            (&CP_BENCH, 142.0, 176.0, false, Some((143.0, 180.0, 18.0, 4.0))),
+            (&CP_BASKET, 92.0, 44.0, false, Some((93.0, 48.0, 10.0, 5.0))),
+            (&CP_BASKET, 200.0, 44.0, false, Some((201.0, 48.0, 10.0, 5.0))),
+            (&CP_BED_H, 100.0, 164.0, false, Some((101.0, 165.0, 30.0, 8.0))),
+            (&CP_BED_H, 172.0, 164.0, false, Some((173.0, 165.0, 30.0, 8.0))),
+        ],
         _ => &[],
     }
 }
