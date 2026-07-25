@@ -30,6 +30,7 @@ pub const ART: &[(&str, [&str; 16])] = &[
     ("gnarlwood", ["DddddddDdddddddd", "ddddKddddddddDdd", "ddKdddddddKddddd", "ddKdddDdddKddDdd", "KKKdddddddKKKKdd", "ddddddKKddddddKd", "ddDddddKdddDddKd", "dddddddKdddddddd", "dddddKKKdddddDdd", "ddKKdddddddddKKd", "ddKdddDddddddKdd", "ddKdddddddDddKdd", "ddddddddddKKKddd", "KKddddddddKddddd", "ddddDdddddKdddDd", "ddddddddddKddddd"]),
     ("junglewall", ["lGGGGGGlGGGGGGGG", "GGGGEGGGGGGGGlGG", "GGEGGGGGGGEGGGGG", "GGEGGGlGGGEGGlGG", "EEEGGGGGGGEEEEGG", "GGGGGGEEGGGGGGEG", "GGlGGGGEGGGlGGEG", "GGGGGGGEGGGGGGGG", "GGGGGEEEGGGGGlGG", "GGEEGGGGGGGGGEEG", "GGEGGGlGGGGGGEGG", "GGEGGGGGGGlGGEGG", "GGGGGGGGGGEEEGGG", "EEGGGGGGGGEGGGGG", "GGGGlGGGGGEGGGlG", "GGGGGGGGGGEGGGGG"]),
     ("crystalwall", ["cxxxxxxcxxxxxxxx", "xxxxXxxxxxxxxcxx", "xxXxxxxxxxXxxxxx", "xxXxxxcxxxXxxcxx", "XXXxxxxxxxXXXXxx", "xxxxxxXXxxxxxxXx", "xxcxxxxXxxxcxxXx", "xxxxxxxXxxxxxxxx", "xxxxxXXXxxxxxcxx", "xxXXxxxxxxxxxXXx", "xxXxxxcxxxxxxXxx", "xxXxxxxxxxcxxXxx", "xxxxxxxxxxXXXxxx", "XXxxxxxxxxXxxxxx", "xxxxcxxxxxXxxxcx", "xxxxxxxxxxXxxxxx"]),
+    ("cobble", ["aAAanaAAAanaAAan", "AAAAnAAAAAnAAAAn", "sAAsnsAAAsnsAAsn", "nnnnnnnnnnnnnnnn", "AanaAAanaAAanaAA", "AAnAAAAnAAAAnAAA", "AsnsAAsnsAAsnsAA", "nnnnnnnnnnnnnnnn", "naAAAanaAAanaAAa", "nAAAAAnAAAAnAAAA", "nsAAAsnsAAsnsAAs", "nnnnnnnnnnnnnnnn", "AAanaAAanaAAAana", "AAAnAAAAnAAAAAnA", "AAsnsAAsnsAAAsns", "nnnnnnnnnnnnnnnn"]),
     ("castlewall", ["aaaaaaaasaaaaaaa", "AAAAAAAAsAAAAAAA", "AAAAAAAAsAAAAAAA", "ssssssssssssssss", "aaaasaaaaaaasaaa", "AAAAsAAAAAAAsAAA", "AAAAsAAAAAAAsAAA", "ssssssssssssssss", "aaaaaaaasaaaaaaa", "AAAAAAAAsAAAAAAA", "AAAAAAAAsAAAAAAA", "ssssssssssssssss", "aaaasaaaaaaasaaa", "AAAAsAAAAAAAsAAA", "AAAAsAAAAAAAsAAA", "ssssssssssssssss"]),
     ("cavewall", ["annnnnnannnnnnnn", "nnnnKnnnnnnnnann", "nnKnnnnnnnKnnnnn", "nnKnnnannnKnnann", "KKKnnnnnnnKKKKnn", "nnnnnnKKnnnnnnKn", "nnannnnKnnnannKn", "nnnnnnnKnnnnnnnn", "nnnnnKKKnnnnnann", "nnKKnnnnnnnnnKKn", "nnKnnnannnnnnKnn", "nnKnnnnnnnannKnn", "nnnnnnnnnnKKKnnn", "KKnnnnnnnnKnnnnn", "nnnnannnnnKnnnan", "nnnnnnnnnnKnnnnn"]),
     ("gravepath", ["aaaanaaaanaaaana", "aAaanaaaanaaAana", "aaaanaaAanaaaana", "nnnnnnnnnnnnnnnn", "aanaaaaanaaanaaa", "aanaaAaanaaanaAa", "aanaaaaanaAanaaa", "nnnnnnnnnnnnnnnn", "aaaanaaaanaaaana", "aAaanaaaanaaaana", "aaaanaAaanaaAana", "nnnnnnnnnnnnnnnn", "aanaaaaanaaanaaa", "aanaAaaanaaanaaa", "aanaaaaanaaanaAa", "nnnnnnnnnnnnnnnn"]),
@@ -80,6 +81,9 @@ pub const CODES: &[(char, &str, bool, &[(char, u32)])] = &[
     // THE CAPITAL'S OWN STONE (Baz: the wall IS the castle): dressed ashlar
     // coursing, staggered joints — every rampart and the keep wear it, in any biome.
     ('K', "castlewall", true, &[('A', 0x8a8a92), ('a', 0xb0b4be), ('s', 0x545a64)]),
+    // The capital's COBBLESTONE (Baz: the flag grid read as a chocolate bar):
+    // rounded setts in staggered courses, warm greys, tileable by rotation.
+    ('q', "cobble", false, &[('A', 0x8a8388), ('a', 0xa39a90), ('s', 0x6e675e), ('n', 0x4a4440)]),
 ];
 
 pub const GROUND_DEFS: &[(&str, char, char, &str)] = &[

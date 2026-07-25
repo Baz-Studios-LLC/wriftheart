@@ -392,7 +392,19 @@ static TEMPLATES: [[&str; 13]; 25] = [
 pub fn room_map(kx: i32, ky: i32, _wall: char) -> RoomMap {
     let t = &TEMPLATES[(ky * 5 + kx) as usize];
     // 'K' = the capital's OWN castle stone (tiles_art) — never the biome's wall.
-    let map: Vec<String> = t.iter().map(|r| r.chars().map(|c| if c == 'W' { 'K' } else { c }).collect()).collect();
+    // 'q' = capital cobblestone: every street, plaza, and pad walks on setts.
+    let map: Vec<String> = t
+        .iter()
+        .map(|r| {
+            r.chars()
+                .map(|c| match c {
+                    'W' => 'K',
+                    'p' | '_' => 'q',
+                    other => other,
+                })
+                .collect()
+        })
+        .collect();
     let prot: HashSet<usize> = (0..13 * 19).collect();
     RoomMap { map, prot }
 }
