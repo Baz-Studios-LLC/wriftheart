@@ -63,6 +63,10 @@ pub struct RoomSnap {
     pub mobs: Vec<MobSnap>,
     pub drops: Vec<DropSnap>,
     pub critters: Vec<CritterSnap>,
+    /// The phase the snap was taken in — a NIGHT snap (fireflies only, zero
+    /// critters) must not starve the DAY roll (Baz: no critters anywhere).
+    #[allow(dead_code)]
+    pub night: bool,
 }
 
 /// "rx,ry" -> the room's live layer as of the last settled tick there (js roomCache).
@@ -103,7 +107,8 @@ fn snapshot_room(
     }
     let today = farm_day(clock.0); // rooms reset at DAWN (Baz) — one refresh with trees + crops
     cache.0.retain(|_, s| s.day == today);
-    let mut snap = RoomSnap { day: today, mobs: Vec::new(), drops: Vec::new(), critters: Vec::new() };
+    let night = crate::app::lighting::day_darkness(clock.0) > 0.5;
+    let mut snap = RoomSnap { day: today, mobs: Vec::new(), drops: Vec::new(), critters: Vec::new(), night };
     for (m, h) in &mobs {
         if h.hp > 0 {
             snap.mobs.push(MobSnap::Mob { def: m.def, x: m.x, y: m.y, hp: h.hp, max: h.max });
