@@ -1465,6 +1465,7 @@ fn enter_dungeon(
     actors: Query<Entity, With<RoomActor>>,
     mut players: Query<(&mut Player, &mut Health, &mut crate::combat::Knockback)>,
     ledger: Res<DungeonLedger>,
+    guilds: Res<super::guildhall::GuildLedger>,
     relics: Res<Relics>,
     mut log: ResMut<super::rewards::LootLog>,
     doors: Query<&super::caves::CaveDoor>,
@@ -1632,6 +1633,33 @@ fn enter_dungeon(
             let mut d = dungeon::generate(seed, "guildhall", &GenOpts { guildhall: true, ..Default::default() });
             let entrance_key = format!("gh:{},{}", cur.rx, cur.ry);
             apply_ledger(&mut d, &entrance_key, &ledger);
+            // THE WEBS COME DOWN (Baz): a revived guild sweeps its wing spotless,
+            // and the shared halls shed a fifth of their webs per order home.
+            let done: Vec<String> = super::guildhall::city_key(&swap.world.0, cur.rx, cur.ry)
+                .and_then(|k| guilds.0.get(&k).map(|g| g.done.clone()))
+                .unwrap_or_default();
+            let homes = crate::guildhall::wings_home(&done);
+            for fl in &mut d.floors {
+                for room in fl.rooms.values_mut() {
+                    match room.gwing {
+                        Some(gw) => {
+                            if crate::guildhall::home_by_id(&done, gw) {
+                                room.decor.retain(|dc| dc.kind != "cobweb");
+                            }
+                        }
+                        None => {
+                            let mut i = 0;
+                            room.decor.retain(|dc| {
+                                if dc.kind != "cobweb" {
+                                    return true;
+                                }
+                                i += 1;
+                                (i % 5) >= homes
+                            });
+                        }
+                    }
+                }
+            }
             hall.0 = super::guildhall::city_key(&swap.world.0, cur.rx, cur.ry);
             commands.entity(swap.active.0).despawn();
             for a in &actors {

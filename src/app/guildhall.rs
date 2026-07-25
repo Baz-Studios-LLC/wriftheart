@@ -474,6 +474,159 @@ static WING_DRESSING: [&[Dress]; 5] = [
     ],
 ];
 
+// --- THE GREAT HALL'S OWN DRESS (Baz: the main rooms become awesome too) ---
+const GH_SHIELD: [&str; 13] = [
+    "KKKKKKKKKKKK",
+    "KCCCCCCCCCCK",
+    "KCcCCCCCCcCK",
+    "KCCCWWWWCCCK",
+    "KCCWCCCCWCCK",
+    "KCCWCWWCWCCK",
+    "KCCWCCCCWCCK",
+    "KCCCWWWWCCCK",
+    "KCcCCCCCCcCK",
+    ".KCCCCCCCCK.",
+    "..KCCCCCCK..",
+    "...KCCCCK...",
+    "....KKKK....",
+];
+const GH_RUG: [&str; 72] = [
+    "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+    "GFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFG",
+    "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+    "GFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFG",
+    "GFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFG",
+    "GFGFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFFGFG",
+    "GFGFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFGFG",
+    "GFGFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFGFG",
+    "GFGFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFGFG",
+    "GFGFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFGFG",
+    "GFGFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFGFG",
+    "GFGFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFGFG",
+    "GFGFFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFGFG",
+    "GFGFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFFGFG",
+    "GFGFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFGFG",
+    "GFGFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFGFG",
+    "GFGFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFGFG",
+    "GFGFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFGFG",
+    "GFGFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFGFG",
+    "GFGFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFGFG",
+    "GFGFFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFGFG",
+    "GFGFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFFGFG",
+    "GFGFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFGFG",
+    "GFGFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFGFG",
+    "GFGFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFGFG",
+    "GFGFFFFfFFFFFFFfFFFFGFFfFFFFFFFfFFFFFGFG",
+    "GFGFFFfFFFFFFFfFFFFGGGfFFFFFFFfFFFFFFGFG",
+    "GFGFFfFFFFFFFfFFFFGGFGGFFFFFFfFFFFFFFGFG",
+    "GFGFFFFFFFFFfFFFFGGFfFGGFFFFfFFFFFFFFGFG",
+    "GFGFFFFFFFFfFFFFGGFfFFFGGFFfFFFFFFFFFGFG",
+    "GFGFFFFFFFfFFFFGGFfFFFFFGGfFFFFFFFfFFGFG",
+    "GFGFFFFFFfFFFFGGFfFFFFFFFGGFFFFFFfFFFGFG",
+    "GFGFFFFFfFFFFGGFfFFFFFFFfFGGFFFFfFFFFGFG",
+    "GFGFFFFfFFFFGGFfFFFFFFFfFFFGGFFfFFFFFGFG",
+    "GFGFFFfFFFFGGFfFFFFFGFfFFFFFGGfFFFFFFGFG",
+    "GFGFFfFFFFGGFfFFFFFGGGFFFFFFFGGFFFFFFGFG",
+    "GFGFFFFFFGGFfFFFFFGGGGGFFFFFfFGGFFFFFGFG",
+    "GFGFFFFFFFGGFFFFFFFGGGFFFFFfFGGFFFFFFGFG",
+    "GFGFFFFFFFfGGFFFFFfFGFFFFFfFGGFFFFfFFGFG",
+    "GFGFFFFFFfFFGGFFFfFFFFFFFfFGGFFFFfFFFGFG",
+    "GFGFFFFFfFFFFGGFfFFFFFFFfFGGFFFFfFFFFGFG",
+    "GFGFFFFfFFFFFFGGFFFFFFFfFGGFFFFfFFFFFGFG",
+    "GFGFFFfFFFFFFFfGGFFFFFfFGGFFFFfFFFFFFGFG",
+    "GFGFFfFFFFFFFfFFGGFFFfFGGFFFFfFFFFFFFGFG",
+    "GFGFFFFFFFFFfFFFFGGFfFGGFFFFfFFFFFFFFGFG",
+    "GFGFFFFFFFFfFFFFFFGGFGGFFFFfFFFFFFFFFGFG",
+    "GFGFFFFFFFfFFFFFFFfGGGFFFFfFFFFFFFfFFGFG",
+    "GFGFFFFFFfFFFFFFFfFFGFFFFfFFFFFFFfFFFGFG",
+    "GFGFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFGFG",
+    "GFGFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFGFG",
+    "GFGFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFGFG",
+    "GFGFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFGFG",
+    "GFGFFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFGFG",
+    "GFGFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFFGFG",
+    "GFGFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFGFG",
+    "GFGFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFGFG",
+    "GFGFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFGFG",
+    "GFGFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFGFG",
+    "GFGFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFGFG",
+    "GFGFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFGFG",
+    "GFGFFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFGFG",
+    "GFGFFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFFFGFG",
+    "GFGFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFGFG",
+    "GFGFFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFGFG",
+    "GFGFFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFGFG",
+    "GFGFFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFGFG",
+    "GFGFFFfFFFFFFFfFFFFFFFfFFFFFFFfFFFFFFGFG",
+    "GFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFG",
+    "GFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFG",
+    "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+    "GFGFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGFG",
+    "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",
+];
+const GH_RUG_PAL: &[(char, u32)] = &[('G', 0xb08850), ('F', 0x5a2028), ('f', 0x7a3a48)];
+const GH_PILLAR: [&str; 21] = [
+    "KKKKKKKKKKKKKK",
+    "KaaaaaaaaaaaaK",
+    "KAAAAAAAAAAAAK",
+    ".KAAyyyyyyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyCCCCyAK..",
+    ".KAAyyCCyyAK..",
+    ".KAAAyCCyAAK..",
+    ".KAAAAyyAAAK..",
+    ".KAAAAAAAAAK..",
+    ".KAAAAAAAAAK..",
+    "KAAAAAAAAAAAAK",
+    "KaaaaaaaaaaaaK",
+    "KKKKKKKKKKKKKK",
+];
+const GH_PILLAR_PAL: &[(char, u32)] = &[('K', 0x000000), ('A', 0x8a8a92), ('a', 0xa8a8b0), ('y', 0xd8b040), ('C', 0x8a2a34)];
+const GH_HEARTH: [&str; 12] = [
+    "..KKKKKKKKKKKKKKKKKKKKKK..",
+    ".KAAAAAAAAAAAAAAAAAAAAAAK.",
+    "KAAaaAAAAaaAAAAaaAAAAaaAAK",
+    "KAAKKKKKKKKKKKKKKKKKKKKAAK",
+    "KAAK..................KAAK",
+    "KAAK....o.....o.......KAAK",
+    "KAAK...ooo...ooo..o...KAAK",
+    "KAAK..rooor.rooor.oo..KAAK",
+    "KAAK.rrrrrrrrrrrrrrr..KAAK",
+    "KAAKKKKKKKKKKKKKKKKKKKKAAK",
+    "KAAAAAAAAAAAAAAAAAAAAAAAAK",
+    ".KKKKKKKKKKKKKKKKKKKKKKKK.",
+];
+const GH_HEARTH_PAL: &[(char, u32)] = &[('K', 0x000000), ('A', 0x8a8a92), ('a', 0xa8a8b0), ('r', 0xff5020), ('o', 0xffa030)];
+const GH_COUNCIL: [&str; 7] = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    "KDWWDDDDWWDDDDWWDDDDWWDDDDWWDDDDWWDDDDWWDDDK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    ".KK.......KK.............KK...........KK....",
+    ".KK.......KK.............KK...........KK....",
+];
+const GH_COUNCIL_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('W', 0xf0ead0)];
+const GH_CANDEL: [&str; 9] = [
+    "..y..y..y.",
+    "..W..W..W.",
+    "..K..K..K.",
+    "..KKKKKK..",
+    "....KK....",
+    "....KK....",
+    "....KK....",
+    "...KKKK...",
+    "..KKKKKK..",
+];
+const GH_CANDEL_PAL: &[(char, u32)] = &[('K', 0x000000), ('W', 0xf0ead0), ('y', 0xffd34d)];
+
 /// The wing's SPECIALIST: a key-less keeper (not chat — pressing them OPENS the
 /// shelf) whose stock runs deeper as your guild STANDING climbs.
 #[derive(Component)]
@@ -744,6 +897,59 @@ fn altar_wake(
             HallCast,
             v,
         ));
+    }
+    // THE GREAT HALL IN STATE (Baz): both shared rooms dress up — and the CREST
+    // GALLERY is the hall's own progress display, one shield per guild, lit as
+    // each order comes home.
+    if run.drx == 0 && (run.dry == 0 || run.dry == -1) {
+        let south = run.dry == 0;
+        let shield_y = if south { 20.0 } else { 18.0 };
+        for (i, w) in WINGS.iter().enumerate() {
+            let lit = crate::guildhall::wing_home(&done, w);
+            let pal: &[(char, u32)] = &[
+                ('K', 0x000000),
+                ('C', if lit { w.crest } else { 0x3a3a42 }),
+                ('c', if lit { 0xffffff } else { 0x55555e }),
+                ('W', if lit { 0xffffff } else { 0x6a6a72 }),
+            ];
+            let img = images.add(crate::gfx::bake(&GH_SHIELD, pal));
+            commands.spawn((
+                Sprite::from_image(img),
+                at(PLAY_X + 88.0 + i as f32 * 28.0, PLAY_Y + shield_y, 12.0, 13.0, 3.3),
+                PIXEL_LAYER,
+                RoomActor,
+                HallCast,
+            ));
+        }
+        let mut fixed: Vec<(&[&str], &[(char, u32)], f32, f32, f32, Option<(f32, f32, f32, f32)>)> = Vec::new();
+        if south {
+            fixed.push((&GH_RUG, GH_RUG_PAL, 132.0, 76.0, 2.4, None));
+            fixed.push((&GH_PILLAR, GH_PILLAR_PAL, 48.0, 52.0, 0.0, Some((50.0, 82.0, 10.0, 8.0))));
+            fixed.push((&GH_PILLAR, GH_PILLAR_PAL, 242.0, 52.0, 0.0, Some((244.0, 82.0, 10.0, 8.0))));
+            fixed.push((&GH_HEARTH, GH_HEARTH_PAL, 22.0, 104.0, 0.0, Some((24.0, 112.0, 22.0, 5.0))));
+        } else {
+            fixed.push((&GH_COUNCIL, GH_COUNCIL_PAL, 84.0, 96.0, 0.0, Some((85.0, 100.0, 42.0, 5.0))));
+            fixed.push((&GH_CANDEL, GH_CANDEL_PAL, 168.0, 92.0, 0.0, Some((170.0, 100.0, 6.0, 4.0))));
+            fixed.push((&GH_CANDEL, GH_CANDEL_PAL, 206.0, 92.0, 0.0, Some((208.0, 100.0, 6.0, 4.0))));
+            fixed.push((&GH_HEARTH, GH_HEARTH_PAL, 250.0, 56.0, 0.0, Some((252.0, 64.0, 22.0, 5.0))));
+        }
+        for (grid, gpal, dx, dy, zf, blk) in fixed {
+            let img = images.add(crate::gfx::bake(grid, gpal));
+            let (pw, ph) = (grid[0].len() as f32, grid.len() as f32);
+            if let Some(b) = blk {
+                if !blockers.0.contains(&b) {
+                    blockers.0.push(b);
+                }
+            }
+            let z = if zf > 0.0 { zf } else { actor_z(dy + ph) };
+            commands.spawn((
+                Sprite::from_image(img),
+                at(PLAY_X + dx, PLAY_Y + dy, pw, ph, z),
+                PIXEL_LAYER,
+                RoomActor,
+                HallCast,
+            ));
+        }
     }
     // A THRIVING WING (Baz): once a guild is home, its room BUSTLES — three named
     // members of the order, wandering their restored hall, talking shop.
