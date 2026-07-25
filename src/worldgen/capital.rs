@@ -388,10 +388,12 @@ static TEMPLATES: [[&str; 13]; 25] = [
     ],
 ];
 
-/// The authored room, walls baked to this biome's rampart char.
-pub fn room_map(kx: i32, ky: i32, wall: char) -> RoomMap {
+/// The authored room. The capital is ITS OWN biome: walls bake to CASTLE
+/// STONE ('K') no matter the surrounding biome, and every path/pad bakes to
+/// the capital's cobble ('q'); 'k' kerbs pass through.
+pub fn room_map(kx: i32, ky: i32, _wall: char) -> RoomMap {
     let t = &TEMPLATES[(ky * 5 + kx) as usize];
-    let map: Vec<String> = t.iter().map(|r| r.chars().map(|c| if c == 'W' { wall } else { c }).collect()).collect();
+    let map: Vec<String> = t.iter().map(|r| r.chars().map(|c| match c { 'W' => 'K', 'p' | '_' => 'q', other => other }).collect()).collect();
     let prot: HashSet<usize> = (0..13 * 19).collect();
     RoomMap { map, prot }
 }
