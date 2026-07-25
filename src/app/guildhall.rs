@@ -58,25 +58,38 @@ pub struct GuildAltar {
     pub y: f32,
 }
 
-const ALTAR: [&str; 18] = [
-    ".KKKKKKKKKK.",
-    ".KCCCCCCCCK.",
-    ".KCcCCCCcCK.",
-    ".KCCWWWWCCK.",
-    ".KCcWCCWcCK.",
-    ".KCCWWWWCCK.",
-    ".KCcCCCCcCK.",
-    ".KCCCCCCCCK.",
-    "..KCCCCCCK..",
-    "...KCCCCK...",
-    "....KCCK....",
-    ".....KK.....",
-    "..KKKKKKKK..",
-    ".KDDDDDDDDK.",
-    ".KDdDDDDdDK.",
-    ".KDDDDDDDDK.",
-    "KKKKKKKKKKKK",
-    "............",
+const ALTAR: [&str; 31] = [
+    "......KKKKKKKKKKKKKKKK......",
+    ".......KCCCCCCCCCCCCK.......",
+    ".......KCcCCCCCCCCcCK.......",
+    ".......KCCWWWWWWWWCCK.......",
+    ".......KCCWCCCCCCWCCK.......",
+    ".......KCCWCWWWWCWCCK.......",
+    ".......KCCWCWCCWCWCCK.......",
+    ".......KCCWCWCCWCWCCK.......",
+    ".......KCCWCWWWWCWCCK.......",
+    ".......KCCWCCCCCCWCCK.......",
+    ".......KCCWWWWWWWWCCK.......",
+    ".......KCcCCCCCCCCcCK.......",
+    "........KCCCCCCCCCCK........",
+    ".........KCCCCCCCCK.........",
+    "..........KCCCCCCK..........",
+    "...........KKKKKK...........",
+    "............................",
+    "..y......................y..",
+    "..W......................W..",
+    ".KAK....KKKKKKKKKKKK....KAK.",
+    ".KAK...KKaaaaaaaaaaKK...KAK.",
+    "..KKKKKAAaaaaaaaaaaAAKKKKK..",
+    ".KAAAAAAAAAAAAAAAAAAAAAAAAK.",
+    "KAAaaAAAAaaAAAAaaAAAAaaAAAAK",
+    "KAAaaAAAAaaAAAAaaAAAAaaAAAAK",
+    ".KAAAAAAAAAAAAAAAAAAAAAAAAK.",
+    "..KKKKKKKKKKKKKKKKKKKKKKKK..",
+    "..KDDDDDDDDDDDDDDDDDDDDDDK..",
+    "..KDdDDDDdDDDDdDDDDdDDDDdK..",
+    "..KDDDDDDDDDDDDDDDDDDDDDDK..",
+    "..KKKKKKKKKKKKKKKKKKKKKKKK..",
 ];
 
 const DESK: [&str; 10] = [
@@ -132,6 +145,334 @@ impl GuildStanding {
         }
     }
 }
+
+/// A restored wing's bespoke furniture (Baz: super polish, make it look COOL).
+/// (art rows, palette, x, y, wall-hung, blocker) — validated rectangular at authoring.
+type Dress = (&'static [&'static str], &'static [(char, u32)], f32, f32, bool, Option<(f32, f32, f32, f32)>);
+const P_PLANTER: &[&str] = &[
+    "..............g.................",
+    "...g......g..gGg......g....g....",
+    "..gGg....gGg..g......gGg..gGg...",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    "KDnnnnnnnnnnnnnnnnnnnnnnnnnnnnDK",
+    "KDnnnnnnnnnnnnnnnnnnnnnnnnnnnnDK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    ".KK..........................KK.",
+];
+const P_PLANTER_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('n', 0x46311e), ('g', 0x58c060), ('G', 0x8ae890)];
+const P_SEEDRACK: &[&str] = &[
+    "KKKKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDDDK",
+    "KD.j.b.g.j.b.g..DK",
+    "KD.j.b.g.j.b.g..DK",
+    "KDDDDDDDDDDDDDDDDK",
+    "KD.g.j.b.b.g.j..DK",
+    "KD.g.j.b.b.g.j..DK",
+    "KDDDDDDDDDDDDDDDDK",
+    "KD.b.g.j.g.j.b..DK",
+    "KD.b.g.j.g.j.b..DK",
+    "KDDDDDDDDDDDDDDDDK",
+    "KK..............KK",
+];
+const P_SEEDRACK_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('j', 0xd0a848), ('b', 0x7090d8), ('g', 0x7ee08a)];
+const P_CRATES: &[&str] = &[
+    "........oOOo............",
+    ".......oOOOOo..rr...rr..",
+    "KKKKKKKKKKKKK.KKKKKKKKKK",
+    "KDDDDDDDDDDDK.KDDDDDDDDK",
+    "KDdDDDDDDDdDK.KDrrDDrrDK",
+    "KDDDDDDDDDDDK.KDDDDDDDDK",
+    "KDdDDDDDDDdDK.KDDDDDDDDK",
+    "KKKKKKKKKKKKK.KKKKKKKKKK",
+];
+const P_CRATES_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('d', 0x5a4224), ('o', 0xd87028), ('O', 0xf0a040), ('r', 0xe04030)];
+const P_BUNCH: &[&str] = &[
+    "....K.....",
+    "....K.....",
+    "..gGgGg...",
+    ".GgGgGgG..",
+    "..gGgGg...",
+    "...gGg....",
+    "...ggg....",
+    "....g.....",
+];
+const P_BUNCH_PAL: &[(char, u32)] = &[('K', 0x000000), ('g', 0x6a9a48), ('G', 0x8ac860)];
+const P_TROPHY: &[&str] = &[
+    ".KKKKKKKKKKKKKKKKKKKKKKKKKK.",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    "KDD....bbbbbbbbbb.....b..DDK",
+    "KDD..bbBBBBBBBBBBbb..bbb.DDK",
+    "KDD.bBBWBBBBBBBBBBbbbbbb.DDK",
+    "KDD..bbBBBBBBBBBBbb..bbb.DDK",
+    "KDD....bbbbbbbbbb.....b..DDK",
+    "KDDDDDDDDDDDDDDDDDDDDDDDDDDK",
+    ".KKKKKKKKKKKKKKKKKKKKKKKKKK.",
+];
+const P_TROPHY_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('b', 0x5878c0), ('B', 0x7090d8), ('W', 0xffffff)];
+const P_RODRACK: &[&str] = &[
+    "..d...d...d.....",
+    "..d...d...d.....",
+    "..dw..dw..dw....",
+    "..d.w.d.w.d.w...",
+    "..d...d...d.....",
+    "..d...d...d.....",
+    "KKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDK",
+    "..d...d...d.....",
+    "..d...d...d.....",
+    "KKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDK",
+    ".KK...........K.",
+];
+const P_RODRACK_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('d', 0x6a4a2a), ('w', 0xcfe0ec)];
+const P_NET: &[&str] = &[
+    "K...K...K...K...K.",
+    ".w.w.w.w.w.w.w.w..",
+    "..w...w...w...w...",
+    ".w.w.w.w.w.w.w.w..",
+    "w...w...w...w...w.",
+    ".w.w.w.w.w.w.w.w..",
+    "..w...w...w...w...",
+    ".w.w.w.w.w.w.w.w..",
+    "w...w...w...w...w.",
+    ".w...w...w...w....",
+    "..w.....w.....w...",
+    "...w...w...w......",
+];
+const P_NET_PAL: &[(char, u32)] = &[('K', 0x000000), ('w', 0xb8c8d8)];
+const P_FISHBARREL: &[&str] = &[
+    "...b....b.....",
+    "..bb...bb.....",
+    "KKKKKKKKKKKK..",
+    "KnDDDDDDDDnK..",
+    "KDDDDDDDDDDK..",
+    "KnnnnnnnnnnK..",
+    "KDDDDDDDDDDK..",
+    "KnDDDDDDDDnK..",
+    ".KKKKKKKKKK...",
+];
+const P_FISHBARREL_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('n', 0x5a4224), ('b', 0x7090d8)];
+const P_ROPECOIL: &[&str] = &[
+    "..dddddddd..",
+    ".dDDDDDDDDd.",
+    "dDDddddddDDd",
+    "dDdd....dDDd",
+    ".dDDddddDDd.",
+    "..dddddddd..",
+];
+const P_ROPECOIL_PAL: &[(char, u32)] = &[('d', 0x8a6a3a), ('D', 0xb08850)];
+const P_FORGE: &[&str] = &[
+    "..KKKKKKKKKKKKKKKKKKKK....",
+    ".KAAAAAAAAAAAAAAAAAAAAK...",
+    "KAAaaAAAAaaAAAAaaAAAAAaK..",
+    "KAAAAAAAAAAAAAAAAAAAAAAK..",
+    "KAAKKKKKKKKKKKKKKKKKAAAK..",
+    "KAAKrooooooooooooooKAAAK..",
+    "KAAKorrrooorrrooorrKAAAK..",
+    "KAAKKKKKKKKKKKKKKKKKAAAK..",
+    "KAAAAAAAAAAAAAAAAAAAAAAK..",
+    ".KKKKKKKKKKKKKKKKKKKKKK...",
+];
+const P_FORGE_PAL: &[(char, u32)] = &[('K', 0x000000), ('A', 0x8a8a92), ('a', 0xa8a8b0), ('r', 0xff5020), ('o', 0xffa030)];
+const P_TOOLWALL: &[&str] = &[
+    "KKKKKKKKKKKKKKKKKKKKKKKK",
+    "K..A......d......AA....K",
+    "K.AAA.....d.....A..A...K",
+    "K..d...AAAAA....A..A...K",
+    "K..d......d......AA....K",
+    "K..d......d.....A..A...K",
+    "K..d......d....A....A..K",
+    "KKKKKKKKKKKKKKKKKKKKKKKK",
+];
+const P_TOOLWALL_PAL: &[(char, u32)] = &[('K', 0x000000), ('A', 0x9aa0aa), ('d', 0x6a4a2a)];
+const P_ANVIL: &[&str] = &[
+    ".....KKKKKKKKKKK....",
+    "....KAAAAAAAAAAAK...",
+    "..KKAAAAAAAAAAAAKK..",
+    ".K..KAAAAAAAAAK..K..",
+    ".....KAAAAAAAK......",
+    "....KAAAAAAAAAK.....",
+    "...KKKKKKKKKKKKK....",
+    "..KDDDDDDDDDDDDDK...",
+    "..KDDDDDDDDDDDDDK...",
+    "...KKKKKKKKKKKKK....",
+];
+const P_ANVIL_PAL: &[(char, u32)] = &[('K', 0x000000), ('A', 0x9aa0aa), ('D', 0x6a4a2a)];
+const P_QUENCH: &[&str] = &[
+    "..w....w....",
+    ".w....w..w..",
+    "KKKKKKKKKK..",
+    "KnwwwwwwnK..",
+    "KDDDDDDDDK..",
+    "KnnnnnnnnK..",
+    "KDDDDDDDDK..",
+    ".KKKKKKKK...",
+];
+const P_QUENCH_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('n', 0x5a4224), ('w', 0x9ac8e0)];
+const P_INGOTS: &[&str] = &[
+    "......KKKKK.......",
+    ".....KyyyyyK......",
+    "...KKKKKKKKKKK....",
+    "..KAAAAAKcccccK...",
+    ".KKKKKKKKKKKKKKK..",
+    "KcccccKAAAAAKyyyK.",
+    "KKKKKKKKKKKKKKKKK.",
+];
+const P_INGOTS_PAL: &[(char, u32)] = &[('K', 0x000000), ('y', 0xf0c040), ('A', 0xc8ccd8), ('c', 0xd87028)];
+const P_BOOKSHELF: &[&str] = &[
+    "KKKKKKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDDDDDK",
+    "KDrbgjrbjgrbjgjrbgDK",
+    "KDrbgjrbjgrbjgjrbgDK",
+    "KDrbgjrbjgrbjgjrbgDK",
+    "KDDDDDDDDDDDDDDDDDDK",
+    "KDjgrbjbgrjbgrbjgrDK",
+    "KDjgrbjbgrjbgrbjgrDK",
+    "KDjgrbjbgrjbgrbjgrDK",
+    "KDDDDDDDDDDDDDDDDDDK",
+    "KDbjrgbrjgbjrgrbjgDK",
+    "KDbjrgbrjgbjrgrbjgDK",
+    "KDbjrgbrjgbjrgrbjgDK",
+    "KDDDDDDDDDDDDDDDDDDK",
+    "KDgrbjgjbrgrbjbgrjDK",
+    "KDgrbjgjbrgrbjbgrjDK",
+    "KDDDDDDDDDDDDDDDDDDK",
+    "KK................KK",
+];
+const P_BOOKSHELF_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x6a4a2a), ('r', 0xc05848), ('b', 0x5878c0), ('g', 0x58a058), ('j', 0xd0a848)];
+const P_LECTERN: &[&str] = &[
+    "..KKKKKKKKKK..",
+    ".KWWWWKWWWWK..",
+    "KWwwwWKWwwwWK.",
+    "KWWWWWKWWWWWK.",
+    "KKKKKKKKKKKKK.",
+    "....KDDK......",
+    "....KDDK......",
+    "....KDDK......",
+    "...KDDDDK.....",
+    "..KKKKKKKK....",
+];
+const P_LECTERN_PAL: &[(char, u32)] = &[('K', 0x000000), ('W', 0xf0ead0), ('w', 0x8a8a92), ('D', 0x6a4a2a)];
+const P_GLOBE: &[&str] = &[
+    "...KKKK.....",
+    "..KbbggK....",
+    ".KbgbbggbK..",
+    ".KbbgbbbbK..",
+    ".KgbbbgbbK..",
+    "..KbggbbK...",
+    "...KKKK.....",
+    "....KK......",
+    "...KDDK.....",
+    "..KDDDDK....",
+];
+const P_GLOBE_PAL: &[(char, u32)] = &[('K', 0x000000), ('b', 0x5878c0), ('g', 0x58a058), ('D', 0x6a4a2a)];
+const P_STARCHART: &[&str] = &[
+    "KKKKKKKKKKKKKKKKKKKK",
+    "KnnnnnnWnnnnnnnnWnnK",
+    "KnWnnnnnnnWnnnnnnnnK",
+    "KnnnnWnnnnnWnnnWnnnK",
+    "KnnnnnnnWnnnnnnnnnnK",
+    "KnWnnnnnnnnnWnnnWnnK",
+    "KnnnnWnnnWnnnnnnnnnK",
+    "KKKKKKKKKKKKKKKKKKKK",
+];
+const P_STARCHART_PAL: &[(char, u32)] = &[('K', 0x000000), ('n', 0x1a2038), ('W', 0xf0f0ff)];
+const P_FEASTTABLE: &[&str] = &[
+    "............................................",
+    "..ww......ooOo.....gg....ooOo......ww.......",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "KWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWK",
+    "KWwwWWWwwWWWWwwWWWWWwwWWWWwwWWWWWwwWWWwwWWWK",
+    "KWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    ".KK.......KK............KK...........KK.....",
+];
+const P_FEASTTABLE_PAL: &[(char, u32)] = &[('K', 0x000000), ('W', 0xf0ead0), ('w', 0xc8ccd8), ('o', 0xd87028), ('O', 0xf0a040), ('g', 0x58a058)];
+const P_KEGS: &[&str] = &[
+    "......KKKKKKKK........",
+    ".....KnDDDDDDnK.......",
+    ".....KDDdDDdDDK.......",
+    ".....KnDDDDDDnK.......",
+    "KKKKKKKKKKKKKKKKKKKK..",
+    "KnDDDDDDnKKnDDDDDDnK..",
+    "KDDdDDdDDKKDDdDDdDDK..",
+    "KDDDDDDDDKKDDDDDDDDK..",
+    "KnDDDDDDnKKnDDDDDDnK..",
+    ".KKKKKKKK..KKKKKKKK...",
+];
+const P_KEGS_PAL: &[(char, u32)] = &[('K', 0x000000), ('D', 0x8a6a3a), ('d', 0xb08850), ('n', 0x5a4224)];
+const P_POTRACK: &[&str] = &[
+    "KKKKKKKKKKKKKKKKKKKKKKKK",
+    "..K.....K......K....K...",
+    ".KAK...KAAK...KAK..KAAK.",
+    ".KAK...KAAK...KAK..KAAK.",
+    ".KKK...KKKK...KKK..KKKK.",
+    "........................",
+];
+const P_POTRACK_PAL: &[(char, u32)] = &[('K', 0x000000), ('A', 0x8a8a92)];
+const P_HAMS: &[&str] = &[
+    "..K.....K...",
+    "..K.....K...",
+    ".KrK...KrK..",
+    "KrrrK.KrrrK.",
+    "KrRrK.KrRrK.",
+    "KrrrK.KrrrK.",
+    ".KrK...KrK..",
+    "..K.....K...",
+];
+const P_HAMS_PAL: &[(char, u32)] = &[('K', 0x000000), ('r', 0xb05040), ('R', 0xd87060)];
+const P_CHEESE: &[&str] = &[
+    "....KKKKKK....",
+    "..KKyyyyyyKK..",
+    ".KyyyYyyYyyK..",
+    "KKKKKKKKKKKKK.",
+    "KyyYyyyyYyyyK.",
+    "KKKKKKKKKKKKK.",
+];
+const P_CHEESE_PAL: &[(char, u32)] = &[('K', 0x000000), ('y', 0xe8c050), ('Y', 0xc8a030)];
+
+/// Indexed like WINGS: each restored wing's full dressing.
+static WING_DRESSING: [&[Dress]; 5] = [
+    &[
+        (P_PLANTER, P_PLANTER_PAL, 6e+01, 1e+02, false, Some((6e+01, 2e+02, 3e+01, 6e+00))),
+        (P_PLANTER, P_PLANTER_PAL, 2e+02, 1e+02, false, Some((2e+02, 2e+02, 3e+01, 6e+00))),
+        (P_SEEDRACK, P_SEEDRACK_PAL, 2e+01, 6e+01, false, Some((2e+01, 7e+01, 2e+01, 6e+00))),
+        (P_CRATES, P_CRATES_PAL, 3e+02, 6e+01, false, Some((3e+02, 7e+01, 2e+01, 5e+00))),
+        (P_BUNCH, P_BUNCH_PAL, 2e+02, 2e+01, true, None),
+        (P_BUNCH, P_BUNCH_PAL, 2e+02, 2e+01, true, None),
+    ],
+    &[
+        (P_TROPHY, P_TROPHY_PAL, 2e+02, 6e+01, true, None),
+        (P_RODRACK, P_RODRACK_PAL, 2e+01, 6e+01, false, Some((2e+01, 7e+01, 2e+01, 5e+00))),
+        (P_NET, P_NET_PAL, 2e+02, 2e+01, true, None),
+        (P_FISHBARREL, P_FISHBARREL_PAL, 3e+02, 1e+02, false, Some((3e+02, 1e+02, 1e+01, 5e+00))),
+        (P_ROPECOIL, P_ROPECOIL_PAL, 6e+01, 2e+02, false, None),
+    ],
+    &[
+        (P_FORGE, P_FORGE_PAL, 2e+01, 5e+01, false, Some((2e+01, 6e+01, 2e+01, 6e+00))),
+        (P_TOOLWALL, P_TOOLWALL_PAL, 2e+02, 2e+01, true, None),
+        (P_ANVIL, P_ANVIL_PAL, 1e+02, 1e+02, false, Some((1e+02, 1e+02, 2e+01, 6e+00))),
+        (P_QUENCH, P_QUENCH_PAL, 8e+01, 1e+02, false, Some((8e+01, 1e+02, 1e+01, 5e+00))),
+        (P_INGOTS, P_INGOTS_PAL, 3e+02, 1e+02, false, Some((3e+02, 1e+02, 2e+01, 4e+00))),
+    ],
+    &[
+        (P_BOOKSHELF, P_BOOKSHELF_PAL, 2e+01, 5e+01, false, Some((2e+01, 6e+01, 2e+01, 6e+00))),
+        (P_BOOKSHELF, P_BOOKSHELF_PAL, 3e+02, 5e+01, false, Some((3e+02, 6e+01, 2e+01, 6e+00))),
+        (P_LECTERN, P_LECTERN_PAL, 1e+02, 1e+02, false, Some((1e+02, 1e+02, 1e+01, 5e+00))),
+        (P_GLOBE, P_GLOBE_PAL, 2e+02, 1e+02, false, Some((2e+02, 1e+02, 1e+01, 4e+00))),
+        (P_STARCHART, P_STARCHART_PAL, 2e+02, 2e+01, true, None),
+        (P_ROPECOIL, P_ROPECOIL_PAL, 7e+01, 2e+02, false, None),
+    ],
+    &[
+        (P_FEASTTABLE, P_FEASTTABLE_PAL, 9e+01, 1e+02, false, Some((9e+01, 1e+02, 4e+01, 6e+00))),
+        (P_KEGS, P_KEGS_PAL, 2e+01, 6e+01, false, Some((2e+01, 7e+01, 2e+01, 4e+00))),
+        (P_POTRACK, P_POTRACK_PAL, 2e+02, 2e+01, true, None),
+        (P_HAMS, P_HAMS_PAL, 3e+02, 5e+01, true, None),
+        (P_CHEESE, P_CHEESE_PAL, 2e+02, 2e+02, false, None),
+    ],
+];
 
 /// The wing's SPECIALIST: a key-less keeper (not chat — pressing them OPENS the
 /// shelf) whose stock runs deeper as your guild STANDING climbs.
@@ -303,18 +644,22 @@ pub(crate) fn spawn_room_altar(
     let pal: &[(char, u32)] = &[
         ('C', if restored { w.crest } else { 0x4a4a52 }),
         ('c', if restored { 0xffffff } else { 0x6a6a72 }),
+        ('W', if restored { 0xffffff } else { 0x8a8a92 }),
+        ('A', 0x8a8a92),
+        ('a', if restored { 0xb8bcc8 } else { 0x9a9aa2 }),
+        ('y', if restored { 0xffd34d } else { 0x3a3a42 }), // the candles LIGHT with the wing
         ('D', 0x8a6a3a),
         ('d', 0x6a4a2a),
     ];
     let img = images.add(crate::gfx::bake(&ALTAR, pal));
-    let (x, y) = (8.0 * 16.0 + 8.0, 2.0 * 16.0);
-    let blk = (x - 1.0, y + 2.0, 14.0, 14.0);
+    let (x, y) = (128.0, 18.0); // centered where the old 12px altar stood
+    let blk = (x + 1.0, y + 20.0, 26.0, 11.0);
     if !blockers.0.contains(&blk) {
         blockers.0.push(blk);
     }
     commands.spawn((
         Sprite::from_image(img),
-        at(PLAY_X + x, PLAY_Y + y, 12.0, 18.0, actor_z(y + 16.0)),
+        at(PLAY_X + x, PLAY_Y + y, 28.0, 32.0, actor_z(y + 30.0)),
         PIXEL_LAYER,
         RoomActor,
         GuildAltar { wing: widx, x, y },
@@ -452,6 +797,28 @@ fn altar_wake(
                         HallCast,
                     ));
                 }
+                // THE WING IN FULL DRESS (Baz: super polish): planters and seed racks
+                // for the tillers, trophy and nets for the anglers, a lit forge for
+                // the smiths, shelves and a star chart for the scholars, the feast
+                // table for the provisioners. Wall pieces hang flat; floor pieces
+                // block and depth-sort like any prop.
+                for (grid, dpal, dx, dy, wall, blk) in WING_DRESSING[widx] {
+                    let img = images.add(crate::gfx::bake(grid, dpal));
+                    let (pw, ph) = (grid[0].len() as f32, grid.len() as f32);
+                    if let Some(b) = blk {
+                        if !blockers.0.contains(b) {
+                            blockers.0.push(*b);
+                        }
+                    }
+                    let z = if *wall { 3.3 } else { actor_z(dy + ph) };
+                    commands.spawn((
+                        Sprite::from_image(img),
+                        at(PLAY_X + dx, PLAY_Y + dy, pw, ph, z),
+                        PIXEL_LAYER,
+                        RoomActor,
+                        HallCast,
+                    ));
+                }
                 for i in 0..3usize {
                     let seed = key_seed(&key_s) ^ (widx as u32 + 1).wrapping_mul(0x9e37_79b9) ^ (i as u32 + 1).wrapping_mul(0x85eb_ca6b);
                     let (mx, my) = (70.0 + i as f32 * 62.0, 88.0 + ((i * 37) % 40) as f32);
@@ -485,7 +852,7 @@ fn altar_interact(
     let Ok(p) = players.single() else { return };
     let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
     for a in &altars {
-        let ab = (a.x - 6.0, a.y + 4.0, 24.0, 22.0);
+        let ab = (a.x - 4.0, a.y + 16.0, 36.0, 22.0);
         if hitbox.0 < ab.0 + ab.2 && hitbox.0 + hitbox.2 > ab.0 && hitbox.1 < ab.1 + ab.3 && hitbox.1 + hitbox.3 > ab.1 {
             input.consume(Action::Interact);
             donate.0 = Some((a.wing, None, 0));
@@ -774,7 +1141,7 @@ fn donate_tick(
                                 }
                             }
                             if let Some((a, _)) = altars.iter().find(|(a, _)| a.wing == widx) {
-                                spawn_wing_burst(&mut commands, w.crest, a.x + 6.0, a.y + 12.0);
+                                spawn_wing_burst(&mut commands, w.crest, a.x + 14.0, a.y + 22.0);
                             }
                             grant_loot(w.id, &mut commands, &mut images, &mut inv, &mut alloc, &mut rng, &mut log, &mut sfx, extras.1.single().ok());
                             if crate::guildhall::wings_home(&gh.done) >= WINGS.len() {
@@ -1100,7 +1467,7 @@ mod tests {
     #[test]
     fn altar_is_rectangular() {
         for r in ALTAR {
-            assert_eq!(r.chars().count(), 12, "altar row width");
+            assert_eq!(r.chars().count(), 28, "altar row width");
         }
     }
 }
