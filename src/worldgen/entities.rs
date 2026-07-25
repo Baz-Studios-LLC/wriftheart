@@ -96,6 +96,11 @@ impl World {
                     }
                 }
             }
+            // INC 3: THE GUILDHALL — the one hall in the realm, on the capital's
+            // forecourt green, its restoration campaign shared everywhere.
+            if (kx, ky) == (1, 1) {
+                out.push(ent("guildhall", 6, 3));
+            }
             // THE SHOP DISTRICT (1,3)/(3,3): the towns' own service buildings
             // (Baz: recognisable by now), one of each trade, packed shoulder to
             // shoulder with their doors flush on the high street.

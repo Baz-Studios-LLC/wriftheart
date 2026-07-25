@@ -189,23 +189,8 @@ impl World {
             });
             claim(&mut used, c, r);
         }
-        // The hall district: the boarded-up GUILDHALL dominates its grounds.
-        if role == TownRole::Hall {
-            out.push(RoomEntity {
-                kind: "guildhall",
-                sub: String::new(),
-                x: 6 * TILE,
-                y: 3 * TILE,
-                seed: 0,
-                champ: false,
-                elite: false,
-            });
-            for c in 4..=13 {
-                for r in 1..=7 {
-                    used[key(c, r)] = true;
-                }
-            }
-        }
+        // INC 3: the GUILDHALL moved to the capital — city hall districts keep
+        // their grounds; the outdoor guild board in the market posts the work.
         // The market square keeps its fountain centrepiece + flanking braziers.
         if d.well {
             let (ccx, ccy) = (COLS >> 1, ROWS >> 1);

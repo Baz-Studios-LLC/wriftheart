@@ -680,6 +680,8 @@ pub struct ContractBoard {
     pub guild: usize,
     pub x: f32,
     pub y: f32,
+    /// Outdoor city boards carry the capital's key; interior boards use CurrentHall.
+    pub key: Option<String>,
 }
 
 const BOARD: [&str; 14] = [
@@ -790,7 +792,114 @@ fn key_seed(key: &str) -> u32 {
 }
 
 pub fn city_key(world: &crate::worldgen::World, rx: i32, ry: i32) -> Option<String> {
+    // INC 3: the campaign lives at the CAPITAL — its rooms all answer with the
+    // capital's own key, so every hall system works there unchanged.
+    if world.capital_room(rx, ry).is_some() {
+        let (cx, cy) = world.capital();
+        return Some(format!("{},{}", cx, cy));
+    }
     crate::worldgen::towns::town_site_of(world.seed, rx, ry).map(|s| format!("{},{}", s.tx, s.ty))
+}
+
+/// The capital's ledger key (the one campaign everything reads).
+pub fn capital_key(world: &crate::worldgen::World) -> String {
+    let (cx, cy) = world.capital();
+    format!("{},{}", cx, cy)
+}
+
+/// INC-3 MIGRATION: one campaign at the capital — every city ledger folds into
+/// the capital's entry (legacy saves lose nothing; runs whenever old keys appear).
+fn ledger_migrate(world: Res<super::play::GameWorld>, mut ledger: ResMut<GuildLedger>) {
+    if !ledger.is_changed() {
+        return;
+    }
+    let cap = capital_key(&world.0);
+    let old: Vec<String> = ledger.0.keys().filter(|k| **k != cap).cloned().collect();
+    if old.is_empty() {
+        return;
+    }
+    let mut merged = ledger.0.remove(&cap).unwrap_or_default();
+    for k in old {
+        let Some(gs) = ledger.0.remove(&k) else { continue };
+        for d in gs.done {
+            if !merged.done.contains(&d) {
+                merged.done.push(d);
+            }
+        }
+        for (bid, v) in gs.donated {
+            let e = merged.donated.entry(bid).or_default();
+            if e.len() < v.len() {
+                e.resize(v.len(), 0);
+            }
+            for (i, n) in v.iter().enumerate() {
+                e[i] = e[i].max(*n);
+            }
+        }
+    }
+    ledger.0.insert(cap, merged);
+}
+
+/// INC-3: cities lost their halls but keep the WORK — an outdoor notice board per
+/// restored order stands in every city market square, posting the capital hall's
+/// daily contracts (Baz: "live outside where they can get missions").
+#[derive(Component)]
+pub struct CityBoard;
+
+#[allow(clippy::too_many_arguments)]
+fn city_boards_wake(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    cur: Res<CurRoom>,
+    world: Res<super::play::GameWorld>,
+    in_dungeon: Res<super::dungeon::InDungeon>,
+    inside: Res<super::interior::Inside>,
+    ledger: Res<GuildLedger>,
+    mut blockers: ResMut<super::room_props::RoomBlockers>,
+    mut woke: Local<Option<(i32, i32)>>,
+    boards: Query<Entity, With<CityBoard>>,
+) {
+    if in_dungeon.0.is_some() || inside.0.is_some() {
+        *woke = None;
+        return;
+    }
+    if *woke == Some((cur.rx, cur.ry)) {
+        return;
+    }
+    *woke = Some((cur.rx, cur.ry));
+    for e in &boards {
+        commands.entity(e).despawn();
+    }
+    if world.0.capital_room(cur.rx, cur.ry).is_some() {
+        return;
+    }
+    if crate::worldgen::towns::town_role(world.0.seed, cur.rx, cur.ry)
+        != Some(crate::worldgen::towns::TownRole::Market)
+    {
+        return;
+    }
+    let cap = capital_key(&world.0);
+    let done: Vec<String> = ledger.0.get(&cap).map(|g| g.done.clone()).unwrap_or_default();
+    let mut n = 0;
+    for (widx, w) in WINGS.iter().enumerate() {
+        if !crate::guildhall::wing_home(&done, w) {
+            continue;
+        }
+        let (bx, by) = (58.0 + n as f32 * 36.0, 182.0);
+        n += 1;
+        let img = images.add(crate::gfx::bake(&BOARD, BOARD_PAL));
+        let blk = (bx, by + 4.0, 20.0, 10.0);
+        if !blockers.0.contains(&blk) {
+            blockers.0.push(blk);
+        }
+        commands.spawn((
+            Sprite::from_image(img),
+            at(PLAY_X + bx, PLAY_Y + by, 20.0, 14.0, actor_z(by + 14.0)),
+            PIXEL_LAYER,
+            RoomActor,
+            CityBoard,
+            ContractBoard { guild: widx, x: bx, y: by, key: Some(cap.clone()) },
+        ));
+    }
 }
 
 /// Refresh the current city's perks whenever the room changes.
@@ -803,8 +912,7 @@ fn perks_tick(
     if !cur.is_changed() && !ledger.is_changed() {
         return;
     }
-    let done = city_key(&world.0, cur.rx, cur.ry)
-        .and_then(|k| ledger.0.get(&k).map(|g| g.done.clone()))
+    let done = ledger.0.get(&capital_key(&world.0)).map(|g| g.done.clone())
         .unwrap_or_default();
     let home = |id: &str| crate::guildhall::home_by_id(&done, id);
     perks.fish_mult = if home("anglers") { 1.5 } else { 1.0 };
@@ -1019,7 +1127,7 @@ fn altar_wake(
                     PIXEL_LAYER,
                     RoomActor,
                     HallCast,
-                    ContractBoard { guild: widx, x: bdx, y: bdy },
+                    ContractBoard { guild: widx, x: bdx, y: bdy, key: None },
                 ));
                 // THE SPECIALIST: the order's own vendor, post held beside the board.
                 // Key-less on purpose - talk_tick skips them; pressing OPENS the shelf.
@@ -1140,7 +1248,7 @@ fn board_interact(
         let today = super::gather::farm_day(clock.0);
         standing.roll_day(today);
         let w = &WINGS[b.guild];
-        let key = format!("{}:{}", hall.0.clone().unwrap_or_default(), w.id);
+        let key = format!("{}:{}", b.key.clone().or_else(|| hall.0.clone()).unwrap_or_default(), w.id);
         if standing.done_today.iter().any(|k| *k == key) {
             log.add("gh", "THE BOARD IS CLEAR - NEW WORK TOMORROW", 1, 0x8a8a92, false, true);
             sfx.write(super::sfx::Sfx("tink"));
@@ -1695,6 +1803,10 @@ fn stall_wake(
 pub struct GuildhallPlugin;
 impl Plugin for GuildhallPlugin {
     fn build(&self, app: &mut App) {
+        app.add_systems(
+            bevy::app::FixedUpdate,
+            (ledger_migrate, city_boards_wake).run_if(super::screen::playing),
+        );
         app.init_resource::<GuildLedger>()
             .init_resource::<GuildStanding>()
             .init_resource::<CurrentHall>()
