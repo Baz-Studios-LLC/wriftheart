@@ -1195,6 +1195,30 @@ fn fountain_tick(mut q: Query<(&mut CapFx, &mut Sprite)>) {
     }
 }
 
+/// A soft ground shadow for a freestanding prop (black, ~22% alpha).
+fn shadow_image(w: u32) -> Image {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    let h = 8u32;
+    let mut data = vec![0u8; (w * h * 4) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let dx = (x as f32 + 0.5 - w as f32 / 2.0) / (w as f32 / 2.0);
+            let dy = (y as f32 + 0.5 - h as f32 / 2.0) / (h as f32 / 2.0);
+            if dx * dx + dy * dy <= 1.0 {
+                data[((y * w + x) * 4 + 3) as usize] = 56;
+            }
+        }
+    }
+    Image::new(
+        Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    )
+}
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1319,12 +1343,9 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE PARTERRE GARDENS (0,1)/(4,1): benches on the walk's axis, urns
         // between the hedge quads.
         (0, 1) | (4, 1) => &[
-            (&CP_BENCH, 142.0, 14.0, false, Some((143.0, 18.0, 18.0, 4.0))),
             (&CP_BENCH, 142.0, 180.0, false, Some((143.0, 184.0, 18.0, 4.0))),
-            (&CP_URN, 40.0, 76.0, false, Some((42.0, 84.0, 8.0, 5.0))),
-            (&CP_URN, 252.0, 76.0, false, Some((254.0, 84.0, 8.0, 5.0))),
-            (&CP_URN, 40.0, 116.0, false, Some((42.0, 124.0, 8.0, 5.0))),
-            (&CP_URN, 252.0, 116.0, false, Some((254.0, 124.0, 8.0, 5.0))),
+            (&CP_URN, 36.0, 76.0, false, Some((38.0, 84.0, 8.0, 5.0))),
+            (&CP_URN, 256.0, 76.0, false, Some((258.0, 84.0, 8.0, 5.0))),
         ],
         // THE POND PARKS (0,0)/(4,0): a stone-rimmed pond in the green —
         // topiaries at the corners, benches facing the water, urns on the axis.
@@ -1516,6 +1537,13 @@ pub fn capital_wake(
             blockers.0.push(blk);
         }
         commands.spawn((
+            Sprite::from_image(images.add(shadow_image(34))),
+            at(PLAY_X + sx, PLAY_Y + sy + 23.0, 34.0, 8.0, 3.1),
+            PIXEL_LAYER,
+            RoomActor,
+            CapitalProp,
+        ));
+        commands.spawn((
             Sprite::from_image(img),
             at(PLAY_X + sx, PLAY_Y + sy, 34.0, 28.0, actor_z(sy + 26.0)),
             PIXEL_LAYER,
@@ -1542,6 +1570,13 @@ pub fn capital_wake(
         for &(shape, pal, hx, hy) in &HOUSE_SPOTS {
             let (art, w, h) = HOUSE_ARTS[shape];
             let img = images.add(crate::gfx::bake(art, HOUSE_PALS[pal]));
+            commands.spawn((
+                Sprite::from_image(images.add(shadow_image(w as u32))),
+                at(PLAY_X + hx, PLAY_Y + hy + h - 5.0, w, 8.0, 3.1),
+                PIXEL_LAYER,
+                RoomActor,
+                CapitalProp,
+            ));
             let blk = (hx + 2.0, hy + h - 24.0, w - 4.0, 22.0);
             if !blockers.0.contains(&blk) {
                 blockers.0.push(blk);
@@ -1574,6 +1609,28 @@ pub fn capital_wake(
                 CapitalProp,
             ))
             .id();
+        // Freestanding pieces cast a soft ground shadow (Baz: tons of things
+        // in Wrifthold need shadows) — wall overlays and flat beds do not.
+        let grounded = [
+            CP_LAMP.as_ptr(),
+            CP_STATUE.as_ptr(),
+            CP_TOPIARY.as_ptr(),
+            CP_BANNERPOLE.as_ptr(),
+            CP_URN.as_ptr(),
+            CP_BENCH.as_ptr(),
+            CP_BASKET.as_ptr(),
+            CP_MKCROSS.as_ptr(),
+        ]
+        .contains(&grid.as_ptr());
+        if grounded {
+            commands.spawn((
+                Sprite::from_image(images.add(shadow_image(w as u32))),
+                at(PLAY_X + *x, PLAY_Y + *y + h - 5.0, w, 8.0, 3.1),
+                PIXEL_LAYER,
+                RoomActor,
+                CapitalProp,
+            ));
+        }
         // The fountain animates: two more frames, cycled by fountain_tick.
         if std::ptr::eq(grid.as_ptr(), CP_FOUNTAIN.as_ptr()) {
             let frames = [
