@@ -206,6 +206,7 @@ pub fn spawn_bubble(
 ) {
     let w = font::measure(text) as f32;
     let bx = (cx - w / 2.0).round();
+    let by = by.floor(); // fractional anchors shear glyph rows (the town garble)
     commands.spawn((
         Sprite::from_color(Color::srgba(0.0, 0.0, 0.0, 0.95), Vec2::new(w + 4.0, 9.0)),
         at(PLAY_X + bx - 2.0, PLAY_Y + by - 2.0, w + 4.0, 9.0, layers::PROMPT),

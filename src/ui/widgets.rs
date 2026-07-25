@@ -313,6 +313,10 @@ pub fn speech_bubble(
     y: f32,
     z: f32,
 ) -> (Entity, f32) {
+    // WHOLE pixels only (Baz: garbled wild-NPC text, round 2): wanderers stand at
+    // fractional coords, and a half-pixel bubble anchor shears every glyph's rows
+    // (E reads F, I reads T). label() floors internally - the PARENT must too.
+    let (x, y) = (x.floor(), y.floor());
     let (img, w) = crate::gfx::font::bake_text(text, 0xe8f0ff, images);
     let iw = (w + (w & 1)) as f32;
     let bw = iw + 8.0;
