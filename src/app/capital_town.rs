@@ -1038,16 +1038,15 @@ const HOUSE_PALS: [&[(char, u32)]; 4] = [
 
 /// (shape, livery, x, y) — two dense terraces either side of the lanes, no two
 /// neighbours sharing both shape and colour.
-const HOUSE_SPOTS: [(usize, usize, f32, f32); 9] = [
+const HOUSE_SPOTS: [(usize, usize, f32, f32); 8] = [
     (1, 1, 20.0, 0.0),
     (0, 2, 60.0, 8.0),
-    (2, 0, 112.0, 12.0),
-    (0, 3, 172.0, 8.0),
-    (1, 2, 224.0, 0.0),
+    (0, 3, 180.0, 8.0),
+    (1, 2, 232.0, 0.0),
     (2, 3, 24.0, 92.0),
     (0, 0, 84.0, 88.0),
-    (0, 1, 168.0, 88.0),
-    (2, 2, 224.0, 92.0),
+    (0, 1, 180.0, 88.0),
+    (2, 2, 232.0, 92.0),
 ];
 
 #[derive(Component)]
@@ -1147,14 +1146,10 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_STATUE, 206.0, 120.0, false, Some((207.0, 152.0, 20.0, 8.0))),
             (&CP_BANNERPOLE, 98.0, 8.0, false, Some((101.0, 44.0, 6.0, 4.0))),
             (&CP_BANNERPOLE, 194.0, 8.0, false, Some((197.0, 44.0, 6.0, 4.0))),
-            (&CP_BANNERPOLE, 98.0, 76.0, false, Some((101.0, 112.0, 6.0, 4.0))),
-            (&CP_BANNERPOLE, 194.0, 76.0, false, Some((197.0, 112.0, 6.0, 4.0))),
             (&CP_BANNERPOLE, 98.0, 144.0, false, Some((101.0, 180.0, 6.0, 4.0))),
             (&CP_BANNERPOLE, 194.0, 144.0, false, Some((197.0, 180.0, 6.0, 4.0))),
-            (&CP_BED_V, 100.0, 52.0, false, Some((100.0, 53.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 52.0, false, Some((194.0, 53.0, 10.0, 22.0))),
-            (&CP_BED_V, 100.0, 118.0, false, Some((100.0, 119.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 118.0, false, Some((194.0, 119.0, 10.0, 22.0))),
+            (&CP_BED_V, 100.0, 40.0, false, Some((100.0, 41.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 40.0, false, Some((194.0, 41.0, 10.0, 22.0))),
         ],
         // THE W GATE (0,2): twin towers on the rampart above and below the
         // mouth, lamplight and blossoms inside — mirrored on the Cross Way.
@@ -1236,8 +1231,6 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_HEADSTONE, 60.0, 36.0, false, Some((61.0, 44.0, 8.0, 4.0))),
             (&CP_HEADSTONE, 40.0, 68.0, false, Some((41.0, 76.0, 8.0, 4.0))),
             (&CP_HEADSTONE, 60.0, 68.0, false, Some((61.0, 76.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 40.0, 148.0, false, Some((41.0, 156.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 60.0, 148.0, false, Some((61.0, 156.0, 8.0, 4.0))),
         ],
         // THE SHOP DISTRICT (1,3)/(3,3): shopfronts on a cobbled high street,
         // awnings out, lamps at the ends. Doors open the trades' shelves.
@@ -1284,6 +1277,18 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_LAMP, 232.0, 60.0, false, Some((234.0, 78.0, 4.0, 4.0))),
             (&CP_LAMP, 48.0, 124.0, false, Some((50.0, 142.0, 4.0, 4.0))),
             (&CP_LAMP, 232.0, 124.0, false, Some((234.0, 142.0, 4.0, 4.0))),
+        ],
+        // THE GUILDHALL FORECOURT (1,1): sentinels and benches on the hall's
+        // green, lamplight at the pad corners.
+        (1, 1) => &[
+            (&CP_STATUE, 50.0, 96.0, false, Some((51.0, 128.0, 20.0, 8.0))),
+            (&CP_STATUE, 232.0, 96.0, false, Some((233.0, 128.0, 20.0, 8.0))),
+            (&CP_BENCH, 106.0, 152.0, false, Some((107.0, 156.0, 18.0, 4.0))),
+            (&CP_BENCH, 178.0, 152.0, false, Some((179.0, 156.0, 18.0, 4.0))),
+            (&CP_LAMP, 60.0, 40.0, false, Some((62.0, 58.0, 4.0, 4.0))),
+            (&CP_LAMP, 236.0, 40.0, false, Some((238.0, 58.0, 4.0, 4.0))),
+            (&CP_LAMP, 60.0, 132.0, false, Some((62.0, 150.0, 4.0, 4.0))),
+            (&CP_LAMP, 236.0, 132.0, false, Some((238.0, 150.0, 4.0, 4.0))),
         ],
         _ => &[],
     }

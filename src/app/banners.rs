@@ -69,6 +69,14 @@ impl TownNames {
                 .filter(|_| world.town_role(rx, ry).is_some())
                 .map_or_else(|| format!("{rx},{ry}"), |s| format!("{},{}", s.tx, s.ty))
         };
+        // WRIFTHOLD (canon, like EMBERFALL): the hold of the Wrift — where the
+        // realm held the line when the old seat fell. Force-writes over any
+        // generated name an earlier save minted for the site.
+        if cap {
+            let name = "WRIFTHOLD".to_string();
+            self.0.insert(key, name.clone());
+            return name;
+        }
         if let Some(n) = self.0.get(&key) {
             return n.clone();
         }
