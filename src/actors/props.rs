@@ -331,6 +331,24 @@ pub fn tree_grid(kind: &str, seed: i32) -> Vec<String> {
         "giantflower" => ta::build_giantflower(seed),
         "crystalspire" => ta::build_crystalspire(seed),
         "stalagmite" => ta::build_stalagmite(seed),
+        // The capital's orchards: the standard oak with apples hung in the crown.
+        "appletree" => {
+            let mut g = build_oak((19 + (seed % 3)) as f64, seed);
+            let mut s = (seed as u32).wrapping_mul(747_796_405).wrapping_add(0xa991);
+            for row in g.iter_mut() {
+                let mut chars: Vec<char> = row.chars().collect();
+                for ch in chars.iter_mut() {
+                    if *ch == 'G' || *ch == 'l' {
+                        s = s.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                        if (s >> 8) % 100 < 4 {
+                            *ch = '@';
+                        }
+                    }
+                }
+                *row = chars.into_iter().collect();
+            }
+            g
+        }
         _ => build_oak((19 + (seed % 3)) as f64, seed),
     }
 }
@@ -344,6 +362,7 @@ pub fn tree_pal(kind: &str, seed: i32) -> Vec<(char, u32)> {
         "blossom" => vec![('l', 0xffd0ec), ('G', 0xf070b0), ('E', 0xc84e90)], // candy-pink petals
         "jungletree" => vec![('l', 0x7fe88a), ('G', 0x1ca838), ('E', 0x0a6a1c)], // deep jungle green
         "bluebloom" => vec![('l', 0xa9d4ff), ('G', 0x5a8fe0), ('E', 0x2a5aa8)], // soft blue blossom
+        "appletree" => vec![('@', 0xd83030)], // apple red
         "giantflower" => super::tree_art::giantflower_pal(seed),
         _ => vec![],
     }

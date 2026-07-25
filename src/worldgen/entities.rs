@@ -83,13 +83,34 @@ impl World {
         // generator must never touch it. Its buildings arrive as authored content.
         // The lawns DO get the gentle-biome wildflower scatter (no tall grass —
         // the groundskeepers mow).
-        if self.capital_room(rx, ry).is_some() {
+        if let Some((kx, ky)) = self.capital_room(rx, ry) {
             let room = self.generate(rx, ry);
             let (gx0, gy0) = (rx * COLS, ry * ROWS);
             let mut out = Vec::new();
+            // THE ORCHARDS (0,4)/(4,4): the game's own oaks, hung with apples,
+            // in working rows either side of the lanes.
+            if ky == 4 && (kx == 0 || kx == 4) {
+                for &r in &[3, 7, 10] {
+                    for &c in &[3, 6, 12, 15] {
+                        out.push(ent("appletree", c, r));
+                    }
+                }
+            }
+            // THE SHOP DISTRICT (1,3)/(3,3): real town stores on the high street
+            // (Baz: "the stores from the other towns") — doors, interiors, keepers.
+            if ky == 3 && (kx == 1 || kx == 3) {
+                out.push(ent("shop", 4, 4));
+                out.push(ent("shop", 9, 4));
+                out.push(ent("shop", 14, 4));
+                out.push(ent("shop", 9, 10));
+            }
+            let taken: Vec<(i32, i32)> = out.iter().map(|e| (e.x / TILE, e.y / TILE)).collect();
             for r in 1..ROWS - 1 {
                 for c in 1..COLS - 1 {
                     let ch = room.map[r as usize].as_bytes()[c as usize];
+                    if taken.contains(&(c, r)) {
+                        continue;
+                    }
                     if ch == b'.' && self.is_flower_tile(gx0 + c, gy0 + r) {
                         out.push(ent("flower", c, r));
                     } else if ch == b'~' && hash(self.seed, gx0 + c, gy0 + r, SALT_REED) % 100 < 14 {

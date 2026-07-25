@@ -41,7 +41,7 @@ pub struct GrassSway {
 pub(crate) fn is_big_prop(kind: &str) -> bool {
     matches!(
         kind,
-        "oak" | "pine" | "cactus" | "deadtree" | "blossom" | "riftbulb" | "voidspire" | "mawtree"
+        "oak" | "pine" | "cactus" | "deadtree" | "blossom" | "riftbulb" | "voidspire" | "mawtree" | "appletree"
             | "shroom" | "burnttree" | "jungletree" | "giantflower" | "bluebloom"
             | "crystalspire" | "stalagmite"
     )

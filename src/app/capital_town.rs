@@ -757,44 +757,6 @@ const CP_ROWHOUSE: [&str; 40] = [
     "ssssssssssssssssssssssssssssssssssssssssssss",
     "ssssssssssssssssssssssssssssssssssssssssssss",
 ];
-const CP_SHOPFRONT: [&str; 36] = [
-    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
-    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
-    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
-    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
-    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
-    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
-    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
-    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
-    ".b....y....b....y....b....y....b....y...",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "AAKKKKKKKKKKKKKKKKKKAAAAAAKKKKKKKKKKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDyDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
-    "AAKKKKKKKKKKKKKKKKKKAAAAAAKDDDDDDDDKAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDKAAAA",
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDKAAAA",
-    "ssssssssssssssssssssssssssKDDDDDDDDKssss",
-    "ssssssssssssssssssssssssssKDDDDDDDDKssss",
-];
 
 /// BAZ'S CRAZY IDEA: citizens ROAM THE WHOLE CITY. The sim walks them across
 /// all 25 rooms in capital-local pixel space (a room is 304x208; gx/304, gy/208
@@ -947,34 +909,6 @@ fn citizens_show(
     }
 }
 
-const CP_FRUITTREE: [&str; 26] = [
-    ".......LLLLLLLL.......",
-    "....gLLLLLLLLLLLLg....",
-    "....gggggggggggggg....",
-    "....gggggggggggggg....",
-    "..ggggrgggggggglgggg..",
-    "..ggggggglgggggglggg..",
-    "..gglggggglgrggggggg..",
-    "..ggglgrgggggggggglg..",
-    "..ggggggggggglgggggl..",
-    "..ggggglgggggglggrgg..",
-    "..ggrggglggggggggggg..",
-    "..gggggggrgggggglggg..",
-    "...gglggggglggggglg...",
-    "...ggglggggglgrgggg...",
-    "...gggggggggggggggg...",
-    ".....llllllllllll.....",
-    ".........KDDK.........",
-    ".........KDDK.........",
-    ".........KDDK.........",
-    ".........KDDK.........",
-    ".........KDDK.........",
-    ".........KDDK.........",
-    ".........KDDK.........",
-    ".........KDDK.........",
-    ".......ssssssss.......",
-    ".......ssssssss.......",
-];
 const CP_BASKET: [&str; 10] = [
     "...rr.r..r..",
     "..r..r.rr...",
@@ -1182,10 +1116,6 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE SHOP DISTRICT (1,3)/(3,3): shopfronts on a cobbled high street,
         // awnings out, lamps at the ends. Doors open the trades' shelves.
         (1, 3) | (3, 3) => &[
-            (&CP_SHOPFRONT, 48.0, 60.0, false, Some((49.0, 74.0, 38.0, 20.0))),
-            (&CP_SHOPFRONT, 132.0, 60.0, false, Some((133.0, 74.0, 38.0, 20.0))),
-            (&CP_SHOPFRONT, 216.0, 60.0, false, Some((217.0, 74.0, 38.0, 20.0))),
-            (&CP_SHOPFRONT, 132.0, 132.0, false, Some((133.0, 146.0, 38.0, 20.0))),
             (&CP_LAMP, 20.0, 100.0, false, Some((22.0, 118.0, 4.0, 4.0))),
             (&CP_LAMP, 276.0, 100.0, false, Some((278.0, 118.0, 4.0, 4.0))),
         ],
@@ -1203,18 +1133,6 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE ORCHARDS (0,4)/(4,4): fruit trees in working rows along the dirt
         // lanes, harvest baskets set out between them.
         (0, 4) | (4, 4) => &[
-            (&CP_FRUITTREE, 48.0, 24.0, false, Some((55.0, 44.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 96.0, 24.0, false, Some((103.0, 44.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 192.0, 24.0, false, Some((199.0, 44.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 240.0, 24.0, false, Some((247.0, 44.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 48.0, 88.0, false, Some((55.0, 108.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 96.0, 88.0, false, Some((103.0, 108.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 192.0, 88.0, false, Some((199.0, 108.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 240.0, 88.0, false, Some((247.0, 108.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 48.0, 140.0, false, Some((55.0, 160.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 96.0, 140.0, false, Some((103.0, 160.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 192.0, 140.0, false, Some((199.0, 160.0, 8.0, 5.0))),
-            (&CP_FRUITTREE, 240.0, 140.0, false, Some((247.0, 160.0, 8.0, 5.0))),
             (&CP_BASKET, 74.0, 60.0, false, Some((75.0, 64.0, 10.0, 5.0))),
             (&CP_BASKET, 218.0, 60.0, false, Some((219.0, 64.0, 10.0, 5.0))),
             (&CP_BASKET, 146.0, 124.0, false, Some((147.0, 128.0, 10.0, 5.0))),
@@ -1327,15 +1245,6 @@ pub fn capital_wake(
             CapitalProp,
             v,
         ));
-    }
-    // THE SHOP DISTRICT'S DOORS: press at a shopfront door to trade (the same
-    // themed shelves as the stalls, keyed per room so ledgers stay separate).
-    let fronts: &[(usize, f32, f32)] = match (kx, ky) {
-        (1, 3) | (3, 3) => &[(0, 48.0, 60.0), (2, 132.0, 60.0), (3, 216.0, 60.0), (1, 132.0, 132.0)],
-        _ => &[],
-    };
-    for &(theme, sx, sy) in fronts {
-        commands.spawn((RoomActor, CapitalProp, CapitalStall { theme, x: sx + 1.0, y: sy + 18.0 }));
     }
     for (grid, x, y, canopy, blk) in dressing(kx, ky) {
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
