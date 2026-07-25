@@ -70,6 +70,7 @@ enum Cmd {
     TableKit,
     TravelKit,
     SatchelKit,
+    GuildKit(u8), // one per wing: everything its bundles ask for
     ShieldKit,
     KeyRing,
     Potions,
@@ -134,6 +135,11 @@ fn rows(cat: usize) -> Vec<(String, Cmd)> {
             ("TABLE KIT", Cmd::TableKit),
             ("TRAVEL KIT", Cmd::TravelKit),
             ("SATCHEL KIT", Cmd::SatchelKit),
+            ("TILLERS BUNDLE KIT", Cmd::GuildKit(0)),
+            ("ANGLERS BUNDLE KIT", Cmd::GuildKit(1)),
+            ("SMITHS BUNDLE KIT", Cmd::GuildKit(2)),
+            ("SCHOLARS BUNDLE KIT", Cmd::GuildKit(3)),
+            ("PROVISIONERS BUNDLE KIT", Cmd::GuildKit(4)),
             ("SHIELD", Cmd::ShieldKit),
             ("KEY RING", Cmd::KeyRing),
             ("POTION PACK", Cmd::Potions),
@@ -639,6 +645,29 @@ fn drive(
                 ctx.inv.add_item(id, 1);
             }
             log.add("dev", "SATCHEL KIT - EVERY BAG UPGRADE", 1, 0xa07040, false, true);
+        }
+        Cmd::GuildKit(g) => {
+            // Everything the wing's bundles ask for, computed FROM the data so the
+            // kit can never drift from guildhall.rs (Baz: unlock-testing per guild).
+            let w = &crate::guildhall::WINGS[g as usize];
+            for b in w.bundles {
+                for r in b.reqs {
+                    use crate::guildhall::ReqMatch;
+                    let id = match r.matches {
+                        ReqMatch::Ids(ids) => ids[0],
+                        ReqMatch::Kind(k) => match k {
+                            "CROP" => "pumpkin",
+                            "SEED" => "turnipseed",
+                            "FISH" => "minnow",
+                            _ => continue,
+                        },
+                        ReqMatch::RareFish => "pike",
+                        ReqMatch::Dish => "stew",
+                    };
+                    ctx.inv.add_item(id, r.n);
+                }
+            }
+            log.add("dev", &format!("{} - EVERY BUNDLE FILLED IN BAG", w.name), 1, 0xfc8868, false, true);
         }
         Cmd::MatsKit => {
             for id in ["stone", "fiber", "herb", "leather", "meat", "arrow"] {
