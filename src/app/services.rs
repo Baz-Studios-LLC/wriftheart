@@ -86,7 +86,7 @@ pub(crate) struct ServiceCtx<'w> {
     inv: ResMut<'w, crate::inventory::PlayerInv>,
     saves: MessageWriter<'w, super::save::SaveRequest>,
     learned: ResMut<'w, super::flute::LearnedSongs>,
-    tomes: Res<'w, super::gather::GatherState>,
+    tomes: ResMut<'w, super::gather::GatherState>,
 }
 
 /// The interior zone loop: the FIRST fixture under the player prompts + serves. A
@@ -123,6 +123,7 @@ pub(crate) fn interact_tick(
                 // Only ported services prompt (js also runs storage/bard/… — they join later).
                 let served = match *kind {
                     "shop" => state.shop_key.is_some(),
+                    "lorevendor" => true, // the library's TOME counter (dormant until now)
                     "rest" | "heal" | "bed" | "bard" | "storage" => true,
                     _ => false,
                 };
@@ -159,6 +160,7 @@ pub(crate) fn interact_tick(
                             want = None; // the window replaces the bar
                         }
                         "bard" => bard_talk(&mut sc),
+                        "lorevendor" => tome_sale(state, &perks, &mut sc, super::gather::farm_day(clock.0)),
                         "heal" => church_heal(&mut health, &mut sc),
                         "bed" if state.def.kind == "house" => {
                             // YOUR bed offers the chooser: REST or SET SPAWN (Baz).
@@ -250,6 +252,36 @@ fn bard_talk(sc: &mut ServiceCtx) {
     ];
     let n = sc.learned.0.len() % HINTS.len(); // steady, seedless rotation
     sc.log.add("talk", HINTS[n], 1, 0xcfe0ff, false, true);
+}
+
+/// The library's TOME counter (js buyTome): coin for an UNREAD book, straight into
+/// the LORE codex. 45 copper - or 22 in a city where THE SCHOLARS are home (their
+/// perk card: THE LIBRARY SELLS TOMES FOR HALF). The shelf rotates daily, seeded
+/// per library, and only ever offers what you haven't read.
+fn tome_sale(
+    state: &super::interior::InsideState,
+    perks: &super::guildhall::CityPerks,
+    sc: &mut ServiceCtx,
+    today: i64,
+) {
+    let cost: i64 = if perks.tome_half { 22 } else { 45 };
+    let base = state.iseed ^ (today as u32).wrapping_mul(0x9e37_79b9);
+    let pick = (0..24u32)
+        .map(|i| crate::lore_books::book_id_for("library", base.wrapping_add(i * 7)))
+        .find(|id| !sc.tomes.tomes.contains(*id));
+    let Some(id) = pick else {
+        sc.log.add("tome", "THE SHELVES HOLD NOTHING NEW FOR YOU", 1, 0x8a8a92, false, true);
+        return;
+    };
+    if sc.inv.money < cost {
+        sc.log.add("tome", &format!("A TOME IS {cost} COPPER - COME BACK RICHER"), 1, 0xfc8868, false, true);
+        return;
+    }
+    sc.inv.money -= cost;
+    sc.tomes.tomes.insert(id);
+    let title = crate::lore_books::get(id).map_or(id, |b| b.title);
+    sc.log.add("tome", &format!("BOUGHT: {title}"), 1, 0xd8b8ff, false, true);
+    sc.saves.write(super::save::SaveRequest);
 }
 
 /// js innRest's price: base 40, +50% per zone tier, keeper-discounted; the Provisioners'
