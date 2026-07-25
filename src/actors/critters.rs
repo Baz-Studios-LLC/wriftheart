@@ -254,7 +254,6 @@ fn spawn_on_room_change(
     }
     let biome = world.0.biome_key_at(cur.rx, cur.ry);
     if !CRITTER_BIOMES.contains(&biome) {
-        bevy::log::info!("CRITTERS: room {},{} biome {biome} - not a critter biome", cur.rx, cur.ry);
         return;
     }
     let night = crate::app::lighting::day_darkness(clock.0) > 0.5;
@@ -280,7 +279,6 @@ fn spawn_on_room_change(
         None
     };
 
-    bevy::log::info!("CRITTERS: room {},{} biome {biome} night={night}", cur.rx, cur.ry);
     if night {
         // After dark the meadows belong to the FIREFLIES (plus maybe one prowler).
         let n = 5 + (rnd() * 5.0) as i32;
@@ -298,20 +296,15 @@ fn spawn_on_room_change(
     // every rabbit hopped to when you left — re-seat those instead of a fresh
     // roll. A flown-off bird stays flown. (Fireflies re-rolled above: ambience.)
     if let Some(snap) = cache.0.get(&(cur.rx, cur.ry)).filter(|sn| sn.day == day && sn.night == night) {
-        bevy::log::info!("CRITTERS: same-day cache restore, {} critters", snap.critters.len());
         for c in &snap.critters {
             spawn_critter(&mut commands, c.kind, c.x, c.y, c.frame_bank, town_dir);
         }
         return;
     }
     let n = if night { if rnd() < 0.5 { 1 } else { 0 } } else { 2 + (rnd() * 3.0) as i32 };
-    bevy::log::info!("CRITTERS: rolling {n} (cache hit: no)");
     let flowery = matches!(biome, "honeyglade" | "bluebell" | "petalwood");
     for i in 0..n {
-        let Some((c, r)) = clear_spot(&mut rnd, &grid.0, 12) else {
-            bevy::log::info!("CRITTERS: no clear spot (12 tries all solid)");
-            continue;
-        };
+        let Some((c, r)) = clear_spot(&mut rnd, &grid.0, 12) else { continue };
         let roll = rnd();
         // Guarantee one bird when a town's in range, so the compass is always readable.
         let kind = if i == 0 && town_dir.is_some() {
