@@ -89,10 +89,11 @@ impl World {
             let mut out = Vec::new();
             for r in 1..ROWS - 1 {
                 for c in 1..COLS - 1 {
-                    if room.map[r as usize].as_bytes()[c as usize] == b'.'
-                        && self.is_flower_tile(gx0 + c, gy0 + r)
-                    {
+                    let ch = room.map[r as usize].as_bytes()[c as usize];
+                    if ch == b'.' && self.is_flower_tile(gx0 + c, gy0 + r) {
                         out.push(ent("flower", c, r));
+                    } else if ch == b'~' && hash(self.seed, gx0 + c, gy0 + r, SALT_REED) % 100 < 14 {
+                        out.push(ent("lilypad", c, r));
                     }
                 }
             }

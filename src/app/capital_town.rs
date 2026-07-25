@@ -715,6 +715,223 @@ const CP_HEADSTONE: [&str; 12] = [
     ".ssssssss.",
 ];
 
+const CP_ROWHOUSE: [&str; 40] = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAKKKKKKKKAAAAAAAAAAAAAAAAAAKKKKKKKKAAAaa",
+    "aaAAAKooKKooKAAAAAAAAAAAAAAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAAAAAAAAAAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAAAAAAAAAAAAAAKooKKooKAAAaa",
+    "aaAAAKKKKKKKKAAAAAAAAAAAAAAAAAAKKKKKKKKAAAaa",
+    "aaAAAKooKKooKAAAAAAAAAAAAAAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAKKKKKKKKAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAKDDDDDDKAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAKDDDDDDKAAAAAKooKKooKAAAaa",
+    "aaAAAKKKKKKKKAAAAAKDDDDDDKAAAAAKKKKKKKKAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDyDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAaa",
+    "ssssssssssssssssssssssssssssssssssssssssssss",
+    "ssssssssssssssssssssssssssssssssssssssssssss",
+];
+const CP_SHOPFRONT: [&str; 36] = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
+    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
+    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
+    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
+    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
+    "bbbbbyyyyybbbbbyyyyybbbbbyyyyybbbbbyyyyy",
+    ".b....y....b....y....b....y....b....y...",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "AAKKKKKKKKKKKKKKKKKKAAAAAAKKKKKKKKKKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDyDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKoooooooKKoooooooKAAAAAAKDDDDDDDDKAAAA",
+    "AAKKKKKKKKKKKKKKKKKKAAAAAAKDDDDDDDDKAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDKAAAA",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDKAAAA",
+    "ssssssssssssssssssssssssssKDDDDDDDDKssss",
+    "ssssssssssssssssssssssssssKDDDDDDDDKssss",
+];
+
+/// BAZ'S CRAZY IDEA: citizens ROAM THE WHOLE CITY. The sim walks them across
+/// all 25 rooms in capital-local pixel space (a room is 304x208; gx/304, gy/208
+/// give the room); only the current room's walkers wear a sprite. They keep to
+/// the ways, in lanes that pass clear of (or neatly behind) the fountain.
+pub struct Citizen {
+    pub gx: f32,
+    pub gy: f32,
+    pub wx: f32,
+    pub wy: f32,
+    pub pause: f32,
+    pub seed: u32,
+}
+
+#[derive(Resource, Default)]
+pub struct Citizens(pub Vec<Citizen>, pub u32);
+
+#[derive(Component)]
+pub struct CitizenIdx(pub usize);
+
+fn croll(s: &mut u32) -> f32 {
+    *s = s.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+    (*s >> 8) as f32 / 16_777_216.0
+}
+
+/// A destination somewhere on the ways: a lane of the Royal Way (any distance
+/// gate-to-castle) or a lane of the Cross Way (gate-to-gate).
+fn waypoint(s: &mut u32) -> (f32, f32) {
+    if croll(s) < 0.5 {
+        let lane = if croll(s) < 0.5 { 726.0 + croll(s) * 6.0 } else { 780.0 + croll(s) * 4.0 };
+        (lane, 84.0 + croll(s) * 932.0)
+    } else {
+        let lane = if croll(s) < 0.5 { 498.0 + croll(s) * 4.0 } else { 524.0 + croll(s) * 4.0 };
+        (24.0 + croll(s) * 1456.0, lane)
+    }
+}
+
+/// March the whole city's walkers (cheap: a handful of points, no collision —
+/// the ways are open by construction).
+fn citizens_sim(time: Res<bevy::prelude::Time>, mut cz: ResMut<Citizens>) {
+    let Citizens(list, seed) = &mut *cz;
+    if list.is_empty() {
+        *seed = 0xC17_15EE;
+        for _ in 0..18 {
+            let (gx, gy) = waypoint(seed);
+            let (wx, wy) = waypoint(seed);
+            let pause = croll(seed) * 6.0;
+            let cseed = (*seed).max(1);
+            list.push(Citizen { gx, gy, wx, wy, pause, seed: cseed });
+        }
+    }
+    let dt = time.delta_secs().min(0.1);
+    let step = 26.0 * dt;
+    for c in list.iter_mut() {
+        if c.pause > 0.0 {
+            c.pause -= dt;
+            continue;
+        }
+        // To reach the Royal Way, settle x first (walk the Cross to the column,
+        // then turn); to reach the Cross Way, settle y first. Every turn lands
+        // on road, never a lawn.
+        let to_royal = c.wx > 712.0 && c.wx < 800.0 && !(c.wy > 490.0 && c.wy < 550.0);
+        let (dx, dy) = (c.wx - c.gx, c.wy - c.gy);
+        if to_royal {
+            if dx.abs() > step {
+                c.gx += step * dx.signum();
+            } else {
+                c.gx = c.wx;
+                if dy.abs() > step { c.gy += step * dy.signum() } else { c.gy = c.wy }
+            }
+        } else if dy.abs() > step {
+            c.gy += step * dy.signum();
+        } else {
+            c.gy = c.wy;
+            if dx.abs() > step { c.gx += step * dx.signum() } else { c.gx = c.wx }
+        }
+        if (c.gx - c.wx).abs() < 0.5 && (c.gy - c.wy).abs() < 0.5 {
+            c.pause = 1.5 + croll(seed) * 5.0;
+            let (wx, wy) = waypoint(seed);
+            c.wx = wx;
+            c.wy = wy;
+        }
+    }
+}
+
+/// Dress the current room's walkers in villager bodies; strip the ones who left.
+fn citizens_show(
+    mut commands: Commands,
+    cur: Res<CurRoom>,
+    world: Res<GameWorld>,
+    in_dungeon: Res<super::dungeon::InDungeon>,
+    inside: Res<super::interior::Inside>,
+    cz: Res<Citizens>,
+    mut shown: Query<(Entity, &CitizenIdx, &mut crate::actors::villager::Villager)>,
+) {
+    let cap = if in_dungeon.0.is_none() && inside.0.is_none() {
+        world.0.capital_room(cur.rx, cur.ry)
+    } else {
+        None
+    };
+    let here = |i: usize| {
+        cap.is_some_and(|(kx, ky)| {
+            let c = &cz.0[i];
+            (c.gx / 304.0).floor() as i32 == kx && (c.gy / 208.0).floor() as i32 == ky
+        })
+    };
+    let mut present = [false; 32];
+    for (e, idx, mut v) in &mut shown {
+        if !here(idx.0) {
+            commands.entity(e).despawn();
+            continue;
+        }
+        present[idx.0] = true;
+        let c = &cz.0[idx.0];
+        v.x = c.gx % 304.0;
+        v.y = c.gy % 208.0;
+    }
+    let Some(_) = cap else { return };
+    for (i, c) in cz.0.iter().enumerate() {
+        if present[i] || !here(i) {
+            continue;
+        }
+        let (lx, ly) = (c.gx % 304.0, c.gy % 208.0);
+        let mut v = crate::actors::villager::Villager::new(lx, ly, c.seed, String::new());
+        v.hold_post();
+        commands.spawn((
+            Sprite::default(),
+            at(PLAY_X + lx, PLAY_Y + ly, 16.0, 16.0, actor_z(ly + 16.0)),
+            PIXEL_LAYER,
+            RoomActor,
+            CapitalProp,
+            CitizenIdx(i),
+            v,
+        ));
+    }
+}
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -906,6 +1123,27 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_HEADSTONE, 40.0, 124.0, false, Some((41.0, 132.0, 8.0, 4.0))),
             (&CP_HEADSTONE, 60.0, 124.0, false, Some((61.0, 132.0, 8.0, 4.0))),
         ],
+        // THE SHOP DISTRICT (1,3)/(3,3): shopfronts on a cobbled high street,
+        // awnings out, lamps at the ends. Doors open the trades' shelves.
+        (1, 3) | (3, 3) => &[
+            (&CP_SHOPFRONT, 48.0, 60.0, false, Some((49.0, 74.0, 38.0, 20.0))),
+            (&CP_SHOPFRONT, 132.0, 60.0, false, Some((133.0, 74.0, 38.0, 20.0))),
+            (&CP_SHOPFRONT, 216.0, 60.0, false, Some((217.0, 74.0, 38.0, 20.0))),
+            (&CP_SHOPFRONT, 132.0, 132.0, false, Some((133.0, 146.0, 38.0, 20.0))),
+            (&CP_LAMP, 20.0, 100.0, false, Some((22.0, 118.0, 4.0, 4.0))),
+            (&CP_LAMP, 276.0, 100.0, false, Some((278.0, 118.0, 4.0, 4.0))),
+        ],
+        // THE RESIDENTIAL DISTRICT (1,4): row houses on cobbled lanes.
+        (1, 4) => &[
+            (&CP_ROWHOUSE, 56.0, 8.0, false, Some((58.0, 24.0, 40.0, 22.0))),
+            (&CP_ROWHOUSE, 204.0, 8.0, false, Some((206.0, 24.0, 40.0, 22.0))),
+            (&CP_ROWHOUSE, 56.0, 88.0, false, Some((58.0, 104.0, 40.0, 22.0))),
+            (&CP_ROWHOUSE, 204.0, 88.0, false, Some((206.0, 104.0, 40.0, 22.0))),
+            (&CP_LAMP, 76.0, 64.0, false, Some((78.0, 82.0, 4.0, 4.0))),
+            (&CP_LAMP, 220.0, 64.0, false, Some((222.0, 82.0, 4.0, 4.0))),
+            (&CP_BED_V, 100.0, 8.0, false, Some((100.0, 9.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 8.0, false, Some((194.0, 9.0, 10.0, 22.0))),
+        ],
         _ => &[],
     }
 }
@@ -987,6 +1225,15 @@ pub fn capital_wake(
             v,
         ));
     }
+    // THE SHOP DISTRICT'S DOORS: press at a shopfront door to trade (the same
+    // themed shelves as the stalls, keyed per room so ledgers stay separate).
+    let fronts: &[(usize, f32, f32)] = match (kx, ky) {
+        (1, 3) | (3, 3) => &[(0, 48.0, 60.0), (2, 132.0, 60.0), (3, 216.0, 60.0), (1, 132.0, 132.0)],
+        _ => &[],
+    };
+    for &(theme, sx, sy) in fronts {
+        commands.spawn((RoomActor, CapitalProp, CapitalStall { theme, x: sx + 1.0, y: sy + 18.0 }));
+    }
     for (grid, x, y, canopy, blk) in dressing(kx, ky) {
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
         let (w, h) = (grid[0].len() as f32, grid.len() as f32);
@@ -1049,9 +1296,15 @@ fn stall_interact(
 pub struct CapitalTownPlugin;
 impl Plugin for CapitalTownPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<Citizens>();
         app.add_systems(
             bevy::app::FixedUpdate,
-            (capital_wake, stall_interact.after(capital_wake).before(super::talk::talk_tick))
+            (
+                capital_wake,
+                stall_interact.after(capital_wake).before(super::talk::talk_tick),
+                citizens_sim,
+                citizens_show.after(citizens_sim).after(capital_wake),
+            )
                 .before(super::play::EndTick)
                 .run_if(super::screen::playing),
         );
