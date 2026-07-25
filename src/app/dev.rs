@@ -69,6 +69,7 @@ enum Cmd {
     FarmKit,
     TableKit,
     TravelKit,
+    SatchelKit,
     ShieldKit,
     KeyRing,
     Potions,
@@ -132,6 +133,7 @@ fn rows(cat: usize) -> Vec<(String, Cmd)> {
             ("FARM KIT", Cmd::FarmKit),
             ("TABLE KIT", Cmd::TableKit),
             ("TRAVEL KIT", Cmd::TravelKit),
+            ("SATCHEL KIT", Cmd::SatchelKit),
             ("SHIELD", Cmd::ShieldKit),
             ("KEY RING", Cmd::KeyRing),
             ("POTION PACK", Cmd::Potions),
@@ -630,6 +632,13 @@ fn drive(
                 ctx.inv.add_item(id, 20);
             }
             log.add("dev", "WOOD KIT - EVERY TIER", 1, 0xa07040, false, true);
+        }
+        Cmd::SatchelKit => {
+            // Every bag upgrade in one grab (Baz) - each use() grows the bag when eaten.
+            for id in ["satchel", "satchel2", "satchel3", "satchel4"] {
+                ctx.inv.add_item(id, 1);
+            }
+            log.add("dev", "SATCHEL KIT - EVERY BAG UPGRADE", 1, 0xa07040, false, true);
         }
         Cmd::MatsKit => {
             for id in ["stone", "fiber", "herb", "leather", "meat", "arrow"] {
