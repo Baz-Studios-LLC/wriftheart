@@ -1195,30 +1195,6 @@ fn fountain_tick(mut q: Query<(&mut CapFx, &mut Sprite)>) {
     }
 }
 
-/// A soft ground shadow for a freestanding prop (black, ~22% alpha).
-fn shadow_image(w: u32) -> Image {
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-    let h = 8u32;
-    let mut data = vec![0u8; (w * h * 4) as usize];
-    for y in 0..h {
-        for x in 0..w {
-            let dx = (x as f32 + 0.5 - w as f32 / 2.0) / (w as f32 / 2.0);
-            let dy = (y as f32 + 0.5 - h as f32 / 2.0) / (h as f32 / 2.0);
-            if dx * dx + dy * dy <= 1.0 {
-                data[((y * w + x) * 4 + 3) as usize] = 64;
-            }
-        }
-    }
-    Image::new(
-        Extent3d { width: w, height: h, depth_or_array_layers: 1 },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-    )
-}
-
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1537,19 +1513,13 @@ pub fn capital_wake(
             blockers.0.push(blk);
         }
         commands.spawn((
-            Sprite::from_image(images.add(shadow_image(34))),
-            at(PLAY_X + sx, PLAY_Y + sy + 23.0, 34.0, 8.0, 3.5),
-            PIXEL_LAYER,
-            RoomActor,
-            CapitalProp,
-        ));
-        commands.spawn((
             Sprite::from_image(img),
             at(PLAY_X + sx, PLAY_Y + sy, 34.0, 28.0, actor_z(sy + 26.0)),
             PIXEL_LAYER,
             RoomActor,
             CapitalProp,
             CapitalStall { theme, slot, x: sx, y: sy },
+            super::shadows::CastsShadow { left: sx + 1.0, top: sy + 24.0, w: 32, a: 0.85 },
         ));
         // The vendor, key-less at their counter (press = SHOP, not chat).
         let seed = 0xcab1u32 ^ (kx as u32 * 31 + ky as u32 * 7 + theme as u32).wrapping_mul(0x9e37_79b9);
@@ -1570,13 +1540,6 @@ pub fn capital_wake(
         for &(shape, pal, hx, hy) in &HOUSE_SPOTS {
             let (art, w, h) = HOUSE_ARTS[shape];
             let img = images.add(crate::gfx::bake(art, HOUSE_PALS[pal]));
-            commands.spawn((
-                Sprite::from_image(images.add(shadow_image(w as u32))),
-                at(PLAY_X + hx, PLAY_Y + hy + h - 5.0, w, 8.0, 3.5),
-                PIXEL_LAYER,
-                RoomActor,
-                CapitalProp,
-            ));
             let blk = (hx + 2.0, hy + h - 24.0, w - 4.0, 22.0);
             if !blockers.0.contains(&blk) {
                 blockers.0.push(blk);
@@ -1587,6 +1550,7 @@ pub fn capital_wake(
                 PIXEL_LAYER,
                 RoomActor,
                 CapitalProp,
+                super::shadows::CastsShadow { left: hx + 2.0, top: hy + h - 4.0, w: (w - 4.0) as u32, a: 0.9 },
             ));
         }
     }
@@ -1609,27 +1573,28 @@ pub fn capital_wake(
                 CapitalProp,
             ))
             .id();
-        // Freestanding pieces cast a soft ground shadow (Baz: tons of things
-        // in Wrifthold need shadows) — wall overlays and flat beds do not.
-        let grounded = [
-            CP_LAMP.as_ptr(),
-            CP_STATUE.as_ptr(),
-            CP_TOPIARY.as_ptr(),
-            CP_BANNERPOLE.as_ptr(),
-            CP_URN.as_ptr(),
-            CP_BENCH.as_ptr(),
-            CP_BASKET.as_ptr(),
-            CP_MKCROSS.as_ptr(),
+        // Freestanding pieces opt into the shader shadow system (the same
+        // silhouette-sampled, sun-sheared shadows the trees wear).
+        let feet: Option<u32> = [
+            (CP_LAMP.as_ptr(), 6u32),
+            (CP_STATUE.as_ptr(), 20),
+            (CP_TOPIARY.as_ptr(), 14),
+            (CP_BANNERPOLE.as_ptr(), 6),
+            (CP_URN.as_ptr(), 10),
+            (CP_BENCH.as_ptr(), 18),
+            (CP_BASKET.as_ptr(), 10),
+            (CP_MKCROSS.as_ptr(), 24),
         ]
-        .contains(&grid.as_ptr());
-        if grounded {
-            commands.spawn((
-                Sprite::from_image(images.add(shadow_image(w as u32))),
-                at(PLAY_X + *x, PLAY_Y + *y + h - 5.0, w, 8.0, 3.5),
-                PIXEL_LAYER,
-                RoomActor,
-                CapitalProp,
-            ));
+        .iter()
+        .find(|(p, _)| *p == grid.as_ptr())
+        .map(|(_, fw)| *fw);
+        if let Some(fw) = feet {
+            commands.entity(e).insert(super::shadows::CastsShadow {
+                left: *x + (w - fw as f32) / 2.0,
+                top: *y + h - 4.0,
+                w: fw,
+                a: 0.85,
+            });
         }
         // The fountain animates: two more frames, cycled by fountain_tick.
         if std::ptr::eq(grid.as_ptr(), CP_FOUNTAIN.as_ptr()) {
