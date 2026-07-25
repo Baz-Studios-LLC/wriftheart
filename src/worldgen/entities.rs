@@ -81,8 +81,22 @@ impl World {
         // THE CAPITAL IS AUTHORED (Baz: stray wells, houses on the green, and their
         // invisible blockers) — is_town covers it for SAFETY, but the town-dressing
         // generator must never touch it. Its buildings arrive as authored content.
+        // The lawns DO get the gentle-biome wildflower scatter (no tall grass —
+        // the groundskeepers mow).
         if self.capital_room(rx, ry).is_some() {
-            return Vec::new();
+            let room = self.generate(rx, ry);
+            let (gx0, gy0) = (rx * COLS, ry * ROWS);
+            let mut out = Vec::new();
+            for r in 1..ROWS - 1 {
+                for c in 1..COLS - 1 {
+                    if room.map[r as usize].as_bytes()[c as usize] == b'.'
+                        && self.is_flower_tile(gx0 + c, gy0 + r)
+                    {
+                        out.push(ent("flower", c, r));
+                    }
+                }
+            }
+            return out;
         }
         if World::is_castle(rx, ry) {
             return castle_entities(mid_c);
