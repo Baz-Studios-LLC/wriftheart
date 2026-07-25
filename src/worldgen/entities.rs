@@ -78,6 +78,12 @@ impl World {
     /// The room's full entity list — port of `getEntities(rx, ry)`.
     pub fn room_entities(&self, rx: i32, ry: i32) -> Vec<RoomEntity> {
         let (mid_c, mid_r) = (COLS >> 1, ROWS >> 1);
+        // THE CAPITAL IS AUTHORED (Baz: stray wells, houses on the green, and their
+        // invisible blockers) — is_town covers it for SAFETY, but the town-dressing
+        // generator must never touch it. Its buildings arrive as authored content.
+        if self.capital_room(rx, ry).is_some() {
+            return Vec::new();
+        }
         if World::is_castle(rx, ry) {
             return castle_entities(mid_c);
         }
