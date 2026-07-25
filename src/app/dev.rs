@@ -56,6 +56,7 @@ enum Cmd {
     Strip,   // pin the status line to the viewport top
     WarpHome,
     WarpCastle,
+    WarpCapital,
     WarpShard, // cycle row
     Heal,
     Coins,
@@ -115,7 +116,7 @@ fn rows(cat: usize) -> Vec<(String, Cmd)> {
             ("WEATHER", Cmd::Weather),
             ("STATUS STRIP", Cmd::Strip),
         ],
-        1 => &[("WARP HOME", Cmd::WarpHome), ("WARP TO CASTLE", Cmd::WarpCastle), ("WARP TO SHARD SITE", Cmd::WarpShard)],
+        1 => &[("WARP HOME", Cmd::WarpHome), ("WARP TO CASTLE", Cmd::WarpCastle), ("WARP TO CAPITAL", Cmd::WarpCapital), ("WARP TO SHARD SITE", Cmd::WarpShard)],
         2 => &[
             ("FULL HEAL", Cmd::Heal),
             ("+100 COPPER", Cmd::Coins),
@@ -506,6 +507,10 @@ fn drive(
             }
         }
         Cmd::WarpCastle => warp(crate::worldgen::world::CASTLE_RX, crate::worldgen::world::CASTLE_RY, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx),
+        Cmd::WarpCapital => {
+            let (tx, ty) = swap.world.0.capital();
+            warp(tx + 1, ty + 1, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx);
+        }
         Cmd::WarpShard => {
             if let Some(&(_, (rx, ry))) = swap.world.0.shard_sites().get(state.shard_idx) {
                 warp(rx, ry, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx);

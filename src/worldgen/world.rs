@@ -31,6 +31,7 @@ const SALT_BIOME: u32 = 0x9c1f;
 const SALT_TALL: u32 = 0x3ef5;
 const SALT_FLOWER: u32 = 0x39c8;
 const SALT_RIFT: u32 = 0xd15c;
+const SALT_CAPITAL: u32 = 0xca51_7a11;
 const SALT_SHARD: u32 = 0x51ab;
 
 // Terrain noise frequencies/levels (js/world.js — keep identical).
@@ -63,16 +64,19 @@ pub struct World {
     shard: ShardData,
     saltmaze: Option<(i32, i32)>,
     rift: (i32, i32),
+    /// The CASTLE TOWN's top-left room — one walled 4x4 capital per world.
+    capital: (i32, i32),
 }
 
 impl World {
     /// `setSeed` + the lazy caches, made eager: shard sites first, then the Saltmaze.
     pub fn new(seed: u32) -> Self {
         let seed = if seed == 0 { 1 } else { seed }; // JS: (s >>> 0) || 1
-        let mut w = World { seed, shard: ShardData { biomes: vec![], sites: vec![] }, saltmaze: None, rift: (0, 0) };
+        let mut w = World { seed, shard: ShardData { biomes: vec![], sites: vec![] }, saltmaze: None, rift: (0, 0), capital: (0, 0) };
         w.shard = w.compute_shard();
         w.saltmaze = w.compute_saltmaze();
         w.rift = w.compute_rift(); // after shard + saltmaze — the walk dodges both
+        w.capital = w.compute_capital(); // last — its walk dodges everything above
         w
     }
 
@@ -134,7 +138,9 @@ impl World {
         town_role(self.seed, rx, ry)
     }
     pub fn is_town(&self, rx: i32, ry: i32) -> bool {
-        is_town(self.seed, rx, ry)
+        // The capital counts as town everywhere it matters: flat ground, no lava,
+        // no mobs, town streets — its bespoke self arrives in later increments.
+        is_town(self.seed, rx, ry) || self.capital_room(rx, ry).is_some()
     }
 
     // --- Shard dungeons + the Saltmaze (per-seed site tables) ----------------------------
@@ -253,6 +259,53 @@ impl World {
         }
         (r, 0) // unreachable — a whole ring can't be all set-pieces
     }
+    /// THE CAPITAL (castle town): its centre walks the ZONE-3 ring — a mid-game
+    /// pilgrimage — dodging towns, shard sites, the Saltmaze, the Rift Spire, and
+    /// keeping well clear of the DARK CASTLE (the fallen seat is the FINAL dungeon;
+    /// this is where the realm regrouped).
+    fn compute_capital(&self) -> (i32, i32) {
+        let r = 3 * ZONE_RING + 3; // the heart of zone 3
+        let per = 8 * r;
+        let start = (hash(self.seed, 0, 0, SALT_CAPITAL) % per as u32) as i32;
+        'walk: for i in 0..per {
+            let idx = (start + i) % per;
+            let (side, o) = (idx / (2 * r), idx % (2 * r));
+            let (px, py) = match side {
+                0 => (-r + o, -r),
+                1 => (r, -r + o),
+                2 => (r - o, r),
+                _ => (-r, r - o),
+            };
+            let (ax, ay) = (px - 1, py - 1); // anchor so the walk point sits mid-town
+            if (ax - CASTLE_RX).abs().max((ay - CASTLE_RY).abs()) < 10 {
+                continue; // the two castles never crowd each other's drama
+            }
+            for dy in -1..=4 {
+                for dx in -1..=4 {
+                    let (nx, ny) = (ax + dx, ay + dy);
+                    if is_town(self.seed, nx, ny)
+                        || self.shard_dungeon_at(nx, ny).is_some()
+                        || self.saltmaze_at(nx, ny)
+                        || self.rift_at(nx, ny)
+                    {
+                        continue 'walk;
+                    }
+                }
+            }
+            return (ax, ay);
+        }
+        (r - 1, -1) // unreachable — a whole ring can't be all set-pieces
+    }
+    /// The capital's top-left room (the 4x4 spans capital .. capital+3 both axes).
+    pub fn capital(&self) -> (i32, i32) {
+        self.capital
+    }
+    /// This room's offset inside the capital (0..4, 0..4), or None.
+    pub fn capital_room(&self, rx: i32, ry: i32) -> Option<(i32, i32)> {
+        let (dx, dy) = (rx - self.capital.0, ry - self.capital.1);
+        ((0..4).contains(&dx) && (0..4).contains(&dy)).then_some((dx, dy))
+    }
+
     /// Is this room THE rift spire's? (One per world.)
     pub fn rift_at(&self, ax: i32, ay: i32) -> bool {
         (ax, ay) == self.rift
