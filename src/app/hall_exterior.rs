@@ -93,6 +93,30 @@ pub fn bake_hall(stage: usize, crests: &[u32]) -> Image {
     // Gabled slate roof (brighter, whole slates once repaired).
     p.gable(W / 2, -56, -30, -4, W + 4, if fixed { 0x3a4250 } else { 0x32363e });
     p.gable(W / 2, -52, -30, 2, W - 2, if fixed { 0x525c6e } else { 0x464b56 });
+    // Slate courses across the gable, and a stone oculus at the peak.
+    for cy in [-48i32, -42, -36] {
+        let t = (cy + 52) as f32 / 22.0;
+        let l = (W / 2) as f32 * (1.0 - t) + 2.0 * t;
+        let r = (W / 2) as f32 * (1.0 - t) + (W - 2) as f32 * t;
+        for x in (l.ceil() as i32)..=(r.floor() as i32) {
+            p.put(x, cy, if fixed { 0x424a5a } else { 0x3a3f48 }, 0.9);
+        }
+    }
+    for dy in -4..=4i32 {
+        for dx in -4..=4i32 {
+            let d = ((dx * dx + dy * dy) as f32).sqrt();
+            if d <= 4.2 {
+                let c = if d > 2.6 {
+                    0x2a2a32
+                } else if whole {
+                    0xffd27a
+                } else {
+                    0x14141a
+                };
+                p.put(W / 2 + dx, -42 + dy, c, 1.0);
+            }
+        }
+    }
     if st >= 2 && !fixed {
         // Fresh slate patches mid-repair.
         p.rect(28, -44, 12, 6, 0x5a6478);
@@ -120,9 +144,27 @@ pub fn bake_hall(stage: usize, crests: &[u32]) -> Image {
             p.rect(6 + i * 18, -22 + (i % 2) * 14, 10, 3, 0x7a7a84);
         }
     }
+    // Ashlar coursing + corner buttresses (the capital's stone language).
+    for (row, yy) in (-26..14i32).step_by(6).enumerate() {
+        p.rect_a(0, yy, W, 1, 0x3c3c46, 0.45);
+        let mut x = if row % 2 == 0 { 6 } else { 13 };
+        while x < W {
+            p.rect_a(x, yy + 1, 1, 5, 0x3c3c46, 0.28);
+            x += 14;
+        }
+    }
+    let but = if fixed { 0x8e8e98 } else { 0x76767e };
+    for bx in [-2, W - 2] {
+        p.rect(bx, -32, 4, 48, but);
+        p.rect(if bx < 0 { bx + 3 } else { bx }, -32, 1, 48, 0x4a4a54);
+        p.rect(bx - 1, -33, 6, 3, but);
+    }
     // Flanking windows: boarded -> opened dark -> aglow when the hall lives again.
     for wx in [14, W - 26] {
         p.rect(wx, -18, 12, 14, 0x1a1a20);
+        let sur = if fixed { 0x8e8e98 } else { 0x76767e };
+        p.rect(wx - 2, -21, 16, 3, sur);
+        p.rect(wx - 2, -4, 16, 2, sur);
         if whole {
             p.rect_a(wx + 1, -17, 10, 12, 0xffd27a, 0.78); // glow frozen mid-pulse
             p.rect(wx + 5, -17, 1, 12, 0x3a2c14);
@@ -137,6 +179,11 @@ pub fn bake_hall(stage: usize, crests: &[u32]) -> Image {
     }
     // Grand double door: planked over until the first guild returns.
     let dx2 = W / 2 - 12;
+    let sur = if fixed { 0x8e8e98 } else { 0x76767e };
+    p.rect(dx2 - 3, -15, 30, 3, sur);
+    p.rect(dx2 + 9, -17, 6, 3, sur);
+    p.rect(dx2 - 3, -12, 3, 28, sur);
+    p.rect(dx2 + 24, -12, 3, 28, sur);
     p.rect(dx2, -12, 24, 28, 0x241a10);
     p.rect(dx2 + 2, -10, 20, 26, if fixed { 0x5a4226 } else { 0x4a3620 });
     if fixed {
@@ -151,6 +198,16 @@ pub fn bake_hall(stage: usize, crests: &[u32]) -> Image {
     }
     if whole {
         p.rect_a(dx2 - 3, -13, 30, 32, 0xffd27a, 0.14); // warm spill from the doorway
+    }
+    // Door lanterns: the fixtures return with the repair, light with the guilds.
+    if fixed {
+        for lx in [dx2 - 16, dx2 + 38] {
+            p.rect(lx, -19, 3, 5, 0x3a3e46);
+            if whole {
+                p.rect(lx, -18, 3, 3, 0xffd27a);
+                p.rect_a(lx - 2, -21, 7, 9, 0xffd27a, 0.18);
+            }
+        }
     }
     // Scaffolding while the works are up (stages 2-3).
     if st >= 2 && !fixed {
@@ -169,6 +226,13 @@ pub fn bake_hall(stage: usize, crests: &[u32]) -> Image {
     // The plaque band (lettering rides as a label so the shared font draws it).
     let nw = font::measure("GUILDHALL");
     p.rect((W - nw) / 2 - 3, -28, nw + 6, 9, 0x2a2a32);
+    if st >= 1 {
+        let (px, pw) = ((W - nw) / 2 - 3, nw + 6);
+        p.rect(px, -28, pw, 1, 0xc8a04a);
+        p.rect(px, -20, pw, 1, 0xc8a04a);
+        p.rect(px, -28, 1, 9, 0xc8a04a);
+        p.rect(px + pw - 1, -28, 1, 9, 0xc8a04a);
+    }
     // Banner poles by the door; every restored guild hangs its crest on the line.
     let pole = if whole { 0x5a4226 } else { 0x3a3228 };
     p.rect(dx2 - 10, -20, 2, 36, pole);
