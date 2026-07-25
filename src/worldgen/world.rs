@@ -357,6 +357,11 @@ impl World {
     }
     /// Ground texture name for a walkable tile — port of `groundName`.
     pub fn ground_name(&self, gx: i32, gy: i32) -> &'static str {
+        // THE CAPITAL IS ITS OWN BIOME (Baz): manicured lawn wall to wall,
+        // whatever land the map put underneath.
+        if self.capital_room(gx.div_euclid(COLS), gy.div_euclid(ROWS)).is_some() {
+            return "meadow";
+        }
         let b = self.rules_at_tile(gx, gy);
         if value_noise(self.seed, gx as f64 * GRASS_FREQ, gy as f64 * GRASS_FREQ, SALT_GRASS)
             > b.grass

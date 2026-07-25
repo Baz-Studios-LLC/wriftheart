@@ -7,6 +7,7 @@
 //! `tests/worldgen_parity.rs` (arithmetic) and `tests/worldmap_parity.rs` (whole room maps).
 
 pub mod biomes;
+pub mod capital;
 pub mod doors;
 pub mod edges;
 pub mod entities;

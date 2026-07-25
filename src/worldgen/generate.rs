@@ -32,6 +32,12 @@ impl World {
         let gy0 = ry * ROWS;
         let wall = self.biome_at(rx, ry).wall;
 
+        // THE CAPITAL IS ITS OWN BIOME (Baz): every tile authored — no water
+        // fill, no biome noise, no procedural streets. Templates carry the
+        // ramparts, the gates, and the castle's own mass.
+        if let Some((kx, ky)) = self.capital_room(rx, ry) {
+            return super::capital::room_map(kx, ky, wall);
+        }
         let village_room = rx == 1 && ry == 0;
         let castle_room = World::is_castle(rx, ry);
         let town = self.is_town(rx, ry) || village_room;
@@ -505,71 +511,6 @@ impl World {
                 let ud = water_at(r - 1, c) && water_at(r + 1, c);
                 if lr || ud {
                     grid[r as usize][c as usize] = 'B';
-                }
-            }
-        }
-
-        // THE CAPITAL'S RAMPARTS (castle town inc 1): the 4x4's perimeter rooms
-        // raise a 2-tile wall on their outer edges, then the four GATES carve
-        // through (authored: N in room (1,0), E (3,1), S (2,3), W (0,2)).
-        // Interior seams stay open streets; bespoke wall ART lands in inc 2.
-        if let Some((kx, ky)) = self.capital_room(rx, ry) {
-            for t in 0..2i32 {
-                if ky == 0 {
-                    for c in 0..COLS {
-                        grid[t as usize][c as usize] = wall;
-                        prot.insert(idx(t, c));
-                    }
-                }
-                if ky == 3 {
-                    for c in 0..COLS {
-                        grid[(ROWS - 1 - t) as usize][c as usize] = wall;
-                        prot.insert(idx(ROWS - 1 - t, c));
-                    }
-                }
-                if kx == 0 {
-                    for r in 0..ROWS {
-                        grid[r as usize][t as usize] = wall;
-                        prot.insert(idx(r, t));
-                    }
-                }
-                if kx == 3 {
-                    for r in 0..ROWS {
-                        grid[r as usize][(COLS - 1 - t) as usize] = wall;
-                        prot.insert(idx(r, COLS - 1 - t));
-                    }
-                }
-            }
-            if kx == 1 && ky == 0 {
-                for t in 0..2i32 {
-                    for c in 8..=11i32 {
-                        grid[t as usize][c as usize] = '.';
-                        prot.insert(idx(t, c));
-                    }
-                }
-            }
-            if kx == 2 && ky == 3 {
-                for t in 0..2i32 {
-                    for c in 8..=11i32 {
-                        grid[(ROWS - 1 - t) as usize][c as usize] = '.';
-                        prot.insert(idx(ROWS - 1 - t, c));
-                    }
-                }
-            }
-            if kx == 0 && ky == 2 {
-                for t in 0..2i32 {
-                    for r in 5..=8i32 {
-                        grid[r as usize][t as usize] = '.';
-                        prot.insert(idx(r, t));
-                    }
-                }
-            }
-            if kx == 3 && ky == 1 {
-                for t in 0..2i32 {
-                    for r in 5..=8i32 {
-                        grid[r as usize][(COLS - 1 - t) as usize] = '.';
-                        prot.insert(idx(r, COLS - 1 - t));
-                    }
                 }
             }
         }
