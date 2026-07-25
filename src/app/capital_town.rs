@@ -1049,6 +1049,45 @@ const HOUSE_SPOTS: [(usize, usize, f32, f32); 8] = [
     (2, 2, 232.0, 92.0),
 ];
 
+const CP_MKCROSS: [&str; 36] = [
+    "............KyyK............",
+    "............yyyy............",
+    ".........KyyyyyyyyK.........",
+    ".........yyyyyyyyyy.........",
+    "............yyyy............",
+    "............yyyy............",
+    "............yyyy............",
+    "............yyyy............",
+    "............yyyy............",
+    "...........KKKKKK...........",
+    "...........AAAAAA...........",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    "............aAAs............",
+    ".........aaaaaaaaaa.........",
+    ".........AAAAAAAAAA.........",
+    ".........AAAAAAAAAA.........",
+    ".........ssssssssss.........",
+    ".....aaaaaaaaaaaaaaaaaa.....",
+    ".....AAAAAAAAAAAAAAAAAA.....",
+    ".....AAAAAAAAAAAAAAAAAA.....",
+    ".....ssssssssssssssssss.....",
+    ".aaaaaaaaaaaaaaaaaaaaaaaaaa.",
+    ".AAAAAAAAAAAAAAAAAAAAAAAAAA.",
+    ".AAAAAAAAAAAAAAAAAAAAAAAAAA.",
+    ".ssssssssssssssssssssssssss.",
+    ".ssssssssssssssssssssssssss.",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+];
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1294,15 +1333,15 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // rail, baskets and blossom strips between the stalls (self-symmetric
         // about x152, so one arm serves both mirrored rooms).
         (1, 2) | (3, 2) => &[
+            (&CP_MKCROSS, 138.0, 36.0, false, Some((142.0, 62.0, 20.0, 8.0))),
+            (&CP_BASKET, 100.0, 54.0, false, Some((101.0, 58.0, 10.0, 5.0))),
+            (&CP_BASKET, 192.0, 54.0, false, Some((193.0, 58.0, 10.0, 5.0))),
+            (&CP_BED_H, 64.0, 130.0, false, Some((65.0, 131.0, 30.0, 8.0))),
+            (&CP_BED_H, 208.0, 130.0, false, Some((209.0, 131.0, 30.0, 8.0))),
             (&CP_LAMP, 52.0, 24.0, false, Some((54.0, 42.0, 4.0, 4.0))),
             (&CP_LAMP, 244.0, 24.0, false, Some((246.0, 42.0, 4.0, 4.0))),
             (&CP_LAMP, 52.0, 160.0, false, Some((54.0, 178.0, 4.0, 4.0))),
             (&CP_LAMP, 244.0, 160.0, false, Some((246.0, 178.0, 4.0, 4.0))),
-            (&CP_BENCH, 142.0, 176.0, false, Some((143.0, 180.0, 18.0, 4.0))),
-            (&CP_BASKET, 92.0, 44.0, false, Some((93.0, 48.0, 10.0, 5.0))),
-            (&CP_BASKET, 200.0, 44.0, false, Some((201.0, 48.0, 10.0, 5.0))),
-            (&CP_BED_H, 100.0, 164.0, false, Some((101.0, 165.0, 30.0, 8.0))),
-            (&CP_BED_H, 172.0, 164.0, false, Some((173.0, 165.0, 30.0, 8.0))),
         ],
         _ => &[],
     }
@@ -1342,8 +1381,8 @@ pub fn capital_wake(
     // THE MARKET (1,2)/(3,2): stalls with their vendors at the counters (Baz: the
     // market lives OUTSIDE). Themes: west = produce + the catch; east = gear + goods.
     let stalls: &[(usize, f32, f32)] = match (kx, ky) {
-        (1, 2) => &[(0, 52.0, 40.0), (1, 150.0, 40.0), (3, 100.0, 120.0)],
-        (3, 2) => &[(2, 120.0, 40.0), (3, 218.0, 40.0), (1, 170.0, 120.0)],
+        (1, 2) => &[(0, 64.0, 32.0), (1, 206.0, 32.0), (3, 135.0, 124.0)],
+        (3, 2) => &[(2, 64.0, 32.0), (3, 206.0, 32.0), (1, 135.0, 124.0)],
         _ => &[],
     };
     for &(theme, sx, sy) in stalls {
