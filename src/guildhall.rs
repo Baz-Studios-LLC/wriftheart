@@ -47,8 +47,8 @@ pub static WINGS: [Wing; 5] = [
             Bundle {
                 id: "firstfurrow", name: "THE FIRST FURROW",
                 reqs: &[
-                    Req { label: "ANY CROPS", n: 12, matches: ReqMatch::Kind("CROP") },
-                    Req { label: "SEED PACKETS", n: 6, matches: ReqMatch::Kind("SEED") },
+                    Req { label: "TURNIPS", n: 8, matches: ReqMatch::Ids(&["turnip"]) },
+                    Req { label: "POTATOES", n: 8, matches: ReqMatch::Ids(&["potato"]) },
                     Req { label: "FRESH EGGS", n: 4, matches: ReqMatch::Ids(&["egg"]) },
                 ],
                 reward: ("tomatoseed", 3),
@@ -56,18 +56,20 @@ pub static WINGS: [Wing; 5] = [
             Bundle {
                 id: "marketgarden", name: "THE MARKET GARDEN",
                 reqs: &[
-                    Req { label: "ANY CROPS", n: 20, matches: ReqMatch::Kind("CROP") },
-                    Req { label: "FRESH EGGS", n: 8, matches: ReqMatch::Ids(&["egg"]) },
-                    Req { label: "PAILS OF MILK", n: 6, matches: ReqMatch::Ids(&["milk"]) },
+                    Req { label: "TOMATOES", n: 8, matches: ReqMatch::Ids(&["tomato"]) },
+                    Req { label: "PEPPERS", n: 8, matches: ReqMatch::Ids(&["pepper"]) },
+                    Req { label: "CARROTS", n: 8, matches: ReqMatch::Ids(&["carrot"]) },
+                    Req { label: "PAILS OF MILK", n: 4, matches: ReqMatch::Ids(&["milk"]) },
                 ],
                 reward: ("pumpkinseed", 3),
             },
             Bundle {
                 id: "harvesttithe", name: "THE HARVEST TITHE",
                 reqs: &[
-                    Req { label: "ANY CROPS", n: 30, matches: ReqMatch::Kind("CROP") },
-                    Req { label: "SEED PACKETS", n: 10, matches: ReqMatch::Kind("SEED") },
-                    Req { label: "COOKED DISHES", n: 2, matches: ReqMatch::Dish },
+                    Req { label: "PUMPKINS", n: 10, matches: ReqMatch::Ids(&["pumpkin"]) },
+                    Req { label: "CRANBERRIES", n: 10, matches: ReqMatch::Ids(&["cranberry"]) },
+                    Req { label: "WHEAT", n: 12, matches: ReqMatch::Ids(&["wheat"]) },
+                    Req { label: "ANY SEEDS", n: 8, matches: ReqMatch::Kind("SEED") },
                 ],
                 reward: ("cranberryseed", 4),
             },
@@ -87,16 +89,21 @@ pub static WINGS: [Wing; 5] = [
             Bundle {
                 id: "riversurvey", name: "THE RIVER SURVEY",
                 reqs: &[
-                    Req { label: "ANY FISH", n: 16, matches: ReqMatch::Kind("FISH") },
-                    Req { label: "RARE CATCHES", n: 2, matches: ReqMatch::RareFish },
+                    Req { label: "BASS", n: 3, matches: ReqMatch::Ids(&["bass"]) },
+                    Req { label: "TROUT", n: 3, matches: ReqMatch::Ids(&["trout"]) },
+                    Req { label: "PIKE", n: 3, matches: ReqMatch::Ids(&["pike"]) },
+                    Req { label: "CARP", n: 3, matches: ReqMatch::Ids(&["carp"]) },
+                    Req { label: "BLUEGILL", n: 3, matches: ReqMatch::Ids(&["bluegill"]) },
                 ],
                 reward: ("greaterpotion", 1),
             },
             Bundle {
                 id: "deeplegend", name: "THE LEGEND OF THE DEEP",
                 reqs: &[
-                    Req { label: "ANY FISH", n: 24, matches: ReqMatch::Kind("FISH") },
-                    Req { label: "RARE CATCHES", n: 5, matches: ReqMatch::RareFish },
+                    Req { label: "EELS", n: 4, matches: ReqMatch::Ids(&["eel"]) },
+                    Req { label: "CATFISH", n: 4, matches: ReqMatch::Ids(&["catfish"]) },
+                    Req { label: "RARE CATCHES", n: 3, matches: ReqMatch::RareFish },
+                    Req { label: "A RAINFISH", n: 1, matches: ReqMatch::Ids(&["rainfish"]) },
                 ],
                 reward: ("gem", 2),
             },
@@ -111,8 +118,8 @@ pub static WINGS: [Wing; 5] = [
             Bundle {
                 id: "coldforge", name: "THE COLD FORGE",
                 reqs: &[
-                    Req { label: "COPPER ORE", n: 10, matches: ReqMatch::Ids(&["copper"]) },
                     Req { label: "STONE", n: 14, matches: ReqMatch::Ids(&["stone"]) },
+                    Req { label: "COPPER ORE", n: 10, matches: ReqMatch::Ids(&["copper"]) },
                 ],
                 reward: ("potion", 2),
             },
@@ -120,7 +127,7 @@ pub static WINGS: [Wing; 5] = [
                 id: "ringinganvil", name: "THE RINGING ANVIL",
                 reqs: &[
                     Req { label: "IRON ORE", n: 10, matches: ReqMatch::Ids(&["iron"]) },
-                    Req { label: "STONE", n: 10, matches: ReqMatch::Ids(&["stone"]) },
+                    Req { label: "LEATHER FOR GRIPS", n: 6, matches: ReqMatch::Ids(&["leather"]) },
                     Req { label: "GEMS", n: 2, matches: ReqMatch::Ids(&["gem"]) },
                 ],
                 reward: ("gem", 2),
@@ -130,9 +137,10 @@ pub static WINGS: [Wing; 5] = [
                 reqs: &[
                     Req { label: "SILVER ORE", n: 8, matches: ReqMatch::Ids(&["silver"]) },
                     Req { label: "GOLD ORE", n: 5, matches: ReqMatch::Ids(&["gold"]) },
+                    Req { label: "MITHRIL ORE", n: 2, matches: ReqMatch::Ids(&["mithril"]) },
                     Req { label: "GEMS", n: 4, matches: ReqMatch::Ids(&["gem"]) },
                 ],
-                reward: ("mithril", 2),
+                reward: ("voidsteel", 1),
             },
         ],
         perk_desc: "THE BLACKSMITH STOCKS FINER GEAR",
@@ -145,17 +153,18 @@ pub static WINGS: [Wing; 5] = [
             Bundle {
                 id: "openshelves", name: "THE OPEN SHELVES",
                 reqs: &[
-                    Req { label: "GEMS", n: 6, matches: ReqMatch::Ids(&["gem"]) },
-                    Req { label: "MONSTER LEATHER", n: 8, matches: ReqMatch::Ids(&["leather"]) },
+                    Req { label: "STRING FOR BINDINGS", n: 8, matches: ReqMatch::Ids(&["string"]) },
+                    Req { label: "LEATHER FOR COVERS", n: 8, matches: ReqMatch::Ids(&["leather"]) },
+                    Req { label: "HERBS FOR INKS", n: 6, matches: ReqMatch::Ids(&["herb"]) },
                 ],
                 reward: ("potion", 2),
             },
             Bundle {
                 id: "bestiary", name: "THE BESTIARY PAGES",
                 reqs: &[
-                    Req { label: "MONSTER LEATHER", n: 14, matches: ReqMatch::Ids(&["leather"]) },
+                    Req { label: "LEATHER SPECIMENS", n: 12, matches: ReqMatch::Ids(&["leather"]) },
+                    Req { label: "MEAT SPECIMENS", n: 6, matches: ReqMatch::Ids(&["meat"]) },
                     Req { label: "SPIDER STRING", n: 8, matches: ReqMatch::Ids(&["string"]) },
-                    Req { label: "HERBS", n: 8, matches: ReqMatch::Ids(&["herb"]) },
                 ],
                 reward: ("greaterpotion", 1),
             },
@@ -163,8 +172,9 @@ pub static WINGS: [Wing; 5] = [
                 id: "grandarchive", name: "THE GRAND ARCHIVE",
                 reqs: &[
                     Req { label: "GEMS", n: 10, matches: ReqMatch::Ids(&["gem"]) },
-                    Req { label: "SPIDER STRING", n: 12, matches: ReqMatch::Ids(&["string"]) },
+                    Req { label: "MITHRIL ORE", n: 1, matches: ReqMatch::Ids(&["mithril"]) },
                     Req { label: "RARE CATCHES", n: 2, matches: ReqMatch::RareFish },
+                    Req { label: "A VOIDFIN", n: 1, matches: ReqMatch::Ids(&["voidfin"]) },
                 ],
                 reward: ("gem", 3),
             },
@@ -179,27 +189,29 @@ pub static WINGS: [Wing; 5] = [
             Bundle {
                 id: "soupkitchen", name: "THE SOUP KITCHEN",
                 reqs: &[
-                    Req { label: "COOKED DISHES", n: 4, matches: ReqMatch::Dish },
+                    Req { label: "HEARTY STEWS", n: 3, matches: ReqMatch::Ids(&["stew"]) },
                     Req { label: "MEAT", n: 8, matches: ReqMatch::Ids(&["meat"]) },
-                    Req { label: "HERBS", n: 8, matches: ReqMatch::Ids(&["herb"]) },
+                    Req { label: "TURNIPS", n: 6, matches: ReqMatch::Ids(&["turnip"]) },
                 ],
                 reward: ("potion", 2),
             },
             Bundle {
                 id: "longtable", name: "THE LONG TABLE",
                 reqs: &[
-                    Req { label: "COOKED DISHES", n: 6, matches: ReqMatch::Dish },
-                    Req { label: "MEAT", n: 14, matches: ReqMatch::Ids(&["meat"]) },
-                    Req { label: "FRESH EGGS", n: 6, matches: ReqMatch::Ids(&["egg"]) },
+                    Req { label: "ROASTS", n: 3, matches: ReqMatch::Ids(&["roast"]) },
+                    Req { label: "PIES", n: 2, matches: ReqMatch::Ids(&["pie"]) },
+                    Req { label: "FRESH EGGS", n: 8, matches: ReqMatch::Ids(&["egg"]) },
+                    Req { label: "CARROTS", n: 6, matches: ReqMatch::Ids(&["carrot"]) },
                 ],
                 reward: ("greaterpotion", 2),
             },
             Bundle {
                 id: "festivallarder", name: "THE FESTIVAL LARDER",
                 reqs: &[
-                    Req { label: "COOKED DISHES", n: 8, matches: ReqMatch::Dish },
-                    Req { label: "HERBS", n: 12, matches: ReqMatch::Ids(&["herb"]) },
+                    Req { label: "CHOWDERS", n: 3, matches: ReqMatch::Ids(&["chowder"]) },
+                    Req { label: "TARTS", n: 2, matches: ReqMatch::Ids(&["tart"]) },
                     Req { label: "PAILS OF MILK", n: 6, matches: ReqMatch::Ids(&["milk"]) },
+                    Req { label: "CRANBERRIES", n: 8, matches: ReqMatch::Ids(&["cranberry"]) },
                 ],
                 reward: ("gem", 2),
             },
