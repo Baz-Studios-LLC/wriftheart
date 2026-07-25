@@ -178,6 +178,50 @@ pub fn open_caravan(shop: &mut ShopState, bought: &BoughtShop, rx: i32, ry: i32,
     shop.scroll = 0;
 }
 
+/// The wing SPECIALIST's shelf (guildhall inc 6): exclusive stock that runs DEEPER
+/// by guild STANDING rank — apprentices see the basics, masters see the vault.
+/// Same sold-today ledger idiom as the caravan.
+pub fn open_specialist(shop: &mut ShopState, bought: &BoughtShop, guild: usize, rank: &str, rx: i32, ry: i32, today: i64) {
+    // [guild][rank tier] — every id verified against the registry.
+    const SHELVES: [[&[&str]; 3]; 5] = [
+        [
+            &["turnipseed", "potatoseed", "carrotseed", "wheatseed"],
+            &["tomatoseed", "pepperseed"],
+            &["pumpkinseed", "cranberryseed", "chicken", "cow"],
+        ],
+        [&["potion"], &["greaterpotion", "mapbottle"], &["gem"]],
+        [&["stone", "copper"], &["iron", "silver"], &["gold", "mithril", "voidsteel"]],
+        [&["herb", "string"], &["potion", "gem"], &["greaterpotion", "mithril"]],
+        [&["meat", "egg"], &["stew", "roast"], &["pie", "tart", "chowder"]],
+    ];
+    let depth = match rank {
+        "MASTER" => 3,
+        "JOURNEYMAN" => 2,
+        _ => 1,
+    };
+    let mut ids: Vec<&'static str> = Vec::new();
+    for tier in SHELVES[guild].iter().take(depth) {
+        ids.extend(*tier);
+    }
+    let key = format!("guildspec:{rx},{ry}:{guild}");
+    let gone = bought.forever.get(&key);
+    let sold_today = bought.today.get(&key).filter(|_| bought.day == today);
+    shop.stock = ids
+        .into_iter()
+        .filter(|id| crate::items::get(id).is_some())
+        .map(|id| ShopEntry { id, price: crate::items::price_of(id) })
+        .filter(|e| {
+            !gone.is_some_and(|s| s.iter().any(|x| x == e.id))
+                && !sold_today.is_some_and(|s| s.iter().any(|x| x == e.id))
+        })
+        .collect();
+    shop.key = key;
+    shop.discount = 1.0;
+    shop.tab = 0;
+    shop.cursor = 0;
+    shop.scroll = 0;
+}
+
 /// One sellable bag row: (uid, id, qty, unit price) — js sellList (bag only; gear and
 /// equipped slots stay off the table).
 fn sell_list(inv: &PlayerInv, clock: i64, fish_mult: f32) -> Vec<(u32, &'static str, i32, i32)> {

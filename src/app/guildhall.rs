@@ -133,6 +133,15 @@ impl GuildStanding {
     }
 }
 
+/// The wing's SPECIALIST: a key-less keeper (not chat — pressing them OPENS the
+/// shelf) whose stock runs deeper as your guild STANDING climbs.
+#[derive(Component)]
+pub struct SpecialistVendor {
+    pub guild: usize,
+    pub x: f32,
+    pub y: f32,
+}
+
 /// The wing's CONTRACT BOARD: posts and parchment, one daily job per guild.
 #[derive(Component)]
 pub struct ContractBoard {
@@ -418,6 +427,21 @@ fn altar_wake(
                     HallCast,
                     ContractBoard { guild: widx, x: bdx, y: bdy },
                 ));
+                // THE SPECIALIST: the order's own vendor, post held beside the board.
+                // Key-less on purpose - talk_tick skips them; pressing OPENS the shelf.
+                let (svx, svy) = (76.0, 36.0);
+                let sseed = key_seed(&key_s) ^ (widx as u32 + 1).wrapping_mul(0x27d4_eb2f);
+                let mut sv = crate::actors::villager::Villager::new(svx, svy, sseed, String::new());
+                sv.hold_post();
+                commands.spawn((
+                    Sprite::default(),
+                    at(PLAY_X + svx, PLAY_Y + svy, 16.0, 16.0, actor_z(svy + 16.0)),
+                    PIXEL_LAYER,
+                    RoomActor,
+                    HallCast,
+                    SpecialistVendor { guild: widx, x: svx, y: svy },
+                    sv,
+                ));
                 let bimg = images.add(crate::gfx::bake(&WING_BANNER, pal));
                 for bxp in [56.0, 104.0, 184.0, 232.0] {
                     commands.spawn((
@@ -551,6 +575,50 @@ fn board_interact(
         log.add("gh", &format!("{} STANDING {pts} - {rank}", w.name), 1, w.crest, false, true);
         sfx.write(super::sfx::Sfx("coin"));
         saves.write(super::save::SaveRequest);
+        return;
+    }
+}
+
+/// PRESS at the specialist: the shelf opens at your rank (shop screen).
+#[allow(clippy::too_many_arguments)]
+fn specialist_interact(
+    mut input: ResMut<ActionState>,
+    mut shop: ResMut<super::shop::ShopState>,
+    bought: Res<super::shop::BoughtShop>,
+    standing: Res<GuildStanding>,
+    mut next: ResMut<NextState<super::screen::Screen>>,
+    cur: Res<CurRoom>,
+    clock: Res<super::room_render::FrameClock>,
+    mut log: ResMut<super::rewards::LootLog>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    players: Query<&Player>,
+    vendors: Query<&SpecialistVendor>,
+) {
+    if !input.pressed(Action::Interact) {
+        return;
+    }
+    let Ok(p) = players.single() else { return };
+    let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
+    for v in &vendors {
+        let vb = (v.x - 6.0, v.y - 2.0, 28.0, 24.0);
+        if !(hitbox.0 < vb.0 + vb.2 && hitbox.0 + hitbox.2 > vb.0 && hitbox.1 < vb.1 + vb.3 && hitbox.1 + hitbox.3 > vb.1) {
+            continue;
+        }
+        input.consume(Action::Interact);
+        let w = &WINGS[v.guild];
+        let (rank, _) = standing.rank(w.id);
+        log.add("gh", &format!("{} STOREHOUSE - {rank} SHELVES", w.name), 1, w.crest, false, true);
+        super::shop::open_specialist(
+            &mut shop,
+            &bought,
+            v.guild,
+            rank,
+            cur.rx,
+            cur.ry,
+            super::gather::farm_day(clock.0),
+        );
+        next.set(super::screen::Screen::Shop);
+        sfx.write(super::sfx::Sfx("open"));
         return;
     }
 }
@@ -1018,7 +1086,7 @@ impl Plugin for GuildhallPlugin {
             .init_resource::<CityPerks>()
             .add_systems(
                 bevy::app::FixedUpdate,
-                (perks_tick, burst_tick, super::hall_exterior::hall_wake, stall_wake, altar_wake, board_interact.after(altar_wake).before(super::talk::talk_tick), altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
+                (perks_tick, burst_tick, super::hall_exterior::hall_wake, stall_wake, altar_wake, board_interact.after(altar_wake).before(super::talk::talk_tick), specialist_interact.after(altar_wake).before(super::talk::talk_tick), altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
                     .before(super::play::EndTick)
                     .run_if(super::screen::playing),
             );
