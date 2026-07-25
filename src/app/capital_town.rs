@@ -947,6 +947,47 @@ fn citizens_show(
     }
 }
 
+const CP_FRUITTREE: [&str; 26] = [
+    ".......LLLLLLLL.......",
+    "....gLLLLLLLLLLLLg....",
+    "....gggggggggggggg....",
+    "....gggggggggggggg....",
+    "..ggggrgggggggglgggg..",
+    "..ggggggglgggggglggg..",
+    "..gglggggglgrggggggg..",
+    "..ggglgrgggggggggglg..",
+    "..ggggggggggglgggggl..",
+    "..ggggglgggggglggrgg..",
+    "..ggrggglggggggggggg..",
+    "..gggggggrgggggglggg..",
+    "...gglggggglggggglg...",
+    "...ggglggggglgrgggg...",
+    "...gggggggggggggggg...",
+    ".....llllllllllll.....",
+    ".........KDDK.........",
+    ".........KDDK.........",
+    ".........KDDK.........",
+    ".........KDDK.........",
+    ".........KDDK.........",
+    ".........KDDK.........",
+    ".........KDDK.........",
+    ".........KDDK.........",
+    ".......ssssssss.......",
+    ".......ssssssss.......",
+];
+const CP_BASKET: [&str; 10] = [
+    "...rr.r..r..",
+    "..r..r.rr...",
+    "KDDDDDDDDDDK",
+    "KeeeeeeeeeeK",
+    "KDDDDDDDDDDK",
+    "KeeeeeeeeeeK",
+    "KDDDDDDDDDDK",
+    "KeeeeeeeeeeK",
+    ".KKKKKKKKKK.",
+    "............",
+];
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1158,6 +1199,53 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_LAMP, 220.0, 64.0, false, Some((222.0, 82.0, 4.0, 4.0))),
             (&CP_BED_V, 100.0, 8.0, false, Some((100.0, 9.0, 10.0, 22.0))),
             (&CP_BED_V, 194.0, 8.0, false, Some((194.0, 9.0, 10.0, 22.0))),
+        ],
+        // THE ORCHARDS (0,4)/(4,4): fruit trees in working rows along the dirt
+        // lanes, harvest baskets set out between them.
+        (0, 4) | (4, 4) => &[
+            (&CP_FRUITTREE, 48.0, 24.0, false, Some((55.0, 44.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 96.0, 24.0, false, Some((103.0, 44.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 192.0, 24.0, false, Some((199.0, 44.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 240.0, 24.0, false, Some((247.0, 44.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 48.0, 88.0, false, Some((55.0, 108.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 96.0, 88.0, false, Some((103.0, 108.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 192.0, 88.0, false, Some((199.0, 108.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 240.0, 88.0, false, Some((247.0, 108.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 48.0, 140.0, false, Some((55.0, 160.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 96.0, 140.0, false, Some((103.0, 160.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 192.0, 140.0, false, Some((199.0, 160.0, 8.0, 5.0))),
+            (&CP_FRUITTREE, 240.0, 140.0, false, Some((247.0, 160.0, 8.0, 5.0))),
+            (&CP_BASKET, 74.0, 60.0, false, Some((75.0, 64.0, 10.0, 5.0))),
+            (&CP_BASKET, 218.0, 60.0, false, Some((219.0, 64.0, 10.0, 5.0))),
+            (&CP_BASKET, 146.0, 124.0, false, Some((147.0, 128.0, 10.0, 5.0))),
+        ],
+        // THE STATUE GARDEN (0,3): a sentinel ringed by topiary on the west square.
+        (0, 3) => &[
+            (&CP_STATUE, 149.0, 66.0, false, Some((150.0, 98.0, 20.0, 8.0))),
+            (&CP_TOPIARY, 100.0, 40.0, false, Some((102.0, 62.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 202.0, 40.0, false, Some((204.0, 62.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 100.0, 132.0, false, Some((102.0, 154.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 202.0, 132.0, false, Some((204.0, 154.0, 14.0, 6.0))),
+            (&CP_BENCH, 106.0, 92.0, false, Some((107.0, 96.0, 18.0, 4.0))),
+            (&CP_BENCH, 194.0, 92.0, false, Some((195.0, 96.0, 18.0, 4.0))),
+            (&CP_URN, 154.0, 44.0, false, Some((156.0, 52.0, 8.0, 5.0))),
+            (&CP_URN, 154.0, 148.0, false, Some((156.0, 156.0, 8.0, 5.0))),
+        ],
+        // THE COMMONS GREEN (4,3): a second fountain square east, benches all round.
+        (4, 3) => &[
+            (&CP_FOUNTAIN, 140.0, 78.0, false, Some((144.0, 96.0, 32.0, 16.0))),
+            (&CP_BENCH, 150.0, 40.0, false, Some((151.0, 44.0, 18.0, 4.0))),
+            (&CP_BENCH, 150.0, 150.0, false, Some((151.0, 154.0, 18.0, 4.0))),
+            (&CP_BENCH, 100.0, 88.0, false, Some((101.0, 92.0, 18.0, 4.0))),
+            (&CP_BENCH, 200.0, 88.0, false, Some((201.0, 92.0, 18.0, 4.0))),
+            (&CP_URN, 100.0, 44.0, false, Some((102.0, 52.0, 8.0, 5.0))),
+            (&CP_URN, 208.0, 44.0, false, Some((210.0, 52.0, 8.0, 5.0))),
+            (&CP_URN, 100.0, 144.0, false, Some((102.0, 152.0, 8.0, 5.0))),
+            (&CP_URN, 208.0, 144.0, false, Some((210.0, 152.0, 8.0, 5.0))),
+            (&CP_LAMP, 84.0, 60.0, false, Some((86.0, 78.0, 4.0, 4.0))),
+            (&CP_LAMP, 228.0, 60.0, false, Some((230.0, 78.0, 4.0, 4.0))),
+            (&CP_LAMP, 84.0, 124.0, false, Some((86.0, 142.0, 4.0, 4.0))),
+            (&CP_LAMP, 228.0, 124.0, false, Some((230.0, 142.0, 4.0, 4.0))),
         ],
         _ => &[],
     }
