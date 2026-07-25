@@ -399,6 +399,8 @@ const CP_STALL: [&str; 28] = [
 #[derive(Component)]
 pub struct CapitalStall {
     pub theme: usize,
+    /// Which stall of this room (per-stall shop ledgers even for repeat trades).
+    pub slot: usize,
     pub x: f32,
     pub y: f32,
 }
@@ -1333,11 +1335,13 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // rail, baskets and blossom strips between the stalls (self-symmetric
         // about x152, so one arm serves both mirrored rooms).
         (1, 2) | (3, 2) => &[
-            (&CP_MKCROSS, 138.0, 36.0, false, Some((142.0, 62.0, 20.0, 8.0))),
-            (&CP_BASKET, 100.0, 54.0, false, Some((101.0, 58.0, 10.0, 5.0))),
-            (&CP_BASKET, 192.0, 54.0, false, Some((193.0, 58.0, 10.0, 5.0))),
-            (&CP_BED_H, 64.0, 130.0, false, Some((65.0, 131.0, 30.0, 8.0))),
-            (&CP_BED_H, 208.0, 130.0, false, Some((209.0, 131.0, 30.0, 8.0))),
+            (&CP_MKCROSS, 138.0, 86.0, false, Some((142.0, 114.0, 20.0, 8.0))),
+            (&CP_BED_H, 88.0, 16.0, false, Some((89.0, 17.0, 30.0, 8.0))),
+            (&CP_BED_H, 184.0, 16.0, false, Some((185.0, 17.0, 30.0, 8.0))),
+            (&CP_BASKET, 104.0, 44.0, false, Some((105.0, 48.0, 10.0, 5.0))),
+            (&CP_BASKET, 190.0, 44.0, false, Some((191.0, 48.0, 10.0, 5.0))),
+            (&CP_BASKET, 104.0, 144.0, false, Some((105.0, 148.0, 10.0, 5.0))),
+            (&CP_BASKET, 190.0, 144.0, false, Some((191.0, 148.0, 10.0, 5.0))),
             (&CP_LAMP, 52.0, 24.0, false, Some((54.0, 42.0, 4.0, 4.0))),
             (&CP_LAMP, 244.0, 24.0, false, Some((246.0, 42.0, 4.0, 4.0))),
             (&CP_LAMP, 52.0, 160.0, false, Some((54.0, 178.0, 4.0, 4.0))),
@@ -1381,11 +1385,11 @@ pub fn capital_wake(
     // THE MARKET (1,2)/(3,2): stalls with their vendors at the counters (Baz: the
     // market lives OUTSIDE). Themes: west = produce + the catch; east = gear + goods.
     let stalls: &[(usize, f32, f32)] = match (kx, ky) {
-        (1, 2) => &[(0, 64.0, 32.0), (1, 206.0, 32.0), (3, 135.0, 124.0)],
-        (3, 2) => &[(2, 64.0, 32.0), (3, 206.0, 32.0), (1, 135.0, 124.0)],
+        (1, 2) => &[(0, 64.0, 28.0), (1, 135.0, 28.0), (3, 206.0, 28.0), (1, 64.0, 128.0), (3, 135.0, 128.0), (0, 206.0, 128.0)],
+        (3, 2) => &[(2, 64.0, 28.0), (3, 135.0, 28.0), (0, 206.0, 28.0), (1, 64.0, 128.0), (2, 135.0, 128.0), (3, 206.0, 128.0)],
         _ => &[],
     };
-    for &(theme, sx, sy) in stalls {
+    for (slot, &(theme, sx, sy)) in stalls.iter().enumerate() {
         let (hi, lo) = STALL_AWNINGS[theme];
         let pal: &[(char, u32)] = &[
             ('K', 0x000000),
@@ -1408,7 +1412,7 @@ pub fn capital_wake(
             PIXEL_LAYER,
             RoomActor,
             CapitalProp,
-            CapitalStall { theme, x: sx, y: sy },
+            CapitalStall { theme, slot, x: sx, y: sy },
         ));
         // The vendor, key-less at their counter (press = SHOP, not chat).
         let seed = 0xcab1u32 ^ (kx as u32 * 31 + ky as u32 * 7 + theme as u32).wrapping_mul(0x9e37_79b9);
@@ -1491,6 +1495,7 @@ fn stall_interact(
             &mut shop,
             &bought,
             st.theme,
+            st.slot,
             cur.rx,
             cur.ry,
             super::gather::farm_day(clock.0),

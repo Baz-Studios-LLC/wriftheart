@@ -225,7 +225,7 @@ pub fn open_specialist(shop: &mut ShopState, bought: &BoughtShop, guild: usize, 
 /// A capital MARKET STALL's shelf (castle town: tier-4 market, themed per trade).
 /// Same sold-today ledger idiom as the caravan; gear stalls roll procedural wares
 /// at the capital's pinned tier.
-pub fn open_capital_stall(shop: &mut ShopState, bought: &BoughtShop, theme: usize, rx: i32, ry: i32, today: i64) {
+pub fn open_capital_stall(shop: &mut ShopState, bought: &BoughtShop, theme: usize, slot: usize, rx: i32, ry: i32, today: i64) {
     const SHELVES: [&[&str]; 4] = [
         &["turnip", "potato", "carrot", "tomato", "pepper", "turnipseed", "tomatoseed", "egg", "milk"], // produce
         &["bass", "trout", "pike", "carp", "sunfish", "eel", "mapbottle"],                              // the catch
@@ -246,7 +246,7 @@ pub fn open_capital_stall(shop: &mut ShopState, bought: &BoughtShop, theme: usiz
             stock.push(ShopEntry { id, price: crate::items::price_of(id) });
         }
     }
-    let key = format!("capstall:{rx},{ry}:{theme}");
+    let key = format!("capstall:{rx},{ry}:{theme}:{slot}");
     let gone = bought.forever.get(&key);
     let sold_today = bought.today.get(&key).filter(|_| bought.day == today);
     shop.stock = stock
