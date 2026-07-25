@@ -135,6 +135,27 @@ impl World {
             for &(c, r) in oaks {
                 out.push(ent("oak", c, r));
             }
+            // BUSHES with intent (Baz: smart places, not scatter): foundation
+            // plantings on the great faces, pairs at gates and terrace ends,
+            // corner accents beside the square rings.
+            let bushes: &[(i32, i32)] = match (kx, ky) {
+                (2, 4) => &[(2, 10), (4, 10), (14, 10), (16, 10)],
+                (2, 0) => &[(3, 8), (5, 8), (13, 8), (15, 8)],
+                (1, 0) | (3, 0) => &[(3, 7), (9, 7), (15, 7)],
+                (0, 2) => &[(2, 2), (2, 10)],
+                (4, 2) => &[(16, 2), (16, 10)],
+                (2, 2) => &[(3, 1), (15, 1), (3, 11), (15, 11)],
+                (1, 2) | (3, 2) => &[(1, 1), (17, 1), (1, 11), (17, 11)],
+                (1, 1) => &[(2, 3), (2, 8), (16, 3), (16, 8)],
+                (1, 3) | (3, 3) => &[(1, 4), (17, 4)],
+                (0, 3) => &[(3, 1), (16, 1), (3, 11), (16, 11)],
+                (4, 3) => &[(2, 1), (15, 1), (2, 11), (15, 11)],
+                (3, 4) => &[(7, 4), (9, 4), (12, 4), (14, 4)],
+                _ => &[],
+            };
+            for &(c, r) in bushes {
+                out.push(ent("bush", c, r));
+            }
             let taken: Vec<(i32, i32)> = out.iter().map(|e| (e.x / TILE, e.y / TILE)).collect();
             for r in 1..ROWS - 1 {
                 for c in 1..COLS - 1 {

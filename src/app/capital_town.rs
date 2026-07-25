@@ -1440,7 +1440,7 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // rail, baskets and blossom strips between the stalls (self-symmetric
         // about x152, so one arm serves both mirrored rooms).
         (1, 2) | (3, 2) => &[
-            (&CP_MKCROSS, 138.0, 86.0, false, Some((142.0, 114.0, 20.0, 8.0))),
+            (&CP_MKCROSS, 138.0, 62.0, false, Some((142.0, 90.0, 20.0, 8.0))),
             (&CP_BED_H, 88.0, 16.0, false, Some((89.0, 17.0, 30.0, 8.0))),
             (&CP_BED_H, 184.0, 16.0, false, Some((185.0, 17.0, 30.0, 8.0))),
             (&CP_BASKET, 104.0, 44.0, false, Some((105.0, 48.0, 10.0, 5.0))),
