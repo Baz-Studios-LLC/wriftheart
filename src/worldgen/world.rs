@@ -405,6 +405,11 @@ impl World {
     }
     /// Stagnant murk in the grim biomes, clear blue elsewhere — port of `waterStyle`.
     pub fn water_style(&self, gx: i32, gy: i32) -> &'static str {
+        // The capital is its own biome: its park ponds are ALWAYS kept water,
+        // whatever grim land the walls happen to stand in.
+        if self.capital_room(gx.div_euclid(COLS), gy.div_euclid(ROWS)).is_some() {
+            return "blue";
+        }
         let b = self.biome_key_at(gx.div_euclid(COLS), gy.div_euclid(ROWS));
         match b {
             "swamp" | "graveyard" | "burnt" | "chaos" | "hollowwood" | "blackdeep" | "tarmire"
