@@ -276,12 +276,12 @@ impl World {
                 2 => (r - o, r),
                 _ => (-r, r - o),
             };
-            let (ax, ay) = (px - 1, py - 1); // anchor so the walk point sits mid-town
+            let (ax, ay) = (px - 2, py - 2); // anchor so the walk point sits mid-town (5x5)
             if (ax - CASTLE_RX).abs().max((ay - CASTLE_RY).abs()) < 10 {
                 continue; // the two castles never crowd each other's drama
             }
-            for dy in -1..=4 {
-                for dx in -1..=4 {
+            for dy in -1..=5 {
+                for dx in -1..=5 {
                     let (nx, ny) = (ax + dx, ay + dy);
                     if is_town(self.seed, nx, ny)
                         || self.shard_dungeon_at(nx, ny).is_some()
@@ -296,14 +296,14 @@ impl World {
         }
         (r - 1, -1) // unreachable — a whole ring can't be all set-pieces
     }
-    /// The capital's top-left room (the 4x4 spans capital .. capital+3 both axes).
+    /// The capital's top-left room (the 5x5 spans capital .. capital+4 both axes).
     pub fn capital(&self) -> (i32, i32) {
         self.capital
     }
-    /// This room's offset inside the capital (0..4, 0..4), or None.
+    /// This room's offset inside the capital (0..5, 0..5), or None.
     pub fn capital_room(&self, rx: i32, ry: i32) -> Option<(i32, i32)> {
         let (dx, dy) = (rx - self.capital.0, ry - self.capital.1);
-        ((0..4).contains(&dx) && (0..4).contains(&dy)).then_some((dx, dy))
+        ((0..5).contains(&dx) && (0..5).contains(&dy)).then_some((dx, dy))
     }
 
     /// Is this room THE rift spire's? (One per world.)

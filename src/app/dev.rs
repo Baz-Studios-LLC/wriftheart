@@ -509,7 +509,7 @@ fn drive(
         Cmd::WarpCastle => warp(crate::worldgen::world::CASTLE_RX, crate::worldgen::world::CASTLE_RY, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx),
         Cmd::WarpCapital => {
             let (tx, ty) = swap.world.0.capital();
-            warp(tx + 1, ty + 1, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx);
+            warp(tx + 2, ty + 2, 144.0, 120.0, &mut commands, &mut images, &mut swap, &mut ctx); // the GRAND PLAZA
         }
         Cmd::WarpShard => {
             if let Some(&(_, (rx, ry))) = swap.world.0.shard_sites().get(state.shard_idx) {

@@ -16,6 +16,7 @@ pub mod encounters;
 pub mod farm;
 pub mod farm_animals;
 pub mod festivals;
+pub mod capital_town;
 pub mod caravan;
 pub mod caves;
 pub mod cinematic;

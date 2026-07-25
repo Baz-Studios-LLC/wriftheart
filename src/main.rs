@@ -96,6 +96,7 @@ fn main() {
         .add_plugins(wriftheart::app::FishingPlugin)
         .add_plugins(wriftheart::app::RoomCachePlugin)
         .add_plugins(wriftheart::actors::critters::CritterPlugin)
+        .add_plugins(wriftheart::app::capital_town::CapitalTownPlugin)
         .add_plugins(wriftheart::app::SfxPlugin)
         .add_plugins(wriftheart::gfx::shadow_material::ShadowMaterialPlugin)
         .add_plugins(wriftheart::gfx::water_material::WaterMaterialPlugin)
