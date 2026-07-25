@@ -47,6 +47,9 @@ pub struct Villager {
     dir: (f32, f32),
     move_t: i32,
     still: bool, // keepers hold their post — face you when near, never wander
+    /// Capital citizens: an outside sim owns position/facing/anim — the tick
+    /// must not touch them (it would zero the walk cycle every frame).
+    pub roaming: bool,
 }
 
 impl Villager {
@@ -66,6 +69,7 @@ impl Villager {
             dir: (0.0, 0.0),
             move_t: 0,
             still: false,
+            roaming: false,
         }
     }
     /// Name them (js: v.pkey/v.pname — a NAMED person the ledger can track).
@@ -76,6 +80,21 @@ impl Villager {
     /// Shopkeepers and stage bards stand their ground (js villager `still`).
     pub fn hold_post(&mut self) {
         self.still = true;
+    }
+    /// Externally-driven walkers: face the step and run the walk cycle (the sim
+    /// owns position). A zero step snaps to the standing pose.
+    pub fn stride(&mut self, dx: f32, dy: f32) {
+        if dx == 0.0 && dy == 0.0 {
+            self.anim = 0;
+            return;
+        }
+        self.facing = face_of(dx, dy);
+        self.anim += 1;
+    }
+    /// Idle roamer: face a nearby someone, else settle facing down.
+    pub fn face_point(&mut self, dx: f32, dy: f32, near: bool) {
+        self.anim = 0;
+        self.facing = if near { face_of(dx, dy) } else { 0 };
     }
     /// Stagger the first wander delay per identity so a town doesn't march in lockstep.
     pub fn stagger(&mut self) {
@@ -98,6 +117,9 @@ pub fn villager_tick(
             let (dx, dy) = (p.x - v.x, p.y - v.y);
             (dx, dy, dx.hypot(dy))
         });
+        if v.roaming {
+            continue;
+        }
         if v.still {
             // js: face the player inside 48px, else settle facing down.
             v.facing = if pd < 48.0 { face_of(pdx, pdy) } else { 0 };

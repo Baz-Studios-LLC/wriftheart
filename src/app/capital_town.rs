@@ -807,6 +807,9 @@ pub struct Citizen {
     pub wy: f32,
     pub pause: f32,
     pub seed: u32,
+    /// Last tick's step (drives facing + walk cycle on the shown body).
+    pub sx: f32,
+    pub sy: f32,
 }
 
 #[derive(Resource, Default)]
@@ -843,7 +846,7 @@ fn citizens_sim(time: Res<bevy::prelude::Time>, mut cz: ResMut<Citizens>) {
             let (wx, wy) = waypoint(seed);
             let pause = croll(seed) * 6.0;
             let cseed = (*seed).max(1);
-            list.push(Citizen { gx, gy, wx, wy, pause, seed: cseed });
+            list.push(Citizen { gx, gy, wx, wy, pause, seed: cseed, sx: 0.0, sy: 0.0 });
         }
     }
     let dt = time.delta_secs().min(0.1);
@@ -851,8 +854,11 @@ fn citizens_sim(time: Res<bevy::prelude::Time>, mut cz: ResMut<Citizens>) {
     for c in list.iter_mut() {
         if c.pause > 0.0 {
             c.pause -= dt;
+            c.sx = 0.0;
+            c.sy = 0.0;
             continue;
         }
+        let (ox, oy) = (c.gx, c.gy);
         // To reach the Royal Way, settle x first (walk the Cross to the column,
         // then turn); to reach the Cross Way, settle y first. Every turn lands
         // on road, never a lawn.
@@ -871,6 +877,8 @@ fn citizens_sim(time: Res<bevy::prelude::Time>, mut cz: ResMut<Citizens>) {
             c.gy = c.wy;
             if dx.abs() > step { c.gx += step * dx.signum() } else { c.gx = c.wx }
         }
+        c.sx = c.gx - ox;
+        c.sy = c.gy - oy;
         if (c.gx - c.wx).abs() < 0.5 && (c.gy - c.wy).abs() < 0.5 {
             c.pause = 1.5 + croll(seed) * 5.0;
             let (wx, wy) = waypoint(seed);
@@ -889,6 +897,7 @@ fn citizens_show(
     inside: Res<super::interior::Inside>,
     cz: Res<Citizens>,
     mut shown: Query<(Entity, &CitizenIdx, &mut crate::actors::villager::Villager)>,
+    players: Query<&super::play::Player>,
 ) {
     let cap = if in_dungeon.0.is_none() && inside.0.is_none() {
         world.0.capital_room(cur.rx, cur.ry)
@@ -911,6 +920,12 @@ fn citizens_show(
         let c = &cz.0[idx.0];
         v.x = c.gx % 304.0;
         v.y = c.gy % 208.0;
+        if c.sx != 0.0 || c.sy != 0.0 {
+            v.stride(c.sx, c.sy);
+        } else if let Ok(p) = players.single() {
+            let (dx, dy) = (p.x - v.x, p.y - v.y);
+            v.face_point(dx, dy, dx.hypot(dy) < 48.0);
+        }
     }
     let Some(_) = cap else { return };
     for (i, c) in cz.0.iter().enumerate() {
@@ -919,7 +934,7 @@ fn citizens_show(
         }
         let (lx, ly) = (c.gx % 304.0, c.gy % 208.0);
         let mut v = crate::actors::villager::Villager::new(lx, ly, c.seed, String::new());
-        v.hold_post();
+        v.roaming = true;
         commands.spawn((
             Sprite::default(),
             at(PLAY_X + lx, PLAY_Y + ly, 16.0, 16.0, actor_z(ly + 16.0)),
