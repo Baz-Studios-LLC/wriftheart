@@ -60,9 +60,15 @@ impl TownNames {
     /// js getTownName: the centre's assigned name, or the first unused prefix+suffix
     /// starting from a coord-hashed index (EMBERFALL for the home village, canon).
     pub fn get(&mut self, world: &crate::worldgen::World, rx: i32, ry: i32) -> String {
-        let key = crate::worldgen::towns::town_site_of(world.seed, rx, ry)
-            .filter(|_| world.town_role(rx, ry).is_some())
-            .map_or_else(|| format!("{rx},{ry}"), |s| format!("{},{}", s.tx, s.ty));
+        let cap = world.capital_room(rx, ry).is_some();
+        let (hx, hy) = if cap { world.capital() } else { (rx, ry) };
+        let key = if cap {
+            format!("{hx},{hy}")
+        } else {
+            crate::worldgen::towns::town_site_of(world.seed, rx, ry)
+                .filter(|_| world.town_role(rx, ry).is_some())
+                .map_or_else(|| format!("{rx},{ry}"), |s| format!("{},{}", s.tx, s.ty))
+        };
         if let Some(n) = self.0.get(&key) {
             return n.clone();
         }
@@ -72,8 +78,8 @@ impl TownNames {
             let used: std::collections::HashSet<&String> = self.0.values().collect();
             let total = TOWN_PREFIX.len() * TOWN_SUFFIX.len();
             let start = (world.seed
-                ^ (rx as u32).wrapping_mul(73856093)
-                ^ (ry as u32).wrapping_mul(19349663)) as usize;
+                ^ (hx as u32).wrapping_mul(73856093)
+                ^ (hy as u32).wrapping_mul(19349663)) as usize;
             (0..total)
                 .map(|i| {
                     let idx = (start + i) % total;
@@ -105,6 +111,11 @@ impl Banners {
         if (rx, ry) == HOME_VILLAGE {
             return Some(HOME_VILLAGE);
         }
+        // THE CAPITAL is one place, 25 rooms — every room answers with its
+        // anchor (per-room keys minted a new "town" every screen).
+        if world.capital_room(rx, ry).is_some() {
+            return Some(world.capital());
+        }
         if !world.is_town(rx, ry) {
             return None;
         }
@@ -117,7 +128,13 @@ impl Banners {
     pub fn room_entered(&mut self, world: &crate::worldgen::World, names: &mut TownNames, rx: i32, ry: i32) {
         let town = Self::town_key(world, rx, ry);
         if town.is_some() && town != self.last_town {
-            let sub = if (rx, ry) == HOME_VILLAGE { Some("- IN RUINS -") } else { None };
+            let sub = if (rx, ry) == HOME_VILLAGE {
+                Some("- IN RUINS -")
+            } else if world.capital_room(rx, ry).is_some() {
+                Some("- THE CAPITAL -")
+            } else {
+                None
+            };
             self.town = Some((names.get(world, rx, ry), sub, 0));
             self.dirty = true;
         }
