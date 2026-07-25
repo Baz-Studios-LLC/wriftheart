@@ -139,7 +139,7 @@ pub fn pool_at(world: &crate::worldgen::World, rx: i32, ry: i32, today: i64, hop
 }
 
 #[derive(Component)]
-struct PoolFx;
+struct PoolFx([Handle<Image>; 3]); // its own frames, MASKED to water (Baz: bled onto land)
 
 /// Stand the room's pool ripples up / tear them down; two frames breathe on the clock.
 #[allow(clippy::too_many_arguments)]
@@ -151,8 +151,7 @@ fn pool_fx(
     world: Res<GameWorld>,
     in_dungeon: Res<super::dungeon::InDungeon>,
     mut pools: ResMut<FishPools>,
-    mut frames: Local<Option<[Handle<Image>; 3]>>,
-    mut fx: Query<(Entity, &mut Sprite), With<PoolFx>>,
+    mut fx: Query<(Entity, &PoolFx, &mut Sprite)>,
     mut shown: Local<Option<(i32, i32, i32, i32)>>,
 ) {
     let today = super::gather::farm_day(clock.0);
@@ -166,12 +165,19 @@ fn pool_fx(
     let key = live.map(|(c, r)| (cur.rx, cur.ry, c, r));
     if *shown != key {
         *shown = key;
-        for (e, _) in &fx {
+        for (e, _, _) in &fx {
             commands.entity(e).despawn();
         }
         if let Some((c, r)) = live {
-            let f = frames.get_or_insert_with(|| {
-                const A: &[&str] = &[
+            // The art spills 4px past its tile ON PURPOSE — so every frame bakes
+            // per-pool with land pixels cleared (Baz: the ripple bled onto shore).
+            let map = world.0.generate(cur.rx, cur.ry).map;
+            let wet = |tc: i32, tr: i32| -> bool {
+                (0..COLS).contains(&tc)
+                    && (0..ROWS).contains(&tr)
+                    && matches!(map[tr as usize].as_bytes()[tc as usize] as char, '~' | 'B')
+            };
+            const A: &[&str] = &[
                     "........................", "........................", "........................",
                     "........................", "........................", "........................",
                     "........................", "........................", "..........wwww..........",
@@ -201,13 +207,23 @@ fn pool_fx(
                     "....ww............ww....", ".................ww.....", ".......www.......w......",
                     "........wwwwwww.........", "........................", "........................",
                 ];
-                let pal: &[(char, u32)] = &[('w', 0xc8e8ff), ('W', 0xffffff), ('k', 0x24455e)];
-                [
-                    images.add(crate::gfx::bake(A, pal)),
-                    images.add(crate::gfx::bake(B, pal)),
-                    images.add(crate::gfx::bake(C, pal)),
-                ]
-            });
+            let pal: &[(char, u32)] = &[('w', 0xc8e8ff), ('W', 0xffffff), ('k', 0x24455e)];
+            let mut baked: Vec<Handle<Image>> = Vec::with_capacity(3);
+            for grid in [A, B, C] {
+                let mut img = crate::gfx::bake(grid, pal);
+                for py in 0..24i32 {
+                    for px in 0..24i32 {
+                        let (tc, tr) = ((c * TILE - 4 + px).div_euclid(TILE), (r * TILE - 4 + py).div_euclid(TILE));
+                        if !wet(tc, tr)
+                            && let Ok(p) = img.pixel_bytes_mut(bevy::math::UVec3::new(px as u32, py as u32, 0))
+                        {
+                            p[3] = 0;
+                        }
+                    }
+                }
+                baked.push(images.add(img));
+            }
+            let f: [Handle<Image>; 3] = [baked[0].clone(), baked[1].clone(), baked[2].clone()];
             let mut spr = Sprite::from_image(f[0].clone());
             spr.color = Color::srgba(1.0, 1.0, 1.0, 0.95);
             commands.spawn((
@@ -215,15 +231,13 @@ fn pool_fx(
                 at(PLAY_X + (c * TILE) as f32 - 4.0, PLAY_Y + (r * TILE) as f32 - 4.0, 24.0, 24.0, 2.9),
                 PIXEL_LAYER,
                 super::battle::RoomActor, // room scenery: rides slides, dies with the room
-                PoolFx,
+                PoolFx(f),
             ));
         }
     }
-    if let Some(f) = frames.as_ref() {
-        let frame = ((clock.0 / 14) % 3) as usize;
-        for (_, mut spr) in &mut fx {
-            spr.image = f[frame].clone();
-        }
+    let frame = ((clock.0 / 14) % 3) as usize;
+    for (_, pf, mut spr) in &mut fx {
+        spr.image = pf.0[frame].clone();
     }
 }
 
