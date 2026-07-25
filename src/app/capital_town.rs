@@ -409,43 +409,133 @@ pub struct CapitalStall {
 const STALL_AWNINGS: [(u32, u32); 4] =
     [(0x3f8f4f, 0x2a6634), (0x4a6ab0, 0x2a4a8a), (0xb0483a, 0x8a2a24), (0xd8b040, 0xa8842a)];
 
-const CP_FOUNTAIN: [&str; 36] = [
-    "...................ww...................",
-    "..................wWWw..................",
-    ".................w.ww.w.................",
-    "........................................",
-    "...............aaaaaaaaaa...............",
-    "...............AAwwwwwwAA...............",
-    "..............wAAAAAAAAAAw..............",
-    "..............w.KKKKKKKK.w..............",
-    "..............w...aaaa...w..............",
-    "..............w...AAAA...w..............",
-    "..............w...AAAA...w..............",
-    "..............w...AAAA...w..............",
-    "..............w...AAAA...w..............",
-    "...........aaaaaaaaaaaaaaaaaa...........",
-    "...........AAwwwwwwwwwwwwwwAA...........",
-    ".........w.AAAAAAAAAAAAAAAAAA.w.........",
-    ".........w..KKKKAAAAAAAAKKKK..w.........",
-    ".........w......AAAAAAAA......w.........",
-    ".........w......AAAAAAAA......w.........",
-    ".........w......AAAAAAAA......w.........",
-    ".........w......AAAAAAAA......w.........",
-    ".........w......ssssssss......w.........",
-    "..KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK..",
-    "..KKaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaKK..",
-    "..KKAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAKK..",
-    "..KKAAwwWwwwwwWwwwwwWwwwwwWwwwwwWwAAKK..",
-    "..KKAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAKK..",
-    "..KKAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAKK..",
-    "..KKAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAKK..",
-    "..KKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKK..",
-    "..KKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKK..",
-    "..KKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKK..",
-    "..KKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKK..",
-    "..KKssssssssssssssssssssssssssssssssKK..",
-    "....KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK....",
-    "........................................",
+const CP_FOUNTAIN: [&str; 40] = [
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "..............KKKKKKKKKKKKKKKK..............",
+    "............KKaaaaaaaaaaaaaaaaKK............",
+    ".........KKKaaaaaawwwwwwwwaaaaaaKKK.........",
+    "........KaaaaawwwwwwwWwwwwwwwwaaaaaK........",
+    "......KKaaaawwwwwwwwwWwwwwwwwwwwaaaaKK......",
+    ".....KaaaawwwwwwwwwwwWwwwwwwwwwwwwaaaaK.....",
+    "....KaaawwwwwwwwwWwwWwWwwWwwwwwwwwwwaaaK....",
+    "...KaaawwwwwwwwwwwwaaaaaawwwwwwwwwwwwaaaK...",
+    "..KaaawwwwwwwwwwwaaaawwaaaawwwwwwwwwwwaaaK..",
+    "..KAAwwwwwWwwwwwAAwwwwwwwwAAwwwwWwwwwwwAAK..",
+    ".KAAAwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwAAAK.",
+    ".KAAwwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwwAAK.",
+    "KAAAwwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwAAAAAAwwAAAAAAwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwwAAAAAAAAAAAAwwwwwwwwwwwwAAAK",
+    "KAAwwwwwWwwwwwwwwAAAAAAAAAAwwwwwwwWwwwwwwAAK",
+    "KAAAwwwwwwwwwwwwwwwAAAAAAwwwwwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK",
+    ".KAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAK.",
+    ".KAAAwwwwwWwwwwwwwwwwwwwwwwwwwwwWwwwwwwAAAK.",
+    "..KAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAK..",
+    "..KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK..",
+    "...KAAAwwwwwwwwwwWwwwwwwwWwwwwwwwwwwwAAAK...",
+    "....KssswwwwwwwwwwwwwwwwwwwwwwwwwwwwsssK....",
+    ".....KsssswwwwwwwwwwwwwwwwwwwwwwwwssssK.....",
+    "......KKsssswwwwwwwwwwwwwwwwwwwwssssKK......",
+    "........KssssswwwwwwwwwwwwwwwwsssssK........",
+    ".........KKKsssssswwwwwwwwssssssKKK.........",
+    "............KKssssssssssssssssKK............",
+    "..............KKKKKKKKKKKKKKKK..............",
+    "............................................",
+    "............................................",
+];
+
+const CP_FOUNTAIN_B: [&str; 40] = [
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "..............KKKKKKKKKKKKKKKK..............",
+    "............KKaaaaaaaaaaaaaaaaKK............",
+    ".........KKKaaaaaawwwwwwwwaaaaaaKKK.........",
+    "........KaaaaawwwwwwwwWwwwwwwwaaaaaK........",
+    "......KKaaaawwwwwwwwWwWwwwwwwwwwaaaaKK......",
+    ".....KaaaawwwwwwwwwwwWwwwwwwwwwwwwaaaaK.....",
+    "....KaaawwwwwwwwwWwwwWwwwWwwwwwwwwwwaaaK....",
+    "...KaaawwwwwwwwwwwwaaaaaawwwwwwwwwwwwaaaK...",
+    "..KaaawwwwwwwwwwwaaaawwaaaawwwwwwwwwwwaaaK..",
+    "..KAAwwwwwWwwwwwAAwwwwwwwwAAwwwwWwwwwwwAAK..",
+    ".KAAAwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwAAAK.",
+    ".KAAwwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwwAAK.",
+    "KAAAwwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwAAAAAAwwAAAAAAwwwwwwwwwwwAAAK",
+    "KAAAwwwwWwwwwwwwAAAAAAAAAAAAwwwwwwwwwwwwAAAK",
+    "KAAwwwwwwwwwwwwwwAAAAAAAAAAwwwwwwwWwwwwwwAAK",
+    "KAAAwwwwwwwwwwwwwwwAAAAAAwwwwwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK",
+    ".KAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAK.",
+    ".KAAAwwwwwWwwwwwwwwwwwwwwwwwwwwwWwwwwwwAAAK.",
+    "..KAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAK..",
+    "..KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK..",
+    "...KAAAwwwwwwwwwwWwwwwwwwWwwwwwwwwwwwAAAK...",
+    "....KssswwwwwwwwwwwwwwwwwwwwwwwwwwwwsssK....",
+    ".....KsssswwwwwwwwwwwwwwwwwwwwwwwwssssK.....",
+    "......KKsssswwwwwwwwwwwwwwwwwwwwssssKK......",
+    "........KssssswwwwwwwwwwwwwwwwsssssK........",
+    ".........KKKsssssswwwwwwwwssssssKKK.........",
+    "............KKssssssssssssssssKK............",
+    "..............KKKKKKKKKKKKKKKK..............",
+    "............................................",
+    "............................................",
+];
+
+const CP_FOUNTAIN_C: [&str; 40] = [
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "............................................",
+    "..............KKKKKKKKKKKKKKKK..............",
+    "............KKaaaaaaaaaaaaaaaaKK............",
+    ".........KKKaaaaaawwwwwwwwaaaaaaKKK.........",
+    "........KaaaaawwwwwwWwWwwwwwwwaaaaaK........",
+    "......KKaaaawwwwwwwwwWwwwwwwwwwwaaaaKK......",
+    ".....KaaaawwwwwwwwwwWWwwwwwwwwwwwwaaaaK.....",
+    "....KaaawwwwwwwwwWwwwwwwwWwwwwwwwwwwaaaK....",
+    "...KaaawwwwwwwwwwwwaaaaaawwwwwwwwwwwwaaaK...",
+    "..KaaawwwwwwwwwwwaaaawwaaaawwwwwwwwwwwaaaK..",
+    "..KAAwwwwwWwwwwwAAwwwwwwwwAAwwwwWwwwwwwAAK..",
+    ".KAAAwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwAAAK.",
+    ".KAAwwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwwAAK.",
+    "KAAAwwwwwwwwwwwAAAwwwwwwwwAAAwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwAAAAAAwwAAAAAAwwwwwwwwwwwAAAK",
+    "KAAAwwwwWwwwwwwwAAAAAAAAAAAAwwwwwwwwwwwwAAAK",
+    "KAAwwwwwwwwwwwwwwAAAAAAAAAAwwwwwwwWwwwwwwAAK",
+    "KAAAwwwwwwwwwwwwwwwAAAAAAwwwwwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK",
+    "KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK",
+    ".KAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAK.",
+    ".KAAAwwwwwWwwwwwwwwwwwwwwwwwwwwwWwwwwwwAAAK.",
+    "..KAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAK..",
+    "..KAAAwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwAAAK..",
+    "...KAAAwwwwwwwwwwWwwwwwwwWwwwwwwwwwwwAAAK...",
+    "....KssswwwwwwwwwwwwwwwwwwwwwwwwwwwwsssK....",
+    ".....KsssswwwwwwwwwwwwwwwwwwwwwwwwssssK.....",
+    "......KKsssswwwwwwwwwwwwwwwwwwwwssssKK......",
+    "........KssssswwwwwwwwwwwwwwwwsssssK........",
+    ".........KKKsssssswwwwwwwwssssssKKK.........",
+    "............KKssssssssssssssssKK............",
+    "..............KKKKKKKKKKKKKKKK..............",
+    "............................................",
+    "............................................",
 ];
 const CP_BENCH: [&str; 10] = [
     "....................",
@@ -1090,6 +1180,21 @@ const CP_MKCROSS: [&str; 36] = [
     "KKKKKKKKKKKKKKKKKKKKKKKKKKKK",
 ];
 
+/// The fountains run a little water loop (baked frames, pool idiom).
+#[derive(Component)]
+pub struct CapFx {
+    frames: [Handle<Image>; 3],
+    t: u32,
+}
+
+fn fountain_tick(mut q: Query<(&mut CapFx, &mut Sprite)>) {
+    for (mut fx, mut sp) in &mut q {
+        fx.t = fx.t.wrapping_add(1);
+        let i = ((fx.t / 9) % 3) as usize;
+        sp.image = fx.frames[i].clone();
+    }
+}
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1114,7 +1219,7 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // ways — traffic flows around it — benches and blossom urns at the
         // corners, lamplight on every approach.
         (2, 2) => &[
-            (&CP_FOUNTAIN, 132.0, 86.0, false, Some((136.0, 104.0, 32.0, 16.0))),
+            (&CP_FOUNTAIN, 130.0, 84.0, false, Some((134.0, 102.0, 36.0, 16.0))),
             (&CP_BED_H, 136.0, 70.0, false, Some((137.0, 71.0, 30.0, 8.0))),
             (&CP_BED_H, 136.0, 128.0, false, Some((137.0, 129.0, 30.0, 8.0))),
             (&CP_BENCH, 56.0, 52.0, false, Some((57.0, 56.0, 18.0, 4.0))),
@@ -1305,7 +1410,7 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         ],
         // THE COMMONS GREEN (4,3): a second fountain square east, benches all round.
         (4, 3) => &[
-            (&CP_FOUNTAIN, 124.0, 78.0, false, Some((128.0, 96.0, 32.0, 16.0))),
+            (&CP_FOUNTAIN, 122.0, 76.0, false, Some((126.0, 94.0, 36.0, 16.0))),
             (&CP_BENCH, 134.0, 40.0, false, Some((135.0, 44.0, 18.0, 4.0))),
             (&CP_BENCH, 134.0, 150.0, false, Some((135.0, 154.0, 18.0, 4.0))),
             (&CP_BENCH, 84.0, 88.0, false, Some((85.0, 92.0, 18.0, 4.0))),
@@ -1456,13 +1561,24 @@ pub fn capital_wake(
         }
         // Canopy pieces (the arch) draw ABOVE the hero — you walk under them.
         let z = if *canopy { 8.5 } else { actor_z(y + h) };
-        commands.spawn((
-            Sprite::from_image(img),
-            at(PLAY_X + *x, PLAY_Y + *y, w, h, z),
-            PIXEL_LAYER,
-            RoomActor,
-            CapitalProp,
-        ));
+        let e = commands
+            .spawn((
+                Sprite::from_image(img.clone()),
+                at(PLAY_X + *x, PLAY_Y + *y, w, h, z),
+                PIXEL_LAYER,
+                RoomActor,
+                CapitalProp,
+            ))
+            .id();
+        // The fountain animates: two more frames, cycled by fountain_tick.
+        if std::ptr::eq(grid.as_ptr(), CP_FOUNTAIN.as_ptr()) {
+            let frames = [
+                img,
+                images.add(crate::gfx::bake(&CP_FOUNTAIN_B, CAPITAL_PAL)),
+                images.add(crate::gfx::bake(&CP_FOUNTAIN_C, CAPITAL_PAL)),
+            ];
+            commands.entity(e).insert(CapFx { frames, t: 0 });
+        }
     }
 }
 
@@ -1517,6 +1633,7 @@ impl Plugin for CapitalTownPlugin {
                 stall_interact.after(capital_wake).before(super::talk::talk_tick),
                 citizens_sim,
                 citizens_show.after(citizens_sim).after(capital_wake),
+                fountain_tick,
             )
                 .before(super::play::EndTick)
                 .run_if(super::screen::playing),
