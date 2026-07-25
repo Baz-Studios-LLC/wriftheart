@@ -30,7 +30,8 @@ pub const ART: &[(&str, [&str; 16])] = &[
     ("gnarlwood", ["DddddddDdddddddd", "ddddKddddddddDdd", "ddKdddddddKddddd", "ddKdddDdddKddDdd", "KKKdddddddKKKKdd", "ddddddKKddddddKd", "ddDddddKdddDddKd", "dddddddKdddddddd", "dddddKKKdddddDdd", "ddKKdddddddddKKd", "ddKdddDddddddKdd", "ddKdddddddDddKdd", "ddddddddddKKKddd", "KKddddddddKddddd", "ddddDdddddKdddDd", "ddddddddddKddddd"]),
     ("junglewall", ["lGGGGGGlGGGGGGGG", "GGGGEGGGGGGGGlGG", "GGEGGGGGGGEGGGGG", "GGEGGGlGGGEGGlGG", "EEEGGGGGGGEEEEGG", "GGGGGGEEGGGGGGEG", "GGlGGGGEGGGlGGEG", "GGGGGGGEGGGGGGGG", "GGGGGEEEGGGGGlGG", "GGEEGGGGGGGGGEEG", "GGEGGGlGGGGGGEGG", "GGEGGGGGGGlGGEGG", "GGGGGGGGGGEEEGGG", "EEGGGGGGGGEGGGGG", "GGGGlGGGGGEGGGlG", "GGGGGGGGGGEGGGGG"]),
     ("crystalwall", ["cxxxxxxcxxxxxxxx", "xxxxXxxxxxxxxcxx", "xxXxxxxxxxXxxxxx", "xxXxxxcxxxXxxcxx", "XXXxxxxxxxXXXXxx", "xxxxxxXXxxxxxxXx", "xxcxxxxXxxxcxxXx", "xxxxxxxXxxxxxxxx", "xxxxxXXXxxxxxcxx", "xxXXxxxxxxxxxXXx", "xxXxxxcxxxxxxXxx", "xxXxxxxxxxcxxXxx", "xxxxxxxxxxXXXxxx", "XXxxxxxxxxXxxxxx", "xxxxcxxxxxXxxxcx", "xxxxxxxxxxXxxxxx"]),
-    ("cobble", ["aAAanaAAAanaAAan", "AAAAnAAAAAnAAAAn", "sAAsnsAAAsnsAAsn", "nnnnnnnnnnnnnnnn", "AanaAAanaAAanaAA", "AAnAAAAnAAAAnAAA", "AsnsAAsnsAAsnsAA", "nnnnnnnnnnnnnnnn", "naAAAanaAAanaAAa", "nAAAAAnAAAAnAAAA", "nsAAAsnsAAsnsAAs", "nnnnnnnnnnnnnnnn", "AAanaAAanaAAAana", "AAAnAAAAnAAAAAnA", "AAsnsAAsnsAAAsns", "nnnnnnnnnnnnnnnn"]),
+    ("cobble", ["aAAnaAAAAnaAanaA", "AAAnAAAdAnAAAnAA", "ssnnsAAAAnssAnss", "nAAAnnnnnnnnAnnn", "nAdAnaAAnaAAAAna", "naAAnAAAnAAdAAnA", "nssAnsAAnsAAAsnA", "nnnnnnssnnnnnnnn", "aAAAAnaAnaAAnaAA", "AAdAAnAAnAAAnAAd", "sAAAsnssnsAAnssA", "nnnnnnnAnnAsnnnn", "aAAnaAAAAnnAAAna", "AAAnAAdAAnAdAAnA", "ssAnsAAAsnAAAsnA", "nnnnnnnnnnnsnnnn"]),
+
     ("castlewall", ["aaaaaaaasaaaaaaa", "AAAAAAAAsAAAAAAA", "AAAAAAAAsAAAAAAA", "ssssssssssssssss", "aaaasaaaaaaasaaa", "AAAAsAAAAAAAsAAA", "AAAAsAAAAAAAsAAA", "ssssssssssssssss", "aaaaaaaasaaaaaaa", "AAAAAAAAsAAAAAAA", "AAAAAAAAsAAAAAAA", "ssssssssssssssss", "aaaasaaaaaaasaaa", "AAAAsAAAAAAAsAAA", "AAAAsAAAAAAAsAAA", "ssssssssssssssss"]),
     ("cavewall", ["annnnnnannnnnnnn", "nnnnKnnnnnnnnann", "nnKnnnnnnnKnnnnn", "nnKnnnannnKnnann", "KKKnnnnnnnKKKKnn", "nnnnnnKKnnnnnnKn", "nnannnnKnnnannKn", "nnnnnnnKnnnnnnnn", "nnnnnKKKnnnnnann", "nnKKnnnnnnnnnKKn", "nnKnnnannnnnnKnn", "nnKnnnnnnnannKnn", "nnnnnnnnnnKKKnnn", "KKnnnnnnnnKnnnnn", "nnnnannnnnKnnnan", "nnnnnnnnnnKnnnnn"]),
     ("gravepath", ["aaaanaaaanaaaana", "aAaanaaaanaaAana", "aaaanaaAanaaaana", "nnnnnnnnnnnnnnnn", "aanaaaaanaaanaaa", "aanaaAaanaaanaAa", "aanaaaaanaAanaaa", "nnnnnnnnnnnnnnnn", "aaaanaaaanaaaana", "aAaanaaaanaaaana", "aaaanaAaanaaAana", "nnnnnnnnnnnnnnnn", "aanaaaaanaaanaaa", "aanaAaaanaaanaaa", "aanaaaaanaaanaAa", "nnnnnnnnnnnnnnnn"]),
@@ -83,7 +84,10 @@ pub const CODES: &[(char, &str, bool, &[(char, u32)])] = &[
     ('K', "castlewall", true, &[('A', 0x8a8a92), ('a', 0xb0b4be), ('s', 0x545a64)]),
     // The capital's COBBLESTONE (Baz: the flag grid read as a chocolate bar):
     // rounded setts in staggered courses, warm greys, tileable by rotation.
-    ('q', "cobble", false, &[('A', 0x8a8388), ('a', 0xa39a90), ('s', 0x6e675e), ('n', 0x4a4440)]),
+    // Baz: too much grey in a grey town — FADED BRICK RED setts, grey mortar,
+    // the odd grey stone; 'k' is the KERB course, castle-grey trim along the ways.
+    ('q', "cobble", false, &[('A', 0x9c6354), ('a', 0xb8836e), ('s', 0x744a40), ('n', 0x574540), ('d', 0x8a8388)]),
+    ('k', "cobble", false, &[('A', 0x8a8a92), ('a', 0xa8acb4), ('s', 0x60646c), ('n', 0x4a4a50), ('d', 0x9aa0a8)]),
 ];
 
 pub const GROUND_DEFS: &[(&str, char, char, &str)] = &[
