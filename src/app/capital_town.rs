@@ -356,6 +356,49 @@ const CP_SLIT: [&str; 14] = [
     "......",
 ];
 
+const CP_STALL: [&str; 28] = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "VVVVvvvvVVVVvvvvVVVVvvvvVVVVvvvvVV",
+    "VVVVvvvvVVVVvvvvVVVVvvvvVVVVvvvvVV",
+    "VVVVvvvvVVVVvvvvVVVVvvvvVVVVvvvvVV",
+    "VVVVvvvvVVVVvvvvVVVVvvvvVVVVvvvvVV",
+    "VVVVvvvvVVVVvvvvVVVVvvvvVVVVvvvvVV",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    ".V...v...V...v...V...v...V...v...V",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    ".dd............................dd.",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "DeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeD",
+    "DDDDDgGgDDDDgGgDDDDgGgDDDDgGgDDDDD",
+    "DDDDDgggDDDDgggDDDDgggDDDDgggDDDDD",
+    "DDDDDgggDDDDgggDDDDgggDDDDgggDDDDD",
+    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "KK..............................KK",
+    "KK..............................KK",
+];
+
+/// A market stall: pressing its counter opens the trade's shelf.
+#[derive(Component)]
+pub struct CapitalStall {
+    pub theme: usize,
+    pub x: f32,
+    pub y: f32,
+}
+
+/// Awning colors per trade: produce green, the catch blue, gear red, goods gold.
+const STALL_AWNINGS: [(u32, u32); 4] =
+    [(0x3f8f4f, 0x2a6634), (0x4a6ab0, 0x2a4a8a), (0xb0483a, 0x8a2a24), (0xd8b040, 0xa8842a)];
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -433,6 +476,52 @@ pub fn capital_wake(
         commands.entity(e).despawn();
     }
     let Some((kx, ky)) = world.0.capital_room(cur.rx, cur.ry) else { return };
+    // THE MARKET (1,2)/(3,2): stalls with their vendors at the counters (Baz: the
+    // market lives OUTSIDE). Themes: west = produce + the catch; east = gear + goods.
+    let stalls: &[(usize, f32, f32)] = match (kx, ky) {
+        (1, 2) => &[(0, 52.0, 40.0), (1, 150.0, 40.0), (3, 100.0, 120.0)],
+        (3, 2) => &[(2, 120.0, 40.0), (3, 218.0, 40.0), (1, 170.0, 120.0)],
+        _ => &[],
+    };
+    for &(theme, sx, sy) in stalls {
+        let (hi, lo) = STALL_AWNINGS[theme];
+        let pal: &[(char, u32)] = &[
+            ('K', 0x000000),
+            ('V', hi),
+            ('v', lo),
+            ('d', 0x6a4a2a),
+            ('D', 0x8a6a3a),
+            ('e', 0xb08850),
+            ('g', 0x9a9aa2),
+            ('G', 0xc8ccd8),
+        ];
+        let img = images.add(crate::gfx::bake(&CP_STALL, pal));
+        let blk = (sx + 1.0, sy + 20.0, 32.0, 7.0);
+        if !blockers.0.contains(&blk) {
+            blockers.0.push(blk);
+        }
+        commands.spawn((
+            Sprite::from_image(img),
+            at(PLAY_X + sx, PLAY_Y + sy, 34.0, 28.0, actor_z(sy + 26.0)),
+            PIXEL_LAYER,
+            RoomActor,
+            CapitalProp,
+            CapitalStall { theme, x: sx, y: sy },
+        ));
+        // The vendor, key-less at their counter (press = SHOP, not chat).
+        let seed = 0xcab1u32 ^ (kx as u32 * 31 + ky as u32 * 7 + theme as u32).wrapping_mul(0x9e37_79b9);
+        let (vx, vy) = (sx + 9.0, sy + 4.0);
+        let mut v = crate::actors::villager::Villager::new(vx, vy, seed, String::new());
+        v.hold_post();
+        commands.spawn((
+            Sprite::default(),
+            at(PLAY_X + vx, PLAY_Y + vy, 16.0, 16.0, actor_z(vy + 16.0)),
+            PIXEL_LAYER,
+            RoomActor,
+            CapitalProp,
+            v,
+        ));
+    }
     for (grid, x, y, canopy, blk) in dressing(kx, ky) {
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
         let (w, h) = (grid[0].len() as f32, grid.len() as f32);
@@ -453,12 +542,53 @@ pub fn capital_wake(
     }
 }
 
+/// PRESS at a stall counter: the trade's shelf opens (specialist idiom).
+#[allow(clippy::too_many_arguments)]
+fn stall_interact(
+    mut input: ResMut<crate::input::ActionState>,
+    mut shop: ResMut<super::shop::ShopState>,
+    bought: Res<super::shop::BoughtShop>,
+    mut next: ResMut<NextState<super::screen::Screen>>,
+    cur: Res<CurRoom>,
+    clock: Res<super::room_render::FrameClock>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    players: Query<&super::play::Player>,
+    stalls: Query<&CapitalStall>,
+) {
+    use crate::input::Action;
+    if !input.pressed(Action::Interact) {
+        return;
+    }
+    let Ok(p) = players.single() else { return };
+    let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
+    for st in &stalls {
+        let zone = (st.x - 2.0, st.y + 18.0, 38.0, 16.0);
+        if !(hitbox.0 < zone.0 + zone.2 && hitbox.0 + hitbox.2 > zone.0 && hitbox.1 < zone.1 + zone.3 && hitbox.1 + hitbox.3 > zone.1) {
+            continue;
+        }
+        input.consume(Action::Interact);
+        super::shop::open_capital_stall(
+            &mut shop,
+            &bought,
+            st.theme,
+            cur.rx,
+            cur.ry,
+            super::gather::farm_day(clock.0),
+        );
+        next.set(super::screen::Screen::Shop);
+        sfx.write(super::sfx::Sfx("open"));
+        return;
+    }
+}
+
 pub struct CapitalTownPlugin;
 impl Plugin for CapitalTownPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             bevy::app::FixedUpdate,
-            capital_wake.before(super::play::EndTick).run_if(super::screen::playing),
+            (capital_wake, stall_interact.after(capital_wake).before(super::talk::talk_tick))
+                .before(super::play::EndTick)
+                .run_if(super::screen::playing),
         );
     }
 }

@@ -222,6 +222,47 @@ pub fn open_specialist(shop: &mut ShopState, bought: &BoughtShop, guild: usize, 
     shop.scroll = 0;
 }
 
+/// A capital MARKET STALL's shelf (castle town: tier-4 market, themed per trade).
+/// Same sold-today ledger idiom as the caravan; gear stalls roll procedural wares
+/// at the capital's pinned tier.
+pub fn open_capital_stall(shop: &mut ShopState, bought: &BoughtShop, theme: usize, rx: i32, ry: i32, today: i64) {
+    const SHELVES: [&[&str]; 4] = [
+        &["turnip", "potato", "carrot", "tomato", "pepper", "turnipseed", "tomatoseed", "egg", "milk"], // produce
+        &["bass", "trout", "pike", "carp", "sunfish", "eel", "mapbottle"],                              // the catch
+        &["arrow", "potion", "greaterpotion"],                                                          // gear (+ rolls)
+        &["herb", "string", "leather", "gem", "meat", "stew", "pie"],                                   // goods
+    ];
+    let mut stock: Vec<ShopEntry> = SHELVES[theme.min(3)]
+        .iter()
+        .filter(|id| crate::items::get(id).is_some())
+        .map(|id| ShopEntry { id, price: crate::items::price_of(id) })
+        .collect();
+    if theme == 2 {
+        // The gear stall lays out procedural wares at the capital's market tier.
+        let seed = (rx as u32).wrapping_mul(73856093) ^ (ry as u32).wrapping_mul(19349663) ^ 0xcab1_7a1e;
+        for i in 0..4u32 {
+            let kind = if i % 2 == 0 { crate::procgen::Kind::Weapon } else { crate::procgen::Kind::Armor };
+            let id = crate::procgen::generate(kind, 2, seed ^ (i + 1).wrapping_mul(2_654_435_761));
+            stock.push(ShopEntry { id, price: crate::items::price_of(id) });
+        }
+    }
+    let key = format!("capstall:{rx},{ry}:{theme}");
+    let gone = bought.forever.get(&key);
+    let sold_today = bought.today.get(&key).filter(|_| bought.day == today);
+    shop.stock = stock
+        .into_iter()
+        .filter(|e| {
+            !gone.is_some_and(|s| s.iter().any(|x| x == e.id))
+                && !sold_today.is_some_and(|s| s.iter().any(|x| x == e.id))
+        })
+        .collect();
+    shop.key = key;
+    shop.discount = 1.0;
+    shop.tab = 0;
+    shop.cursor = 0;
+    shop.scroll = 0;
+}
+
 /// One sellable bag row: (uid, id, qty, unit price) — js sellList (bag only; gear and
 /// equipped slots stay off the table).
 fn sell_list(inv: &PlayerInv, clock: i64, fish_mult: f32) -> Vec<(u32, &'static str, i32, i32)> {
