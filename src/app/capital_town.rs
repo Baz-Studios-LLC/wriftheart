@@ -922,6 +922,121 @@ const CP_BASKET: [&str; 10] = [
     "............",
 ];
 
+const CP_HOUSE_TALL: [&str; 48] = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAKKKKKKKKAAAAAAKKKKKKKKAAAaa",
+    "aaAAAKooKKooKAAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAAKooKKooKAAAaa",
+    "aaAAAKKKKKKKKAAAAAAKKKKKKKKAAAaa",
+    "aaAAAKooKKooKAAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAAKooKKooKAAAaa",
+    "aaAAAKooKKooKAAAAAAKooKKooKAAAaa",
+    "aaAAAKKKKKKKKAAAAAAKKKKKKKKAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAKKKKKKKKAAAAAAAAAAAAAAAAAaa",
+    "aaAAAKooKKooKAAAAAAAAAAAAAAAAAaa",
+    "aaAAAKooKKooKAAAAAAAAAAAAAAAAAaa",
+    "aaAAAKooKKooKAAAAAKKKKKKKKKKAAaa",
+    "aaAAAKKKKKKKKAAAAAKDDDDDDDDKAAaa",
+    "aaAAAKooKKooKAAAAAKDDDDDDDDKAAaa",
+    "aaAAAKooKKooKAAAAAKDDDDDDDDKAAaa",
+    "aaAAAKooKKooKAAAAAKDDDDDDDDKAAaa",
+    "aaAAAKKKKKKKKAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDyDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "aaAAAAAAAAAAAAAAAAKDDDDDDDDKAAaa",
+    "ssssssssssssssssssssssssssssssss",
+    "ssssssssssssssssssssssssssssssss",
+];
+const CP_HOUSE_WIDE: [&str; 36] = [
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAKKKKKKKKKKKKAAAAAAAAAAAAAAAAKKKKKKKKKKKKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAAAAAAAAAAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAAAAAAAAAAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAKKKKKKKKAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAKDDDDDDKAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKKKKKKKKKKKKAAAAKDDDDDDKAAAAKKKKKKKKKKKKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAKDDDDDDKAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAKDDDDDDKAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAKDDDDDDKAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKooooKKooooKAAAAKDDDDDDKAAAAKooooKKooooKAAAAaa",
+    "aaAAAAKKKKKKKKKKKKAAAAKDDDDyDKAAAAKKKKKKKKKKKKAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAKDDDDDDKAAAAAAAAAAAAAAAAAAAAaa",
+    "ssssssssssssssssssssssssssssssssssssssssssssssssssss",
+    "ssssssssssssssssssssssssssssssssssssssssssssssssssss",
+];
+
+/// The residential shapes (art, w, h) — the row house plus two new silhouettes.
+const HOUSE_ARTS: [(&[&str], f32, f32); 3] =
+    [(&CP_ROWHOUSE, 44.0, 40.0), (&CP_HOUSE_TALL, 32.0, 48.0), (&CP_HOUSE_WIDE, 52.0, 36.0)];
+
+/// Four liveries: slate/grey, red/cream, green/tan, charcoal/blue-grey.
+const HOUSE_PALS: [&[(char, u32)]; 4] = [
+    &[('b', 0x2a4a8a), ('i', 0x1c3564), ('A', 0x9aa0a8), ('a', 0xb4bac2), ('D', 0x6a4a2a), ('o', 0xf0c060), ('K', 0x14161c), ('y', 0xe8c050), ('s', 0x545a64)],
+    &[('b', 0x8a3226), ('i', 0x611f18), ('A', 0xcabb9a), ('a', 0xdacfae), ('D', 0x5a3a22), ('o', 0xf0c060), ('K', 0x14161c), ('y', 0xe8c050), ('s', 0x6a5a48)],
+    &[('b', 0x3f6a35), ('i', 0x2a4a24), ('A', 0xb09a78), ('a', 0xc2ae8c), ('D', 0x4a3018), ('o', 0xf0c060), ('K', 0x14161c), ('y', 0xe8c050), ('s', 0x5c5040)],
+    &[('b', 0x3a3e46), ('i', 0x272a30), ('A', 0x8e98a6), ('a', 0xa6b0bc), ('D', 0x5a3a22), ('o', 0xf0c060), ('K', 0x14161c), ('y', 0xe8c050), ('s', 0x4a505a)],
+];
+
+/// (shape, livery, x, y) — two dense terraces either side of the lanes, no two
+/// neighbours sharing both shape and colour.
+const HOUSE_SPOTS: [(usize, usize, f32, f32); 9] = [
+    (1, 1, 20.0, 0.0),
+    (0, 2, 60.0, 8.0),
+    (2, 0, 112.0, 12.0),
+    (0, 3, 172.0, 8.0),
+    (1, 2, 224.0, 0.0),
+    (2, 3, 24.0, 92.0),
+    (0, 0, 84.0, 88.0),
+    (0, 1, 168.0, 88.0),
+    (2, 2, 224.0, 92.0),
+];
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1121,14 +1236,8 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         ],
         // THE RESIDENTIAL DISTRICT (1,4): row houses on cobbled lanes.
         (1, 4) => &[
-            (&CP_ROWHOUSE, 56.0, 8.0, false, Some((58.0, 24.0, 40.0, 22.0))),
-            (&CP_ROWHOUSE, 204.0, 8.0, false, Some((206.0, 24.0, 40.0, 22.0))),
-            (&CP_ROWHOUSE, 56.0, 88.0, false, Some((58.0, 104.0, 40.0, 22.0))),
-            (&CP_ROWHOUSE, 204.0, 88.0, false, Some((206.0, 104.0, 40.0, 22.0))),
             (&CP_LAMP, 76.0, 64.0, false, Some((78.0, 82.0, 4.0, 4.0))),
             (&CP_LAMP, 220.0, 64.0, false, Some((222.0, 82.0, 4.0, 4.0))),
-            (&CP_BED_V, 100.0, 8.0, false, Some((100.0, 9.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 8.0, false, Some((194.0, 9.0, 10.0, 22.0))),
         ],
         // THE ORCHARDS (0,4)/(4,4): fruit trees in working rows along the dirt
         // lanes, harvest baskets set out between them.
@@ -1245,6 +1354,24 @@ pub fn capital_wake(
             CapitalProp,
             v,
         ));
+    }
+    // THE RESIDENTIAL DISTRICT (1,4): dense varied homes, baked per livery.
+    if (kx, ky) == (1, 4) {
+        for &(shape, pal, hx, hy) in &HOUSE_SPOTS {
+            let (art, w, h) = HOUSE_ARTS[shape];
+            let img = images.add(crate::gfx::bake(art, HOUSE_PALS[pal]));
+            let blk = (hx + 2.0, hy + h - 24.0, w - 4.0, 22.0);
+            if !blockers.0.contains(&blk) {
+                blockers.0.push(blk);
+            }
+            commands.spawn((
+                Sprite::from_image(img),
+                at(PLAY_X + hx, PLAY_Y + hy, w, h, actor_z(hy + h - 2.0)),
+                PIXEL_LAYER,
+                RoomActor,
+                CapitalProp,
+            ));
+        }
     }
     for (grid, x, y, canopy, blk) in dressing(kx, ky) {
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
