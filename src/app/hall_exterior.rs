@@ -308,13 +308,20 @@ pub fn hall_wake(
         crate::guildhall::WINGS.iter().filter(|w| crate::guildhall::wing_home(&done, w)).map(|w| w.crest).collect();
     let img = images.add(bake_hall(crests.len(), &crests));
     let z = actor_z(fy + 16.0); // js depthSort anchor
-    commands.spawn((
+    let he = commands.spawn((
         Sprite::from_image(img),
         at(PLAY_X + fx - OX as f32, PLAY_Y + fy - OY as f32, IMG_W as f32, IMG_H as f32, z),
         PIXEL_LAYER,
         RoomActor, // the actor sweep clears the face on room/hall swaps
         HallFace,
-    ));
+    )).id();
+    // The hall is the biggest thing on its green - it casts accordingly.
+    commands.entity(he).insert(super::shadows::CastsShadow {
+        left: fx + 2.0,
+        top: fy + 18.0,
+        w: (W - 4) as u32,
+        a: 0.9,
+    });
     // The plaque (gold once the first guild is home).
     let nw = font::measure("GUILDHALL") as f32;
     let lx = PLAY_X + fx + ((W as f32 - nw) / 2.0).round();

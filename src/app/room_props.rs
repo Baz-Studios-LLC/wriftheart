@@ -233,7 +233,14 @@ pub fn spawn_room_props(
                 // the whole mass blocks (the doorway opens with the interiors port).
                 if let Some(img) = art.fronts.get(e.sub.as_str()) {
                     let tf = at(PLAY_X + fx - 16.0, PLAY_Y + fy - 32.0, 48.0, 48.0, actor_z(fy + 16.0));
-                    child(commands, root, Sprite::from_image(img.clone()), tf);
+                    let pe = child(commands, root, Sprite::from_image(img.clone()), tf);
+                    // Buildings stand tallest of all - they cast like everything else.
+                    commands.entity(pe).insert(super::shadows::CastsShadow {
+                        left: fx - 12.0,
+                        top: fy + 10.0,
+                        w: 40,
+                        a: 0.9,
+                    });
                     blockers.push((fx - 12.0, fy - 28.0, 40.0, 42.0));
                 }
             }
@@ -243,7 +250,13 @@ pub fn spawn_room_props(
             "shop" => {
                 if let Some(img) = art.fronts.get("store") {
                     let tf = at(PLAY_X + fx - 16.0, PLAY_Y + fy - 32.0, 48.0, 48.0, actor_z(fy + 16.0));
-                    child(commands, root, Sprite::from_image(img.clone()), tf);
+                    let pe = child(commands, root, Sprite::from_image(img.clone()), tf);
+                    commands.entity(pe).insert(super::shadows::CastsShadow {
+                        left: fx - 12.0,
+                        top: fy + 10.0,
+                        w: 40,
+                        a: 0.9,
+                    });
                     blockers.push((fx - 12.0, fy - 28.0, 40.0, 42.0));
                 }
             }
