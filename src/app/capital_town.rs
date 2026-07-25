@@ -788,12 +788,16 @@ fn croll(s: &mut u32) -> f32 {
 /// A destination somewhere on the ways: a lane of the Royal Way (any distance
 /// gate-to-castle) or a lane of the Cross Way (gate-to-gate).
 fn waypoint(s: &mut u32) -> (f32, f32) {
-    if croll(s) < 0.5 {
+    let r = croll(s);
+    if r < 0.4 {
         let lane = if croll(s) < 0.5 { 726.0 + croll(s) * 6.0 } else { 780.0 + croll(s) * 4.0 };
         (lane, 84.0 + croll(s) * 932.0)
-    } else {
+    } else if r < 0.75 {
         let lane = if croll(s) < 0.5 { 498.0 + croll(s) * 4.0 } else { 524.0 + croll(s) * 4.0 };
         (24.0 + croll(s) * 1456.0, lane)
+    } else {
+        // THE HIGH STREET (shop-district row), between the garden squares
+        (350.0 + croll(s) * 900.0, 722.0 + croll(s) * 12.0)
     }
 }
 
@@ -826,6 +830,15 @@ fn citizens_sim(time: Res<bevy::prelude::Time>, mut cz: ResMut<Citizens>) {
         // on road, never a lawn.
         let to_royal = c.wx > 712.0 && c.wx < 800.0 && !(c.wy > 490.0 && c.wy < 550.0);
         let (dx, dy) = (c.wx - c.gx, c.wy - c.gy);
+        let on_royal_x = c.gx > 712.0 && c.gx < 800.0;
+        if !to_royal && !on_royal_x && dy.abs() > 40.0 {
+            // changing horizontals: walk this road to the Royal Way first
+            let sx = 760.0 - c.gx;
+            if sx.abs() > step { c.gx += step * sx.signum() } else { c.gx = 760.0 }
+            c.sx = c.gx - ox;
+            c.sy = 0.0;
+            continue;
+        }
         if to_royal {
             if dx.abs() > step {
                 c.gx += step * dx.signum();
@@ -1104,28 +1117,26 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE APPROACH (2,3): the tree-lined avenue from the S gate — clipped
         // topiary ranks with lamplight between, mirrored on the Way.
         (2, 3) => &[
-            (&CP_TOPIARY, 82.0, 16.0, false, Some((84.0, 38.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 204.0, 16.0, false, Some((206.0, 38.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 82.0, 64.0, false, Some((84.0, 86.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 204.0, 64.0, false, Some((206.0, 86.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 82.0, 112.0, false, Some((84.0, 134.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 204.0, 112.0, false, Some((206.0, 134.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 82.0, 160.0, false, Some((84.0, 182.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 204.0, 160.0, false, Some((206.0, 182.0, 14.0, 6.0))),
-            (&CP_LAMP, 64.0, 40.0, false, Some((66.0, 58.0, 4.0, 4.0))),
-            (&CP_LAMP, 232.0, 40.0, false, Some((234.0, 58.0, 4.0, 4.0))),
-            (&CP_LAMP, 64.0, 88.0, false, Some((66.0, 106.0, 4.0, 4.0))),
-            (&CP_LAMP, 232.0, 88.0, false, Some((234.0, 106.0, 4.0, 4.0))),
-            (&CP_LAMP, 64.0, 136.0, false, Some((66.0, 154.0, 4.0, 4.0))),
-            (&CP_LAMP, 232.0, 136.0, false, Some((234.0, 154.0, 4.0, 4.0))),
-            (&CP_BED_V, 100.0, 20.0, false, Some((100.0, 21.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 20.0, false, Some((194.0, 21.0, 10.0, 22.0))),
-            (&CP_BED_V, 100.0, 68.0, false, Some((100.0, 69.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 68.0, false, Some((194.0, 69.0, 10.0, 22.0))),
-            (&CP_BED_V, 100.0, 116.0, false, Some((100.0, 117.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 116.0, false, Some((194.0, 117.0, 10.0, 22.0))),
-            (&CP_BED_V, 100.0, 164.0, false, Some((100.0, 165.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 164.0, false, Some((194.0, 165.0, 10.0, 22.0))),
+            (&CP_TOPIARY, 82.0, 12.0, false, Some((84.0, 34.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 12.0, false, Some((206.0, 34.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 82.0, 48.0, false, Some((84.0, 70.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 48.0, false, Some((206.0, 70.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 82.0, 132.0, false, Some((84.0, 154.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 132.0, false, Some((206.0, 154.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 82.0, 168.0, false, Some((84.0, 190.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 168.0, false, Some((206.0, 190.0, 14.0, 6.0))),
+            (&CP_BED_V, 100.0, 16.0, false, Some((100.0, 17.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 16.0, false, Some((194.0, 17.0, 10.0, 22.0))),
+            (&CP_BED_V, 100.0, 52.0, false, Some((100.0, 53.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 52.0, false, Some((194.0, 53.0, 10.0, 22.0))),
+            (&CP_BED_V, 100.0, 136.0, false, Some((100.0, 137.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 136.0, false, Some((194.0, 137.0, 10.0, 22.0))),
+            (&CP_BED_V, 100.0, 172.0, false, Some((100.0, 173.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 172.0, false, Some((194.0, 173.0, 10.0, 22.0))),
+            (&CP_LAMP, 64.0, 56.0, false, Some((66.0, 74.0, 4.0, 4.0))),
+            (&CP_LAMP, 232.0, 56.0, false, Some((234.0, 74.0, 4.0, 4.0))),
+            (&CP_LAMP, 64.0, 130.0, false, Some((66.0, 148.0, 4.0, 4.0))),
+            (&CP_LAMP, 232.0, 130.0, false, Some((234.0, 148.0, 4.0, 4.0))),
         ],
         // THE PROCESSION (2,1): the last stretch before the keep — sentinel
         // statues and the kingdom's banners, mirrored on the Way.
