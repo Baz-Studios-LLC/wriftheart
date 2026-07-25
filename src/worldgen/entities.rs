@@ -96,13 +96,26 @@ impl World {
                     }
                 }
             }
-            // THE SHOP DISTRICT (1,3)/(3,3): real town stores on the high street
-            // (Baz: "the stores from the other towns") — doors, interiors, keepers.
+            // THE SHOP DISTRICT (1,3)/(3,3): the towns' own service buildings
+            // (Baz: recognisable by now), one of each trade, packed shoulder to
+            // shoulder with their doors flush on the high street.
             if ky == 3 && (kx == 1 || kx == 3) {
-                out.push(ent("shop", 4, 4));
-                out.push(ent("shop", 9, 4));
-                out.push(ent("shop", 14, 4));
-                out.push(ent("shop", 9, 10));
+                let kinds: [&str; 5] = if kx == 1 {
+                    ["store", "blacksmith", "armory", "magic", "alchemist"]
+                } else {
+                    ["jeweler", "fletcher", "trader", "bakery", "tavern"]
+                };
+                for (i, k) in kinds.iter().enumerate() {
+                    out.push(RoomEntity {
+                        kind: "town",
+                        sub: (*k).into(),
+                        x: (3 + 3 * i as i32) * TILE,
+                        y: 4 * TILE,
+                        seed: 0,
+                        champ: false,
+                        elite: false,
+                    });
+                }
             }
             let taken: Vec<(i32, i32)> = out.iter().map(|e| (e.x / TILE, e.y / TILE)).collect();
             for r in 1..ROWS - 1 {
