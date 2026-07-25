@@ -122,6 +122,18 @@ impl World {
                     });
                 }
             }
+            // STREET TREES (Baz: placed nicely along the roads, never scattered):
+            // oak allees flank the grand ways, mirrored on each room's axes.
+            let oaks: &[(i32, i32)] = match (kx, ky) {
+                (2, 1) => &[(2, 2), (16, 2), (2, 6), (16, 6), (2, 10), (16, 10)],
+                (2, 2) => &[(2, 1), (16, 1), (2, 11), (16, 11)],
+                (0, 2) | (4, 2) => &[(6, 3), (10, 3), (14, 3), (6, 9), (10, 9), (14, 9)],
+                (0, 1) | (4, 1) => &[(2, 1), (16, 1), (2, 10), (16, 10)],
+                _ => &[],
+            };
+            for &(c, r) in oaks {
+                out.push(ent("oak", c, r));
+            }
             let taken: Vec<(i32, i32)> = out.iter().map(|e| (e.x / TILE, e.y / TILE)).collect();
             for r in 1..ROWS - 1 {
                 for c in 1..COLS - 1 {
