@@ -221,6 +221,55 @@ pub static WINGS: [Wing; 5] = [
     },
 ];
 
+/// A guild's daily JOB (the contract board in its restored wing): bring the ask,
+/// take the coin and STANDING. One per guild per city per day, seeded rotation.
+pub struct Contract {
+    pub label: &'static str,
+    pub n: i32,
+    pub matches: ReqMatch,
+    pub coin: i64,
+    pub standing: i32,
+}
+
+/// Indexed like WINGS. Asks stay modest next to the bundles — contracts are the
+/// DAILY loop, standing is the long climb (ranks at 300 / 800).
+pub static CONTRACTS: [&[Contract]; 5] = [
+    &[
+        Contract { label: "TOMATOES", n: 6, matches: ReqMatch::Ids(&["tomato"]), coin: 60, standing: 50 },
+        Contract { label: "PUMPKINS", n: 4, matches: ReqMatch::Ids(&["pumpkin"]), coin: 70, standing: 55 },
+        Contract { label: "WHEAT", n: 8, matches: ReqMatch::Ids(&["wheat"]), coin: 55, standing: 50 },
+        Contract { label: "FRESH EGGS", n: 6, matches: ReqMatch::Ids(&["egg"]), coin: 50, standing: 45 },
+        Contract { label: "PAILS OF MILK", n: 4, matches: ReqMatch::Ids(&["milk"]), coin: 65, standing: 55 },
+    ],
+    &[
+        Contract { label: "BASS", n: 3, matches: ReqMatch::Ids(&["bass"]), coin: 60, standing: 50 },
+        Contract { label: "TROUT", n: 3, matches: ReqMatch::Ids(&["trout"]), coin: 60, standing: 50 },
+        Contract { label: "ANY FISH", n: 8, matches: ReqMatch::Kind("FISH"), coin: 55, standing: 45 },
+        Contract { label: "CARP", n: 4, matches: ReqMatch::Ids(&["carp"]), coin: 55, standing: 50 },
+        Contract { label: "A RARE CATCH", n: 1, matches: ReqMatch::RareFish, coin: 90, standing: 65 },
+    ],
+    &[
+        Contract { label: "COPPER ORE", n: 8, matches: ReqMatch::Ids(&["copper"]), coin: 55, standing: 45 },
+        Contract { label: "IRON ORE", n: 6, matches: ReqMatch::Ids(&["iron"]), coin: 70, standing: 55 },
+        Contract { label: "STONE", n: 12, matches: ReqMatch::Ids(&["stone"]), coin: 50, standing: 45 },
+        Contract { label: "SILVER ORE", n: 4, matches: ReqMatch::Ids(&["silver"]), coin: 85, standing: 60 },
+        Contract { label: "GEMS", n: 2, matches: ReqMatch::Ids(&["gem"]), coin: 90, standing: 65 },
+    ],
+    &[
+        Contract { label: "MONSTER LEATHER", n: 8, matches: ReqMatch::Ids(&["leather"]), coin: 60, standing: 50 },
+        Contract { label: "SPIDER STRING", n: 6, matches: ReqMatch::Ids(&["string"]), coin: 55, standing: 50 },
+        Contract { label: "HERBS", n: 8, matches: ReqMatch::Ids(&["herb"]), coin: 50, standing: 45 },
+        Contract { label: "GEMS", n: 3, matches: ReqMatch::Ids(&["gem"]), coin: 95, standing: 65 },
+    ],
+    &[
+        Contract { label: "HEARTY STEWS", n: 2, matches: ReqMatch::Ids(&["stew"]), coin: 80, standing: 60 },
+        Contract { label: "ROASTS", n: 2, matches: ReqMatch::Ids(&["roast"]), coin: 70, standing: 55 },
+        Contract { label: "MEAT", n: 8, matches: ReqMatch::Ids(&["meat"]), coin: 55, standing: 45 },
+        Contract { label: "A PIE", n: 1, matches: ReqMatch::Ids(&["pie"]), coin: 60, standing: 50 },
+        Contract { label: "FRESH EGGS", n: 8, matches: ReqMatch::Ids(&["egg"]), coin: 50, standing: 45 },
+    ],
+];
+
 pub fn wing(id: &str) -> Option<&'static Wing> {
     WINGS.iter().find(|w| w.id == id)
 }

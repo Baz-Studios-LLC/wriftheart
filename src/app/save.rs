@@ -139,6 +139,9 @@ pub struct SaveData {
     /// Sidebar widget arrangement: (id, pin 0-top/1-bottom, shown), display order.
     #[serde(default)]
     pub hud: Vec<(String, u8, bool)>,
+    /// Guild standing: contract points per guild + today's filled boards.
+    #[serde(default)]
+    pub guild_standing: super::guildhall::GuildStanding,
     #[serde(default = "full_can")]
     pub can_water: i32, // the watering can's remaining pours (pre-farm saves: full)
 }
@@ -346,6 +349,7 @@ pub struct MiscExtras<'w> {
     pub victory: ResMut<'w, super::dungeon::Victory>,
     pub story: ResMut<'w, super::story::StoryThread>,
     pub hud: ResMut<'w, super::hud_widgets::HudConfig>,
+    pub standing: ResMut<'w, super::guildhall::GuildStanding>,
 }
 
 /// Restore every resource-side piece of the save (setup already consumed the world/room/
@@ -375,6 +379,7 @@ pub fn apply_to(d: &SaveData, ctx: &mut SaveCtx, extras: &mut SaveExtras) {
     extras.misc.victory.won = d.game_won;
     extras.misc.story.0 = d.story;
     extras.misc.hud.load(&d.hud);
+    *extras.misc.standing = d.guild_standing.clone();
     // The wand's socketed rune (pre-wand saves stored "": stay arcane).
     extras.misc.rune.0 = match d.wand_rune.as_str() {
         "fire" => "fire",
@@ -606,6 +611,7 @@ pub fn collect(ctx: &SaveCtx, extras: &SaveExtras, player: &Player, health: &Hea
         game_won: extras.misc.victory.won,
         story: extras.misc.story.0,
         hud: extras.misc.hud.rows_for_save(),
+        guild_standing: (*extras.misc.standing).clone(),
         side_looted: {
             let mut v: Vec<String> = extras.side_looted.0.iter().cloned().collect();
             v.sort(); // deterministic file bytes
@@ -779,6 +785,7 @@ mod tests {
             game_won: false,
             story: 0,
             hud: Vec::new(),
+            guild_standing: Default::default(),
         };
         let json = serde_json::to_string(&d).unwrap();
         let back: SaveData = serde_json::from_str(&json).unwrap();

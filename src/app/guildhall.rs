@@ -104,6 +104,67 @@ const DESK_PAL: &[(char, u32)] = &[
 #[derive(Component)]
 struct HallCast;
 
+/// Guild STANDING (saved): points per guild id, one order across every city.
+/// Earned at the contract boards; ranks unlock the specialists' finer shelves.
+#[derive(Resource, Default, Clone, Serialize, Deserialize)]
+pub struct GuildStanding {
+    pub pts: HashMap<String, i32>,
+    /// Contract bookkeeping: the day + which "city:guild" boards paid today.
+    pub day: i64,
+    pub done_today: Vec<String>,
+}
+
+impl GuildStanding {
+    pub fn rank(&self, guild: &str) -> (&'static str, i32) {
+        let p = self.pts.get(guild).copied().unwrap_or(0);
+        if p >= 800 {
+            ("MASTER", p)
+        } else if p >= 300 {
+            ("JOURNEYMAN", p)
+        } else {
+            ("APPRENTICE", p)
+        }
+    }
+    fn roll_day(&mut self, today: i64) {
+        if self.day != today {
+            self.day = today;
+            self.done_today.clear();
+        }
+    }
+}
+
+/// The wing's CONTRACT BOARD: posts and parchment, one daily job per guild.
+#[derive(Component)]
+pub struct ContractBoard {
+    pub guild: usize,
+    pub x: f32,
+    pub y: f32,
+}
+
+const BOARD: [&str; 14] = [
+    "KKKKKKKKKKKKKKKKKKKK",
+    "KDDDDDDDDDDDDDDDDDDK",
+    "KDWWWWWDDDWWWWWWDDDK",
+    "KDWwwwWDDDWwwwwWDDDK",
+    "KDWwwwWDDDWwwwwWDDDK",
+    "KDWWWWWDDDWwwwwWDDDK",
+    "KDDDDDDDDDWWWWWWDDDK",
+    "KDDWWWWWWDDDDDDDDDDK",
+    "KDDWwwwwWDDDWWWWWDDK",
+    "KDDWWWWWWDDDWWWWWDDK",
+    "KDDDDDDDDDDDDDDDDDDK",
+    "KKKKKKKKKKKKKKKKKKKK",
+    "..dd............dd..",
+    "..dd............dd..",
+];
+const BOARD_PAL: &[(char, u32)] = &[
+    ('K', 0x000000),
+    ('D', 0x8a6a3a),
+    ('d', 0x5a4224),
+    ('W', 0xe8e0c8), // pinned notices
+    ('w', 0xb8b09a), // their ink
+];
+
 /// The wing ceremony's light burst: a crest-colored star that swells, spins
 /// slowly, and fades (Baz: everything guild-touched should feel epic).
 #[derive(Component)]
@@ -342,6 +403,21 @@ fn altar_wake(
                     ('c', 0xffffff),
                     ('W', 0xf0ead0),
                 ];
+                // THE CONTRACT BOARD: daily work, posted by the guild (inc 6).
+                let board_img = images.add(crate::gfx::bake(&BOARD, BOARD_PAL));
+                let (bdx, bdy) = (44.0, 30.0);
+                let bblk = (bdx, bdy + 4.0, 20.0, 10.0);
+                if !blockers.0.contains(&bblk) {
+                    blockers.0.push(bblk);
+                }
+                commands.spawn((
+                    Sprite::from_image(board_img),
+                    at(PLAY_X + bdx, PLAY_Y + bdy, 20.0, 14.0, actor_z(bdy + 14.0)),
+                    PIXEL_LAYER,
+                    RoomActor,
+                    HallCast,
+                    ContractBoard { guild: widx, x: bdx, y: bdy },
+                ));
                 let bimg = images.add(crate::gfx::bake(&WING_BANNER, pal));
                 for bxp in [56.0, 104.0, 184.0, 232.0] {
                     commands.spawn((
@@ -392,6 +468,90 @@ fn altar_interact(
             sfx.write(super::sfx::Sfx("open"));
             return;
         }
+    }
+}
+
+/// PRESS at the board: today's ask — filled from the bag on the spot if you carry
+/// it (coin + standing), or posted as a toast so you know what to bring.
+#[allow(clippy::too_many_arguments)]
+fn board_interact(
+    mut input: ResMut<ActionState>,
+    mut standing: ResMut<GuildStanding>,
+    hall: Res<CurrentHall>,
+    clock: Res<super::room_render::FrameClock>,
+    mut inv: ResMut<crate::inventory::PlayerInv>,
+    mut log: ResMut<super::rewards::LootLog>,
+    mut sfx: MessageWriter<super::sfx::Sfx>,
+    mut saves: MessageWriter<super::save::SaveRequest>,
+    players: Query<&Player>,
+    boards: Query<&ContractBoard>,
+) {
+    if !input.pressed(Action::Interact) {
+        return;
+    }
+    let Ok(p) = players.single() else { return };
+    let hitbox = (p.x + 3.0, p.y + 2.0, 10.0, 13.0);
+    for b in &boards {
+        let bb = (b.x - 6.0, b.y + 2.0, 32.0, 26.0);
+        if !(hitbox.0 < bb.0 + bb.2 && hitbox.0 + hitbox.2 > bb.0 && hitbox.1 < bb.1 + bb.3 && hitbox.1 + hitbox.3 > bb.1) {
+            continue;
+        }
+        input.consume(Action::Interact);
+        let today = super::gather::farm_day(clock.0);
+        standing.roll_day(today);
+        let w = &WINGS[b.guild];
+        let key = format!("{}:{}", hall.0.clone().unwrap_or_default(), w.id);
+        if standing.done_today.iter().any(|k| *k == key) {
+            log.add("gh", "THE BOARD IS CLEAR - NEW WORK TOMORROW", 1, 0x8a8a92, false, true);
+            sfx.write(super::sfx::Sfx("tink"));
+            return;
+        }
+        // Today's ask: seeded per city+guild+day so every hall posts its own job.
+        let h = key.bytes().fold(0x811c_9dc5u32, |a, c| (a ^ c as u32).wrapping_mul(0x0100_0193))
+            ^ (today as u32).wrapping_mul(0x9e37_79b9);
+        let asks = crate::guildhall::CONTRACTS[b.guild];
+        let c = &asks[(h >> 8) as usize % asks.len()];
+        let have: i32 = inv
+            .bag
+            .iter()
+            .flatten()
+            .filter_map(|uid| inv.entry(*uid))
+            .filter(|e| req_matches(c.matches, e.id))
+            .map(|e| e.qty)
+            .sum();
+        if have < c.n {
+            log.add(
+                "gh",
+                &format!("{} POST: {} {} - {} COPPER OFFERED", w.name, c.n, c.label, c.coin),
+                1,
+                w.crest,
+                false,
+                true,
+            );
+            sfx.write(super::sfx::Sfx("open"));
+            return;
+        }
+        for _ in 0..c.n {
+            if let Some(id) = inv
+                .bag
+                .iter()
+                .flatten()
+                .filter_map(|uid| inv.entry(*uid))
+                .map(|e| e.id)
+                .find(|id| req_matches(c.matches, id))
+            {
+                inv.remove_one(id);
+            }
+        }
+        inv.money += c.coin;
+        *standing.pts.entry(w.id.to_string()).or_insert(0) += c.standing;
+        standing.done_today.push(key);
+        let (rank, pts) = standing.rank(w.id);
+        log.add("gh", &format!("CONTRACT FILLED - {} COPPER", c.coin), 1, 0xfcd000, false, true);
+        log.add("gh", &format!("{} STANDING {pts} - {rank}", w.name), 1, w.crest, false, true);
+        sfx.write(super::sfx::Sfx("coin"));
+        saves.write(super::save::SaveRequest);
+        return;
     }
 }
 
@@ -852,12 +1012,13 @@ pub struct GuildhallPlugin;
 impl Plugin for GuildhallPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GuildLedger>()
+            .init_resource::<GuildStanding>()
             .init_resource::<CurrentHall>()
             .init_resource::<DonateState>()
             .init_resource::<CityPerks>()
             .add_systems(
                 bevy::app::FixedUpdate,
-                (perks_tick, burst_tick, super::hall_exterior::hall_wake, stall_wake, altar_wake, altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
+                (perks_tick, burst_tick, super::hall_exterior::hall_wake, stall_wake, altar_wake, board_interact.after(altar_wake).before(super::talk::talk_tick), altar_interact.before(super::talk::talk_tick).after(altar_wake), donate_tick.after(altar_interact).before(super::flute::flute_tick))
                     .before(super::play::EndTick)
                     .run_if(super::screen::playing),
             );
