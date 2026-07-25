@@ -10,7 +10,7 @@
 pub fn is_solid(code: char) -> bool {
     matches!(
         code,
-        'T' | 'R' | '~' | 'M' | 'S' | 'J' | 'X' | 'I' | 'H' | 'U' | 'Z' | 'O' | 'N' | 'G' | 'Y' | 'C'
+        'T' | 'R' | '~' | 'M' | 'S' | 'J' | 'X' | 'I' | 'H' | 'U' | 'Z' | 'O' | 'N' | 'G' | 'Y' | 'C' | 'K'
     )
 }
 

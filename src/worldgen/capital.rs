@@ -389,9 +389,10 @@ static TEMPLATES: [[&str; 13]; 25] = [
 ];
 
 /// The authored room, walls baked to this biome's rampart char.
-pub fn room_map(kx: i32, ky: i32, wall: char) -> RoomMap {
+pub fn room_map(kx: i32, ky: i32, _wall: char) -> RoomMap {
     let t = &TEMPLATES[(ky * 5 + kx) as usize];
-    let map: Vec<String> = t.iter().map(|r| r.chars().map(|c| if c == 'W' { wall } else { c }).collect()).collect();
+    // 'K' = the capital's OWN castle stone (tiles_art) — never the biome's wall.
+    let map: Vec<String> = t.iter().map(|r| r.chars().map(|c| if c == 'W' { 'K' } else { c }).collect()).collect();
     let prot: HashSet<usize> = (0..13 * 19).collect();
     RoomMap { map, prot }
 }
