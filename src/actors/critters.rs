@@ -45,7 +45,7 @@ const fn def(kind: CritterKind) -> KindDef {
         CritterKind::Deer => KindDef { fly: false, spd: 0.5, flee: 2.4, r: 60.0 },
         CritterKind::Bird => KindDef { fly: true, spd: 0.5, flee: 3.0, r: 46.0 },
         CritterKind::Butterfly => KindDef { fly: true, spd: 0.35, flee: 1.7, r: 26.0 },
-        CritterKind::Duck => KindDef { fly: false, spd: 0.4, flee: 1.6, r: 30.0 },
+        CritterKind::Duck => KindDef { fly: false, spd: 0.22, flee: 1.3, r: 24.0 },
     }
 }
 
@@ -344,7 +344,19 @@ fn spawn_on_room_change(
         } else {
             CritterKind::Deer
         };
-        let (x, y) = ((c * TILE) as f32, (r * TILE) as f32);
+        let mut xy = ((c * TILE) as f32, (r * TILE) as f32);
+        if kind == CritterKind::Duck && rnd() < 0.65 {
+            // Most ducks start already ON the pond.
+            for _ in 0..14 {
+                let wc = 2 + (rnd() * (COLS - 4) as f32) as i32;
+                let wr = 2 + (rnd() * (ROWS - 4) as f32) as i32;
+                if grid.0.code_at(wc, wr) == '~' {
+                    xy = ((wc * TILE) as f32, (wr * TILE) as f32);
+                    break;
+                }
+            }
+        }
+        let (x, y) = xy;
         let frame_bank = match kind {
             CritterKind::Rabbit => BANK_RABBIT,
             CritterKind::Deer => BANK_DEER,
@@ -439,12 +451,18 @@ fn critter_tick(
         let (cx, cy) = (e.x + 4.0, e.y + 4.0);
         let (dxp, dyp) = ((p.x + 8.0) - cx, (p.y + 9.0) - cy);
         let pd = dxp.hypot(dyp);
+        let swims = e.kind == CritterKind::Duck;
         let solid_at = |nx: f32, ny: f32| {
-            nx < 2.0
-                || ny < 2.0
-                || nx > (PX_W - 8) as f32
-                || ny > (PX_H - 8) as f32
-                || grid.0.box_hits_solid(nx + 1.0, ny + 5.0, 6.0, 3.0)
+            if nx < 2.0 || ny < 2.0 || nx > (PX_W - 8) as f32 || ny > (PX_H - 8) as f32 {
+                return true;
+            }
+            // A duck treats pond water as ground — it floats where others stop.
+            if swims
+                && grid.0.code_at(((nx + 4.0) / 16.0).floor() as i32, ((ny + 6.0) / 16.0).floor() as i32) == '~'
+            {
+                return false;
+            }
+            grid.0.box_hits_solid(nx + 1.0, ny + 5.0, 6.0, 3.0)
         };
         // Per-axis ground moves slide along walls; fliers go straight through.
         macro_rules! mv {
@@ -531,8 +549,10 @@ fn critter_tick(
             e.flee_t = 0; // next scare re-aims at once (wander re-uses dirx/diry)
             e.move_t -= 1;
             if e.move_t <= 0 {
-                e.move_t = 50 + (rng.0.next_f64() * 80.0) as i32;
-                if rng.0.next_f64() < 0.45 {
+                // Ducks dawdle: long pauses, slow paddling bursts (Baz: calmer).
+                let (base, idle) = if e.kind == CritterKind::Duck { (110, 0.7) } else { (50, 0.45) };
+                e.move_t = base + (rng.0.next_f64() * 80.0) as i32;
+                if rng.0.next_f64() < idle {
                     e.dirx = 0.0;
                     e.diry = 0.0;
                 } else {
