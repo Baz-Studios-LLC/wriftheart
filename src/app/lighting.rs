@@ -92,13 +92,17 @@ fn setup_overlay(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     ));
 }
 
-/// A light hole's erase factor at gradient position t in [0..1] — the js destination-out
-/// radial stops: 1.0 at the centre, 0.7 at 55%, 0.0 at the rim (linear between).
+/// A light hole's erase factor at gradient position t in [0..1]. The js two-stop
+/// gradient banded (Baz: a hard ring at its 55% stop and a visible rim edge) —
+/// now a solid core easing out on a smoothstep that lands at the rim with zero
+/// slope, so every flame pools naturally into the dark.
 fn hole_cut(t: f32) -> f32 {
-    if t < 0.55 {
-        1.0 - 0.3 * (t / 0.55)
+    let t = t.clamp(0.0, 1.0);
+    if t < 0.3 {
+        1.0
     } else {
-        0.7 * (1.0 - (t - 0.55) / 0.45).max(0.0)
+        let u = (t - 0.3) / 0.7;
+        1.0 - u * u * (3.0 - 2.0 * u)
     }
 }
 
