@@ -344,9 +344,9 @@ static TEMPLATES: [[&str; 13]; 25] = [
     [ // room (2,4)
         ".......k___k.......",
         ".......k___k.......",
-        "kk.....k___k.....kk",
-        "pppppppk___kppppppp",
-        "kkpppppk___kpppppkk",
+        "kkkkkkkk___kkkkkkkk",
+        "ppppppp_____ppppppp",
+        "kkkkkkpk___kpkkkkkk",
         ".......k___k.......",
         ".......k___k.......",
         "kkkkkkkk___kkkkkkkk",
