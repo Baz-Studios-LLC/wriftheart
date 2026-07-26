@@ -91,6 +91,7 @@ pub struct DoorRefs<'w, 's> {
     pub cave_doors: Query<'w, 's, &'static super::caves::CaveDoor>,
     pub house: Res<'w, super::home::PlayerHouse>,
     pub stalls: Query<'w, 's, &'static super::guildhall::ProduceStall>,
+    pub inns: Query<'w, 's, &'static super::capital_town::CapitalInn>,
 }
 
 #[allow(clippy::too_many_arguments)] // ECS system params are wide by nature
@@ -143,6 +144,10 @@ pub(crate) fn door_enter(
     // the candidates the same way the hidden shops' cave doors do.
     for s in &refs.stalls {
         cands.push(("farmstall".to_string(), s.x as i32, s.y as i32, (s.x - 4.0, s.y + 8.0, 24.0, 18.0)));
+    }
+    // THE CROWN INN: the capital's bespoke tavern door.
+    for inn in &refs.inns {
+        cands.push(("tavern".to_string(), inn.x as i32, inn.y as i32, (inn.x - 10.0, inn.y - 8.0, 36.0, 22.0)));
     }
     // The player's built home (app/home.rs) — its door opens the "house" interior (bed + chest).
     if let Some(h) = &refs.house.0

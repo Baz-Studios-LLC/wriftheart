@@ -30,6 +30,7 @@ const CAPITAL_PAL: &[(char, u32)] = &[
     ('l', 0x3e7a40), // topiary shade
     ('L', 0x79b25c), // topiary light
     ('m', 0xb888d8), // lavender bloom
+    ('c', 0xd8c8a8), // inn plaster
 ];
 
 const CP_TOWER: [&str; 48] = [
@@ -1195,6 +1196,80 @@ fn fountain_tick(mut q: Query<(&mut CapFx, &mut Sprite)>) {
     }
 }
 
+const CP_INN: [&str; 64] = [
+    "........................................................................................KKKKKKKK................",
+    "........................................................................................AAAAAAAA................",
+    "........................................................................................AAAAAAAA................",
+    "........................................................................................aaaaaaaa................",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKAAAAAAAAKKKKKKKKKKKKKKKK",
+    "KbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbAAAAAAAAbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbKKKKKKKKKKKKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKKKKKKKKKKKKAAAAAAAAbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbKbbbbbbbbbbKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKbbbbbbbbbbKbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiKbbbbbbbbbbKiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiKbbbbbbbbbbKiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbKbbKKKKKKbbKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKbbKKKKKKbbKbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KiiiiiiiiiiiiiiiiiiiKbbKooooKbbKiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiKbbKooooKbbKiiiiiiiiiiiiiiiiiiiiiiiK",
+    "KbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbKbbKooooKbbKbbbbbbbbbbbbbbbbbbbbbbbK",
+    "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "DcccccccccccccDcccccccccccccDcccccccccccccDccccccccccccccccccccccccccDcccccccccccccDcccccccccccccDcccccccccccccD",
+    "DcccccccccccccDcccccccccccccDcccccccccccccDccccccccccccccccccccccccccDcccccccccccccDcccccccccccccDcccccccccccccD",
+    "DcccccKKKKKKKKKKccccccccccccDcccccKKKKKKKKKKccccccKKKKKKKKKKKKcccccccDccccccKKKKKKKKKKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyyyyyyyyyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyyyKKKKyyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyybbbbbbyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyybbbbbbyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyybbbbbbyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyybbbbbbyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyybbbbbbyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyyyyyyyyyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKyyyyyyyyyyKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKoooKKoooKccccccccccccDcccccKoooKKoooKccccccKKKKKKKKKKKKcccccccDccccccKoooKKoooKcccccccccccDcccccccccccccD",
+    "DcccccKKKKKKKKKKccccccccccccDcccccKKKKKKKKKKcccccccccccccccccccccccccDccccccKKKKKKKKKKcccccccccccDcccccccccccccD",
+    "DccccDrDgDrDgDrDDcccccccccccDccccDrDgDrDgDrDDccccccccccccccccccccccccDcccccDrDgDrDgDrDDccccccccccDcccccccccccccD",
+    "DccccDDDDDDDDDDDDcccccccccccDccccDDDDDDDDDDDDccccccccccccccccccccccccDcccccDDDDDDDDDDDDccccccccccDcccccccccccccD",
+    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaaaaaaaaaaaaaaaaaaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaaaaaaaaaaaaaaaaaaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAKKKKKKKKKKKKKKKKKKAAAAAAAAAAAAAAAAAAKKKKKKKKKKKKKKKKKKKKKKKKAAAAAAAAAAAAAAAAKKKKKKKKKKKKKKKKKKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAiiiAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAiiiAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAoooAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAoooAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAoooAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAoooAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAoooAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAoooAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAiiiAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAiiiAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKKKKKKKKKKKKKKKKKKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKKKKKKKKKKKKKKKKKKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDyDDKKDDyDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKoooooooKKoooooooKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKoooooooKKoooooooKAAAAAAAAaa",
+    "aaAAAAAAKKKKKKKKKKKKKKKKKKAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAKKKKKKKKKKKKKKKKKKAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "aaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKDDDDDDDDDDKKDDDDDDDDDDKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa",
+    "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+    "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+];
+
+/// THE CROWN INN's pressable door (door_enter reads these — tavern inside).
+#[derive(Component)]
+pub struct CapitalInn {
+    pub x: f32,
+    pub y: f32,
+}
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1533,6 +1608,24 @@ pub fn capital_wake(
             RoomActor,
             CapitalProp,
             v,
+        ));
+    }
+    // THE CROWN INN (3,1): the capital's great tavern on the east green —
+    // guildhall-scale, bespoke, its door opening the tavern interior.
+    if (kx, ky) == (3, 1) {
+        let img = images.add(crate::gfx::bake(&CP_INN, CAPITAL_PAL));
+        let blk = (98.0, 56.0, 108.0, 34.0);
+        if !blockers.0.contains(&blk) {
+            blockers.0.push(blk);
+        }
+        commands.spawn((
+            Sprite::from_image(img),
+            at(PLAY_X + 96.0, PLAY_Y + 28.0, 112.0, 64.0, actor_z(90.0)),
+            PIXEL_LAYER,
+            RoomActor,
+            CapitalProp,
+            super::shadows::CastsShadow { left: 98.0, top: 86.0, w: 106, a: 0.9 },
+            CapitalInn { x: 146.0, y: 94.0 },
         ));
     }
     // THE RESIDENTIAL DISTRICT (1,4): dense varied homes, baked per livery.
