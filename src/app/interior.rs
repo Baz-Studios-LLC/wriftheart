@@ -59,16 +59,117 @@ pub struct InteriorArt {
     flames: Vec<Handle<Image>>,
 }
 
+/// A staircase press inside the Crown Inn: which floor to stand up next.
+#[derive(Message)]
+pub struct StairsMsg(pub &'static str);
+
+/// Swap the Crown Inn's floors in place: rebuild the scene, keep the overworld
+/// doorstep, land the player at the far stairwell (door_enter's build, minus the
+/// outside-only extras — tomes and banners roll on true entry).
+#[allow(clippy::too_many_arguments)]
+fn stairs_swap(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut msgs: MessageReader<StairsMsg>,
+    mut inside: ResMut<Inside>,
+    mut cooldown: ResMut<DoorCooldown>,
+    mut art: ResMut<InteriorArt>,
+    cur: Res<CurRoom>,
+    world: Res<GameWorld>,
+    mut grid: ResMut<CurGrid>,
+    mut blockers: ResMut<RoomBlockers>,
+    mut root: ResMut<ActiveRoot>,
+    actors: Query<Entity, With<RoomActor>>,
+    mut players: Query<&mut Player>,
+) {
+    let Some(target) = msgs.read().last().map(|m| m.0) else { return };
+    let Some(prev) = inside.0.take() else { return };
+    let Some(def) = crate::actors::interiors_inn::INN_DEFS.iter().find(|d| d.kind == target) else {
+        inside.0 = Some(prev);
+        return;
+    };
+    let (ex, ey) = (146, 94); // the inn's one street door — folk stay the same folk
+    commands.entity(root.0).despawn();
+    for a in &actors {
+        commands.entity(a).despawn();
+    }
+    let img = scene_image(&mut art, def, &mut images);
+    let new_root = commands.spawn((Transform::default(), Visibility::default(), RoomRoot)).id();
+    child(&mut commands, new_root, Sprite::from_image(img.clone()), at(PLAY_X, PLAY_Y, PX_W as f32, PX_H as f32, 1.0));
+    if let Some(hx) = hearth_x(def) {
+        if art.flames.is_empty() {
+            art.flames = bake_flame_frames(&mut images);
+        }
+        let e = commands
+            .spawn((
+                Sprite::from_image(art.flames[0].clone()),
+                at(PLAY_X + hx as f32, PLAY_Y, 48.0, 32.0, 1.05),
+                crate::gfx::PIXEL_LAYER,
+                HearthFlame,
+            ))
+            .id();
+        commands.entity(new_root).add_child(e);
+    }
+    let wy = (PX_H - TILE) as f32;
+    let (gx0, gx1) = (128.0, 176.0);
+    for (x0, w) in [(0.0, gx0), (gx1, PX_W as f32 - gx1)] {
+        let mut sprite = Sprite::from_image(img.clone());
+        sprite.rect = Some(Rect::new(x0, wy, x0 + w, wy + TILE as f32));
+        child(&mut commands, new_root, sprite, at(PLAY_X + x0, PLAY_Y + wy, w, TILE as f32, 8.6));
+    }
+    let bs = ((ex as u32).wrapping_mul(40503)) ^ ((ey as u32).wrapping_add(7)).wrapping_mul(2654435761);
+    let iseed = ((cur.rx as u32).wrapping_mul(73856093))
+        ^ ((cur.ry as u32).wrapping_mul(19349663))
+        ^ bs
+        ^ world.0.seed;
+    for (i, (px, py, still, line)) in def.people.iter().enumerate() {
+        let ve = child(
+            &mut commands,
+            new_root,
+            Sprite::default(),
+            at(PLAY_X + *px as f32, PLAY_Y + *py as f32, 16.0, 16.0, 5.0),
+        );
+        let vseed = iseed ^ ((i as u32 + 1).wrapping_mul(0x9e3779b9));
+        let mut v = Villager::new(*px as f32, *py as f32, vseed, line.to_string());
+        v.identify(
+            format!("i:{},{}:{}:{},{}:{}", cur.rx, cur.ry, def.kind, ex, ey, i),
+            if i == 0 { crate::people::title_for(vseed, def.kind) } else { crate::people::name_for(vseed).to_string() },
+        );
+        if *still {
+            v.hold_post();
+        }
+        v.stagger();
+        commands.entity(ve).insert(v);
+    }
+    grid.0 = interior_grid(def);
+    blockers.0 = vec![];
+    root.0 = new_root;
+    if let Ok(mut p) = players.single_mut() {
+        let (sx, sy) = if target == "crownloft" { (264.0, 108.0) } else { (236.0, 118.0) };
+        p.x = sx;
+        p.y = sy;
+    }
+    inside.0 = Some(InsideState {
+        def,
+        return_pos: prev.return_pos,
+        iseed,
+        shop_key: None,
+        keeper_key: prev.keeper_key.clone(),
+    });
+    cooldown.0 = 20;
+}
+
 pub struct InteriorPlugin;
 
 impl Plugin for InteriorPlugin {
     fn build(&self, app: &mut App) {
+        app.add_message::<StairsMsg>();
         app.init_resource::<Inside>()
             .init_resource::<DoorCooldown>()
             .init_resource::<InteriorArt>()
             .add_systems(
                 bevy::app::FixedUpdate,
-                (door_enter, door_exit).before(super::play::EndTick).run_if(playing),
+                (door_enter, door_exit, stairs_swap).before(super::play::EndTick).run_if(playing),
             )
             .add_systems(Update, hearth_flicker);
     }
@@ -147,7 +248,7 @@ pub(crate) fn door_enter(
     }
     // THE CROWN INN: the capital's bespoke tavern door.
     for inn in &refs.inns {
-        cands.push(("tavern".to_string(), inn.x as i32, inn.y as i32, (inn.x - 10.0, inn.y - 8.0, 36.0, 22.0)));
+        cands.push(("crowninn".to_string(), inn.x as i32, inn.y as i32, (inn.x - 10.0, inn.y - 8.0, 36.0, 22.0)));
     }
     // The player's built home (app/home.rs) — its door opens the "house" interior (bed + chest).
     if let Some(h) = &refs.house.0
@@ -160,7 +261,13 @@ pub(crate) fn door_enter(
         if !overlap(hitbox, door) {
             continue;
         }
-        let Some(def) = INTERIORS.iter().find(|d| d.kind == kind) else { continue };
+        let Some(def) = INTERIORS
+            .iter()
+            .chain(crate::actors::interiors_inn::INN_DEFS.iter())
+            .find(|d| d.kind == kind)
+        else {
+            continue;
+        };
         input.consume(Action::Interact); // the door eats the press (nothing else fires)
 
         // --- The swap: the overworld room leaves, the scene stands up. ---

@@ -10,6 +10,7 @@ pub mod entrance_art;
 pub mod goblin;
 pub mod goblin_art;
 pub mod interiors_art;
+pub mod interiors_inn;
 pub mod items_art;
 pub mod mob_defs;
 pub mod mob_think;

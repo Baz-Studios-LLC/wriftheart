@@ -87,6 +87,7 @@ pub(crate) struct ServiceCtx<'w> {
     saves: MessageWriter<'w, super::save::SaveRequest>,
     learned: ResMut<'w, super::flute::LearnedSongs>,
     tomes: ResMut<'w, super::gather::GatherState>,
+    stairs: MessageWriter<'w, super::interior::StairsMsg>,
 }
 
 /// The interior zone loop: the FIRST fixture under the player prompts + serves. A
@@ -125,6 +126,7 @@ pub(crate) fn interact_tick(
                     "shop" => state.shop_key.is_some(),
                     "lorevendor" => true, // the library's TOME counter (dormant until now)
                     "rest" | "heal" | "bed" | "bard" | "storage" => true,
+                    "stairsup" | "stairsdown" => true, // the Crown Inn's floors
                     _ => false,
                 };
                 if !served {
@@ -158,6 +160,14 @@ pub(crate) fn interact_tick(
                             ));
                             sc.next.set(Screen::Dialog);
                             want = None; // the window replaces the bar
+                        }
+                        "stairsup" => {
+                            sc.stairs.write(super::interior::StairsMsg("crownloft"));
+                            want = None;
+                        }
+                        "stairsdown" => {
+                            sc.stairs.write(super::interior::StairsMsg("crowninn"));
+                            want = None;
                         }
                         "bard" => bard_talk(&mut sc),
                         "lorevendor" => tome_sale(state, &perks, &mut sc, super::gather::farm_day(clock.0)),
