@@ -1638,6 +1638,22 @@ pub struct Arrange {
     pub panel_left: bool,
 }
 
+/// Rewrite one room's planted-tree lines from the live static.
+fn write_tree_lines(kx: i32, ky: i32) {
+    let Some(path) = crate::persist::data_file("arrange.txt") else { return };
+    let old = std::fs::read_to_string(&path).unwrap_or_default();
+    let pre = format!("{kx},{ky} E ");
+    let mut out: Vec<String> = old.lines().filter(|l| !l.starts_with(&pre)).map(|l| l.to_string()).collect();
+    if let Ok(m) = crate::worldgen::capital::tree_adds().read() {
+        if let Some(v) = m.get(&(kx, ky)) {
+            for (k2, c2, r2) in v {
+                out.push(format!("{kx},{ky} E {k2} {c2} {r2}"));
+            }
+        }
+    }
+    let _ = std::fs::write(&path, out.join("\n") + "\n");
+}
+
 fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32, u8, &'static str)>, ov: &mut ArrangeOverrides) {
     entries.sort_by_key(|(i, ..)| *i);
     let Some(path) = crate::persist::data_file("arrange.txt") else { return };
@@ -1676,6 +1692,7 @@ fn arrange_tick(
     world: Res<super::play::GameWorld>,
     mut props: Query<(Entity, &mut ArrTag, &mut Sprite, &mut Transform)>,
     ghosts: Query<(Entity, &GhostTree)>,
+    nodes: Query<(Entity, &super::gather::GatherNode)>,
     mut overrides: ResMut<ArrangeOverrides>,
 ) {
     let cap = world.0.capital_room(cur.rx, cur.ry);
@@ -1760,19 +1777,7 @@ fn arrange_tick(
                         v.push((kind, tc, tr));
                     }
                 }
-                if let Some(path) = crate::persist::data_file("arrange.txt") {
-                    let old = std::fs::read_to_string(&path).unwrap_or_default();
-                    let pre = format!("{kx},{ky} E ");
-                    let mut out: Vec<String> = old.lines().filter(|l| !l.starts_with(&pre)).map(|l| l.to_string()).collect();
-                    if let Ok(m) = crate::worldgen::capital::tree_adds().read() {
-                        if let Some(v) = m.get(&(kx, ky)) {
-                            for (k2, c2, r2) in v {
-                                out.push(format!("{kx},{ky} E {k2} {c2} {r2}"));
-                            }
-                        }
-                    }
-                    let _ = std::fs::write(&path, out.join("\n") + "\n");
-                }
+                write_tree_lines(kx, ky);
                 if planted {
                     let img = images.add(crate::gfx::bake(&CP_TREE, CAPITAL_PAL));
                     let (gx2, gy2) = ((tc * 16 - 9) as f32, (tr * 16 - 30) as f32);
@@ -1881,7 +1886,29 @@ fn arrange_tick(
         return;
     }
     pointer.click = false;
-    if arr.carrying.take().is_some() {
+    if let Some(ce2) = arr.carrying.take() {
+        // A carried PLANTING (sentinel add >= 1000) replants at the drop tile.
+        if let Ok((_, tag, ..)) = props.get(ce2) {
+            if let Some(a2) = tag.add {
+                if a2 >= 1000 {
+                    let kind = (a2 - 1000) as u8;
+                    let tc = (((tag.x + 17.0) / 16.0).floor() as i32).clamp(1, 17);
+                    let tr2 = (((tag.y + 40.0) / 16.0).floor() as i32).clamp(1, 11);
+                    if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
+                        m.entry((kx, ky)).or_default().push((kind, tc, tr2));
+                    }
+                    write_tree_lines(kx, ky);
+                    if let Ok((_, mut tag2, _, mut tf)) = props.get_mut(ce2) {
+                        tag2.x = (tc * 16 - 9) as f32;
+                        tag2.y = (tr2 * 16 - 30) as f32;
+                        *tf = at(PLAY_X + tag2.x, PLAY_Y + tag2.y, 34.0, 46.0, actor_z(tag2.y + 46.0));
+                    }
+                    commands.entity(ce2).remove::<ArrTag>();
+                    commands.entity(ce2).insert(GhostTree { c: tc, r: tr2 });
+                    return;
+                }
+            }
+        }
         let entries: Vec<_> = props
             .iter()
             .filter(|(_, t, ..)| t.kx == kx && t.ky == ky)
@@ -1897,6 +1924,57 @@ fn arrange_tick(
             if best.is_none() || area < best.unwrap().1 {
                 best = Some((e, area));
             }
+        }
+    }
+    if best.is_none() {
+        // No prop under the cursor: a PLANTED tree there gets picked up instead.
+        let (tc, tr2) = ((mx / 16.0).floor() as i32, (my / 16.0).floor() as i32);
+        let mut picked: Option<u8> = None;
+        if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
+            if let Some(v) = m.get_mut(&(kx, ky)) {
+                if let Some(i2) = v.iter().position(|(_, c2, r2)| *c2 == tc && *r2 == tr2) {
+                    picked = Some(v.remove(i2).0);
+                }
+            }
+        }
+        if let Some(kind) = picked {
+            write_tree_lines(kx, ky);
+            for (ne, node) in &nodes {
+                if node.tree && node.c == tc && node.r == tr2 {
+                    commands.entity(ne).despawn();
+                }
+            }
+            for (ge, g) in &ghosts {
+                if g.c == tc && g.r == tr2 {
+                    commands.entity(ge).despawn();
+                }
+            }
+            let img = images.add(crate::gfx::bake(&CP_TREE, CAPITAL_PAL));
+            let (gx2, gy2) = ((tc * 16 - 9) as f32, (tr2 * 16 - 30) as f32);
+            let e = commands
+                .spawn((
+                    Sprite::from_image(img),
+                    at(PLAY_X + gx2, PLAY_Y + gy2, 34.0, 46.0, actor_z(gy2 + 46.0)),
+                    PIXEL_LAYER,
+                    RoomActor,
+                    CapitalProp,
+                    ArrTag {
+                        kx,
+                        ky,
+                        idx: 900_000,
+                        w: 34.0,
+                        h: 46.0,
+                        canopy: false,
+                        x: gx2,
+                        y: gy2,
+                        add: Some(1000 + kind as usize),
+                        rot: 0,
+                        grid: &CP_TREE,
+                    },
+                ))
+                .id();
+            arr.carrying = Some(e);
+            return;
         }
     }
     arr.carrying = best.map(|(e, _)| e);
