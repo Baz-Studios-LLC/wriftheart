@@ -1538,6 +1538,8 @@ pub struct Arrange {
     pub pal_sel: usize,
     pub tile_mode: bool,
     pub tile_sel: usize,
+    /// The tile panel dodges to the other side when the cursor nears it.
+    pub panel_left: bool,
 }
 
 fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32, u8)>, ov: &mut ArrangeOverrides) {
@@ -1781,18 +1783,10 @@ fn paint_tick(
     }
     let Some(pos) = pointer.pos else { return };
     let pw = 100.0;
-    let px0 = crate::CANVAS_W as f32 - pw - 8.0;
-    let over_panel = pointer.over(px0, 30.0, pw, TILE_PALETTE.len() as f32 * 12.0 + 10.0);
-    if over_panel {
-        for i in 0..TILE_PALETTE.len() {
-            if pointer.over(px0, 34.0 + i as f32 * 12.0, pw, 12.0) && (pointer.moved || pointer.click) {
-                arr.tile_sel = i;
-            }
-        }
-        if pointer.click {
-            pointer.click = false;
-        }
-        return;
+    let ph = TILE_PALETTE.len() as f32 * 12.0 + 10.0;
+    let px0 = if arr.panel_left { PLAY_X + 4.0 } else { crate::CANVAS_W as f32 - pw - 8.0 };
+    if pointer.over(px0, 30.0, pw, ph) {
+        arr.panel_left = !arr.panel_left; // the panel dodges the brush — paint anywhere
     }
     if mouse.pressed(MouseButton::Left) {
         let (c, r) = (((pos.x - PLAY_X) / 16.0).floor() as i32, ((pos.y - PLAY_Y) / 16.0).floor() as i32);
@@ -1848,9 +1842,9 @@ fn arrange_panel(
     mut images: ResMut<Assets<Image>>,
     arr: Res<Arrange>,
     ui: Query<Entity, With<PalUi>>,
-    mut last: Local<Option<(bool, usize, bool, usize)>>,
+    mut last: Local<Option<(bool, usize, bool, usize, bool)>>,
 ) {
-    let now = (arr.pal_open, arr.pal_sel, arr.tile_mode, arr.tile_sel);
+    let now = (arr.pal_open, arr.pal_sel, arr.tile_mode, arr.tile_sel, arr.panel_left);
     if *last == Some(now) {
         return;
     }
@@ -1872,7 +1866,11 @@ fn arrange_panel(
     let row = "#".repeat(w as usize);
     let rows: Vec<&str> = (0..h).map(|_| row.as_str()).collect();
     let img = crate::gfx::bake(&rows, &[('#', 0x0a0a10)]);
-    let px = crate::CANVAS_W as f32 - w as f32 - 8.0;
+    let px = if arr.tile_mode && arr.panel_left {
+        PLAY_X + 4.0
+    } else {
+        crate::CANVAS_W as f32 - w as f32 - 8.0
+    };
     commands.spawn((
         Sprite::from_image(images.add(img)),
         at(px, 30.0, w as f32, h as f32, 200.0),
