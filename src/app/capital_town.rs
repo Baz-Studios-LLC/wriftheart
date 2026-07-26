@@ -1503,9 +1503,26 @@ pub struct ArrangeOverrides {
     pub loaded: bool,
 }
 
+const CP_BUSH: [&str; 14] = [
+    "......LLLLLLLL......",
+    "...LLLLLLLLLLLLLL...",
+    "..ggLLLLLLLLLLLLgg..",
+    "..ggggrggggggggggg..",
+    ".gggggggglgggggglgg.",
+    ".ggglgggggggrgggggg.",
+    ".ggggggggglggglgggg.",
+    ".gglggggggggggggggg.",
+    ".ggggglggggglggrggg.",
+    "..llrlllllllllllll..",
+    "..llllllllllllllll..",
+    "....llllllllllll....",
+    "......llllllll......",
+    "....................",
+];
+
 /// The F9 palette: anything Baz can sprinkle around a room by hand.
 /// (name, art, shadow feet width — 0 = flat, no shadow.)
-const PALETTE: [(&str, &[&str], u32); 11] = [
+const PALETTE: [(&str, &[&str], u32); 12] = [
     ("LAMP", &CP_LAMP, 6),
     ("BENCH", &CP_BENCH, 18),
     ("URN", &CP_URN, 10),
@@ -1517,6 +1534,7 @@ const PALETTE: [(&str, &[&str], u32); 11] = [
     ("BASKET", &CP_BASKET, 10),
     ("CROSS", &CP_MKCROSS, 24),
     ("HEADSTONE", &CP_HEADSTONE, 8),
+    ("BUSH", &CP_BUSH, 14),
 ];
 
 /// The F8 tile painter's brushes: (name, final map char, wet-paint colour).
