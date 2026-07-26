@@ -1704,7 +1704,9 @@ fn arrange_tick(
                 });
             }
             if std::ptr::eq(grid.as_ptr(), CP_LAMP.as_ptr()) {
-                commands.entity(e).insert(LampGlow { x: (sx + 4.0) as i32, y: (sy + 5.0) as i32 });
+                if let Ok(mut m) = lamp_spots().write() {
+                    m.entry((cur.rx, cur.ry)).or_default().push(((sx + 4.0) as i32, (sy + 5.0) as i32));
+                }
             }
             arr.carrying = Some(e);
             arr.pal_open = false;
@@ -2008,11 +2010,13 @@ const CP_CATHEDRAL: [&str; 80] = [
     "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
 ];
 
-/// A street lamp's warm pool for the lighting pass (room pixel coords).
-#[derive(Component)]
-pub struct LampGlow {
-    pub x: i32,
-    pub y: i32,
+/// Street-lamp light anchors per ROOM — the lighting pass reads these through
+/// the same slide-aware path as torches, so transitions are handled ONCE for
+/// every light source (Baz: stop fixing lamps separately).
+static LAMP_SPOTS: std::sync::OnceLock<std::sync::RwLock<std::collections::HashMap<(i32, i32), Vec<(i32, i32)>>>> =
+    std::sync::OnceLock::new();
+pub fn lamp_spots() -> &'static std::sync::RwLock<std::collections::HashMap<(i32, i32), Vec<(i32, i32)>>> {
+    LAMP_SPOTS.get_or_init(Default::default)
 }
 
 #[derive(Component)]
@@ -2430,6 +2434,7 @@ pub fn capital_wake(
             ));
         }
     }
+    let mut lampv: Vec<(i32, i32)> = Vec::new();
     // ARRANGER ADDITIONS (F9 palette): props Baz placed by hand.
     let extra: Vec<(usize, f32, f32, u8)> = overrides.adds.get(&(kx, ky)).cloned().unwrap_or_default();
     for (n, (pi, ax, ay, rot)) in extra.into_iter().enumerate() {
@@ -2461,7 +2466,7 @@ pub fn capital_wake(
             ))
             .id();
         if std::ptr::eq(grid.as_ptr(), CP_LAMP.as_ptr()) {
-            commands.entity(e).insert(LampGlow { x: (ax + 4.0) as i32, y: (ay + 5.0) as i32 });
+            lampv.push(((ax + 4.0) as i32, (ay + 5.0) as i32));
         }
         if feet > 0 {
             commands.entity(e).insert(super::shadows::CastsShadow {
@@ -2549,7 +2554,7 @@ pub fn capital_wake(
         .find(|(p, _)| *p == grid.as_ptr())
         .map(|(_, fw)| *fw);
         if std::ptr::eq(grid.as_ptr(), CP_LAMP.as_ptr()) {
-            commands.entity(e).insert(LampGlow { x: (px + 4.0) as i32, y: (py + 5.0) as i32 });
+            lampv.push(((px + 4.0) as i32, (py + 5.0) as i32));
         }
         if let Some(fw) = feet {
             commands.entity(e).insert(super::shadows::CastsShadow {
@@ -2568,6 +2573,9 @@ pub fn capital_wake(
             ];
             commands.entity(e).insert(CapFx { frames, t: 0 });
         }
+    }
+    if let Ok(mut m) = lamp_spots().write() {
+        m.insert((cur.rx, cur.ry), lampv);
     }
 }
 

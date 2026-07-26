@@ -114,7 +114,6 @@ type CampCache = Vec<((i32, i32), Vec<(i32, i32, i32)>)>; // 2 slots: current + 
 /// The room-scene inputs (grouped under Bevy's 16-param cap).
 #[derive(bevy::ecs::system::SystemParam)]
 struct SceneCtx<'w, 's> {
-    lamps: Query<'w, 's, &'static super::capital_town::LampGlow>,
     cur: Res<'w, super::play::CurRoom>,
     world: Res<'w, super::play::GameWorld>,
     slide: Res<'w, super::play::SlideState>,
@@ -230,12 +229,17 @@ fn update_overlay(
                     _ => {}
                 }
             }
+            // WRIFTHOLD's street lamps ride the same path — incoming AND
+            // outgoing offsets included, like every other flame.
+            if let Ok(spots) = super::capital_town::lamp_spots().read() {
+                if let Some(v) = spots.get(&(rx, ry)) {
+                    for (lx, ly) in v {
+                        lights.push((ox + lx + fox, oy + ly + foy, 36));
+                    }
+                }
+            }
         };
         flames(cur.rx, cur.ry, sox, soy, &mut lights);
-        // WRIFTHOLD's street lamps join the night (capital props, not entities).
-        for lamp in &scene.lamps {
-            lights.push((ox + lamp.x, oy + lamp.y, 36));
-        }
         // The OUTGOING room's flames ride OUT with it (Baz: town torch glow cut the
         // moment you left) — same flames, keyed off the departing room, on the
         // outgoing offset.
