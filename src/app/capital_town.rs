@@ -1710,6 +1710,20 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_LAMP, 52.0, 160.0, false, Some((54.0, 178.0, 4.0, 4.0))),
             (&CP_LAMP, 244.0, 160.0, false, Some((246.0, 178.0, 4.0, 4.0))),
         ],
+        // THE INN COURT (3,1): lamplight at the door, ale benches on the pad,
+        // urns at the flanks, blossoms and baskets by the lane.
+        (3, 1) => &[
+            (&CP_LAMP, 124.0, 92.0, false, Some((126.0, 110.0, 4.0, 4.0))),
+            (&CP_LAMP, 172.0, 92.0, false, Some((174.0, 110.0, 4.0, 4.0))),
+            (&CP_BENCH, 100.0, 120.0, false, Some((101.0, 124.0, 18.0, 4.0))),
+            (&CP_BENCH, 184.0, 120.0, false, Some((185.0, 124.0, 18.0, 4.0))),
+            (&CP_URN, 68.0, 36.0, false, Some((70.0, 44.0, 8.0, 5.0))),
+            (&CP_URN, 224.0, 36.0, false, Some((226.0, 44.0, 8.0, 5.0))),
+            (&CP_BED_H, 86.0, 140.0, false, Some((87.0, 141.0, 30.0, 8.0))),
+            (&CP_BED_H, 186.0, 140.0, false, Some((187.0, 141.0, 30.0, 8.0))),
+            (&CP_BASKET, 114.0, 160.0, false, Some((115.0, 164.0, 10.0, 5.0))),
+            (&CP_BASKET, 178.0, 160.0, false, Some((179.0, 164.0, 10.0, 5.0))),
+        ],
         _ => &[],
     }
 }
