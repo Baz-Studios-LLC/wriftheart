@@ -563,6 +563,33 @@ impl World {
             }
         }
 
+        let mut grid = grid;
+        // CAPITAL APPROACHES: the road out of a city gate never drowns or walls
+        // over (Baz: the south gate opened onto a lake). Water on the gate axis
+        // becomes a stone causeway; rock and growth give way to the road.
+        let approach: Option<(bool, i32, i32)> = if self.capital_room(rx, ry - 1) == Some((2, 4)) {
+            Some((true, 8, 10)) // south approach: the Royal Way's open lanes
+        } else if self.capital_room(rx + 1, ry) == Some((0, 2))
+            || self.capital_room(rx - 1, ry) == Some((4, 2))
+        {
+            Some((false, 6, 7)) // west/east approaches: the Cross Way's lanes
+        } else {
+            None
+        };
+        if let Some((vert, a, b)) = approach {
+            for t in 0..(if vert { ROWS } else { COLS }) {
+                for lane in a..=b {
+                    let (c, r) = if vert { (lane, t) } else { (t, lane) };
+                    let ch = grid[r as usize][c as usize];
+                    if ch == '~' {
+                        grid[r as usize][c as usize] = 'B';
+                    } else if crate::tiles::is_solid(ch) {
+                        grid[r as usize][c as usize] = '=';
+                    }
+                    prot.insert((r * COLS + c) as usize);
+                }
+            }
+        }
         RoomMap { map: grid.into_iter().map(|row| row.into_iter().collect()).collect(), prot }
     }
 }
