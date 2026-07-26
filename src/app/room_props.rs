@@ -227,6 +227,28 @@ pub fn spawn_room_props(
                 let fe = child(commands, root, Sprite::from_image(img), at(PLAY_X + fx, PLAY_Y + fy, 16.0, 16.0, 3.0));
                 commands.entity(fe).insert(GroundVeg { c, r }); // a hoe clears it off fresh soil
             }
+            // Lilypads were pushed by swamps (and now the capital ponds) but never
+            // had a render arm — they vanished silently. They float just over the
+            // water overlay, under everything that walks.
+            "lilypad" => {
+                const LILY: &[&str] = &[
+                    "................",
+                    "................",
+                    "....LLLLLL......",
+                    "..LLggggggLL....",
+                    ".Lggggggggrr....",
+                    ".Lggggllgggg....",
+                    "..Lggggllggg....",
+                    "...LlggggglL....",
+                    ".....llll.......",
+                    "................",
+                ];
+                let img = images.add(crate::gfx::bake(
+                    LILY,
+                    &[('g', 0x3f8f4f), ('l', 0x2f6a38), ('L', 0x74b868), ('r', 0xd05868)],
+                ));
+                child(commands, root, Sprite::from_image(img), at(PLAY_X + fx, PLAY_Y + fy, 16.0, 16.0, 2.5));
+            }
             // --- Town dressing (townEntities): storefronts, the well, braziers, folk. ---
             "town" => {
                 // js townBuilding: 48x48 front anchored (x-16, y-32), depth-sorted at y+16;
