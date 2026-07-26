@@ -248,7 +248,7 @@ pub(crate) fn door_enter(
     }
     // THE CROWN INN: the capital's bespoke tavern door.
     for inn in &refs.inns {
-        cands.push(("crowninn".to_string(), inn.x as i32, inn.y as i32, (inn.x - 10.0, inn.y - 8.0, 36.0, 22.0)));
+        cands.push((inn.kind.to_string(), inn.x as i32, inn.y as i32, (inn.x - 10.0, inn.y - 8.0, 36.0, 22.0)));
     }
     // The player's built home (app/home.rs) — its door opens the "house" interior (bed + chest).
     if let Some(h) = &refs.house.0
