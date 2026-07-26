@@ -1077,6 +1077,12 @@ fn mini_color(world: &crate::worldgen::World, code: char, gx: i32, gy: i32) -> u
         'B' => 0x7c4c1c, // bridge
         '_' => 0xe0c890, // town path (tan flagstone)
         '=' => 0x8a5a28, // wilderness dirt road
+        // THE CAPITAL's own tiles: the map should read as the CITY (Baz) —
+        // brick-red ways, grey kerbs, the castle mass, clipped hedges.
+        'q' => 0x9c6354, // capital cobble
+        'k' => 0x9a9aa2, // kerb / sidewalk
+        'K' => 0x565a66, // castle stone (walls + keep read as mass)
+        'h' => 0x2f6a38, // clipped hedge
         c => WALL_MINI
             .iter()
             .find(|(w, _)| *w == c)
