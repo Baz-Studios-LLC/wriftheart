@@ -1788,45 +1788,39 @@ fn arrange_tick(
         }
         if spawn_now {
             let (pname, grid, feet) = PALETTE[arr.pal_sel];
-            // OAK/APPLETREE plant REAL tree entities at the cursor's tile
-            // (click a planted one again to unplant); the room's next build
-            // spawns the true seeded tree — a ghost stands in until then.
+            // OAK/APPLETREE spawn IN-HAND like every other prop; dropping
+            // plants at the drop tile. (The old plant-at-cursor toggle could
+            // silently unplant a tree when two placements shared a tile.)
             if pname == "OAK" || pname == "APPLETREE" {
                 let kind: u8 = if pname == "APPLETREE" { 1 } else { 0 };
-                let (tc, tr) = pointer
+                let img = images.add(crate::gfx::bake(&CP_TREE, CAPITAL_PAL));
+                let (sx, sy) = pointer
                     .pos
-                    .map(|p2| ((((p2.x - PLAY_X) / 16.0).floor() as i32).clamp(1, 17), (((p2.y - PLAY_Y) / 16.0).floor() as i32).clamp(1, 11)))
-                    .unwrap_or((9, 6));
-                let mut planted = true;
-                if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
-                    let v = m.entry((kx, ky)).or_default();
-                    if let Some(i2) = v.iter().position(|(k2, c2, r2)| *k2 == kind && *c2 == tc && *r2 == tr) {
-                        v.remove(i2);
-                        planted = false;
-                    } else {
-                        v.push((kind, tc, tr));
-                    }
-                }
-                write_tree_lines(kx, ky);
-                if planted {
-                    let img = images.add(crate::gfx::bake(&CP_TREE, CAPITAL_PAL));
-                    let (gx2, gy2) = ((tc * 16 - 9) as f32, (tr * 16 - 30) as f32);
-                    commands.spawn((
+                    .map(|p2| ((p2.x - PLAY_X - 17.0).round(), (p2.y - PLAY_Y - 40.0).round()))
+                    .unwrap_or((144.0, 66.0));
+                let e = commands
+                    .spawn((
                         Sprite::from_image(img),
-                        at(PLAY_X + gx2, PLAY_Y + gy2, 34.0, 46.0, actor_z(gy2 + 46.0)),
+                        at(PLAY_X + sx, PLAY_Y + sy, 34.0, 46.0, actor_z(sy + 46.0)),
                         PIXEL_LAYER,
                         RoomActor,
                         CapitalProp,
-                        GhostTree { c: tc, r: tr },
-                    ));
-                } else {
-                    // Unplanted: the ghost at this tile leaves with it.
-                    for (ge, g) in &ghosts {
-                        if g.c == tc && g.r == tr {
-                            commands.entity(ge).despawn();
-                        }
-                    }
-                }
+                        ArrTag {
+                            kx,
+                            ky,
+                            idx: 900_000,
+                            w: 34.0,
+                            h: 46.0,
+                            canopy: false,
+                            x: sx,
+                            y: sy,
+                            add: Some(1000 + kind as usize),
+                            rot: 0,
+                            grid: &CP_TREE,
+                        },
+                    ))
+                    .id();
+                arr.carrying = Some(e);
                 arr.pal_open = false;
                 return;
             }
@@ -1925,7 +1919,12 @@ fn arrange_tick(
                     let tc = (((tag.x + 17.0) / 16.0).floor() as i32).clamp(1, 17);
                     let tr2 = (((tag.y + 40.0) / 16.0).floor() as i32).clamp(1, 11);
                     if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
-                        m.entry((kx, ky)).or_default().push((kind, tc, tr2));
+                        let v = m.entry((kx, ky)).or_default();
+                        if v.iter().any(|(_, c2, r2)| *c2 == tc && *r2 == tr2) {
+                            arr.carrying = Some(ce2); // tile taken: stays in hand
+                            return;
+                        }
+                        v.push((kind, tc, tr2));
                     }
                     write_tree_lines(kx, ky);
                     if let Ok((_, mut tag2, _, mut tf)) = props.get_mut(ce2) {
