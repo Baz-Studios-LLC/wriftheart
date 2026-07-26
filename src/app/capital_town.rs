@@ -1499,12 +1499,25 @@ const PALETTE: [(&str, &[&str], u32); 11] = [
     ("HEADSTONE", &CP_HEADSTONE, 8),
 ];
 
+/// The F8 tile painter's brushes: (name, final map char, wet-paint colour).
+const TILE_PALETTE: [(&str, char, u32); 7] = [
+    ("LAWN", '.', 0x4a9a30),
+    ("COBBLE", 'q', 0x9c6354),
+    ("KERB", 'k', 0x9a9aa2),
+    ("HEDGE", 'h', 0x2f6a38),
+    ("STONE", 'K', 0x565a66),
+    ("DIRT", '=', 0x8a5a28),
+    ("WATER", '~', 0x2a6ad8),
+];
+
 #[derive(Resource, Default)]
 pub struct Arrange {
     pub on: bool,
     pub carrying: Option<Entity>,
     pub pal_open: bool,
     pub pal_sel: usize,
+    pub tile_mode: bool,
+    pub tile_sel: usize,
 }
 
 fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32)>, ov: &mut ArrangeOverrides) {
@@ -1512,7 +1525,9 @@ fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32)
     let Some(path) = crate::persist::data_file("arrange.txt") else { return };
     let old = std::fs::read_to_string(&path).unwrap_or_default();
     let pre = format!("{kx},{ky} ");
-    let mut out: Vec<String> = old.lines().filter(|l| !l.starts_with(&pre)).map(|l| l.to_string()).collect();
+    let pret = format!("{kx},{ky} T ");
+    let mut out: Vec<String> =
+        old.lines().filter(|l| !l.starts_with(&pre) || l.starts_with(&pret)).map(|l| l.to_string()).collect();
     ov.adds.insert((kx, ky), vec![]);
     for (i, add, x, y) in entries {
         match add {
@@ -1692,6 +1707,98 @@ fn arrange_tick(
     arr.carrying = best.map(|(e, _)| e);
 }
 
+/// THE F8 TILE PAINTER: pick a brush on the panel (wheel / hover), hold LMB and
+/// drag to paint tiles. Wet-paint marks show at once; the real tile art (and its
+/// solidity) lands when the room next wakes. Painted tiles persist via arrange.txt
+/// ("kx,ky T idx ch") and bake into the templates on request.
+#[allow(clippy::too_many_arguments)]
+fn paint_tick(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut arr: ResMut<Arrange>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut pointer: ResMut<crate::input::Pointer>,
+    cur: Res<CurRoom>,
+    world: Res<super::play::GameWorld>,
+    mut last: Local<Option<(i32, i32)>>,
+    mut marks: Local<u32>,
+) {
+    let cap = world.0.capital_room(cur.rx, cur.ry);
+    if keys.just_pressed(KeyCode::F8) && cap.is_some() {
+        arr.tile_mode = !arr.tile_mode;
+        arr.pal_open = false;
+        *last = None;
+    }
+    if cap.is_none() {
+        arr.tile_mode = false;
+    }
+    if !arr.tile_mode {
+        return;
+    }
+    let Some((kx, ky)) = cap else { return };
+    if pointer.wheel_steps != 0 {
+        let n = TILE_PALETTE.len() as i32;
+        arr.tile_sel = (arr.tile_sel as i32 - pointer.wheel_steps).rem_euclid(n) as usize;
+        pointer.wheel_steps = 0;
+    }
+    let Some(pos) = pointer.pos else { return };
+    let pw = 100.0;
+    let px0 = crate::CANVAS_W as f32 - pw - 8.0;
+    let over_panel = pointer.over(px0, 30.0, pw, TILE_PALETTE.len() as f32 * 12.0 + 10.0);
+    if over_panel {
+        for i in 0..TILE_PALETTE.len() {
+            if pointer.over(px0, 34.0 + i as f32 * 12.0, pw, 12.0) && (pointer.moved || pointer.click) {
+                arr.tile_sel = i;
+            }
+        }
+        if pointer.click {
+            pointer.click = false;
+        }
+        return;
+    }
+    if mouse.pressed(MouseButton::Left) {
+        let (c, r) = (((pos.x - PLAY_X) / 16.0).floor() as i32, ((pos.y - PLAY_Y) / 16.0).floor() as i32);
+        if (0..19).contains(&c) && (0..13).contains(&r) && (*last != Some((c, r)) || mouse.just_pressed(MouseButton::Left)) {
+            *last = Some((c, r));
+            let (_, ch, col) = TILE_PALETTE[arr.tile_sel];
+            let idx = (r * 19 + c) as usize;
+            if let Ok(mut ed) = crate::worldgen::capital::tile_edits().write() {
+                ed.insert((kx, ky, idx), ch);
+            }
+            // Wet paint: a flat colour swatch until the room rebakes.
+            let row = "#".repeat(16);
+            let rows: Vec<&str> = (0..16).map(|_| row.as_str()).collect();
+            let img = crate::gfx::bake(&rows, &[('#', col)]);
+            *marks += 1;
+            commands.spawn((
+                Sprite::from_image(images.add(img)),
+                at(PLAY_X + (c * 16) as f32, PLAY_Y + (r * 16) as f32, 16.0, 16.0, 3.42 + *marks as f32 * 0.0001),
+                PIXEL_LAYER,
+                RoomActor,
+                CapitalProp,
+            ));
+        }
+    }
+    if mouse.just_released(MouseButton::Left) {
+        // Stroke done: rewrite this room's tile lines.
+        if let Some(path) = crate::persist::data_file("arrange.txt") {
+            let old = std::fs::read_to_string(&path).unwrap_or_default();
+            let pret = format!("{kx},{ky} T ");
+            let mut out: Vec<String> = old.lines().filter(|l| !l.starts_with(&pret)).map(|l| l.to_string()).collect();
+            if let Ok(ed) = crate::worldgen::capital::tile_edits().read() {
+                let mut mine: Vec<(usize, char)> =
+                    ed.iter().filter(|((a, b, _), _)| *a == kx && *b == ky).map(|((_, _, i), ch)| (*i, *ch)).collect();
+                mine.sort_by_key(|(i, _)| *i);
+                for (i, ch) in mine {
+                    out.push(format!("{kx},{ky} T {i} {ch}"));
+                }
+            }
+            let _ = std::fs::write(&path, out.join("\n") + "\n");
+        }
+    }
+}
+
 /// The palette's little list panel (top-left, gold = selected).
 #[derive(Component)]
 struct PalUi;
@@ -1701,9 +1808,9 @@ fn arrange_panel(
     mut images: ResMut<Assets<Image>>,
     arr: Res<Arrange>,
     ui: Query<Entity, With<PalUi>>,
-    mut last: Local<Option<(bool, usize)>>,
+    mut last: Local<Option<(bool, usize, bool, usize)>>,
 ) {
-    let now = (arr.pal_open, arr.pal_sel);
+    let now = (arr.pal_open, arr.pal_sel, arr.tile_mode, arr.tile_sel);
     if *last == Some(now) {
         return;
     }
@@ -1711,10 +1818,16 @@ fn arrange_panel(
     for e in &ui {
         commands.entity(e).despawn();
     }
-    if !arr.pal_open {
+    if !arr.pal_open && !arr.tile_mode {
         return;
     }
-    let (w, h) = (100u32, PALETTE.len() as u32 * 12 + 10);
+    let names: Vec<&str> = if arr.tile_mode {
+        TILE_PALETTE.iter().map(|(n, ..)| *n).collect()
+    } else {
+        PALETTE.iter().map(|(n, ..)| *n).collect()
+    };
+    let sel = if arr.tile_mode { arr.tile_sel } else { arr.pal_sel };
+    let (w, h) = (100u32, names.len() as u32 * 12 + 10);
     // Bake the backing through the art pipeline (hand-built Images don't render).
     let row = "#".repeat(w as usize);
     let rows: Vec<&str> = (0..h).map(|_| row.as_str()).collect();
@@ -1726,8 +1839,8 @@ fn arrange_panel(
         PIXEL_LAYER,
         PalUi,
     ));
-    for (i, (name, ..)) in PALETTE.iter().enumerate() {
-        let col = if i == arr.pal_sel { 0xe8c050 } else { 0x9aa0a8 };
+    for (i, name) in names.iter().enumerate() {
+        let col = if i == sel { 0xe8c050 } else { 0x9aa0a8 };
         let (th, tw) = crate::gfx::font::bake_text(name, col, &mut images);
         // Floor the final translation: odd text widths centre on .5 and shear glyphs.
         let mut tf = at(px + 6.0, 36.0 + i as f32 * 12.0, tw as f32, 8.0, 201.0);
@@ -2042,11 +2155,17 @@ pub fn capital_wake(
                         continue;
                     };
                     let Some((kxs, kys)) = rc.split_once(',') else { continue };
-                    let (Ok(a), Ok(b), Ok(x), Ok(y)) =
-                        (kxs.parse::<i32>(), kys.parse::<i32>(), xs.parse::<f32>(), ys.parse::<f32>())
-                    else {
+                    let (Ok(a), Ok(b)) = (kxs.parse::<i32>(), kys.parse::<i32>()) else { continue };
+                    if is == "T" {
+                        // tile paint: "kx,ky T idx ch"
+                        if let (Ok(i), Some(ch)) = (xs.parse::<usize>(), ys.chars().next()) {
+                            if let Ok(mut ed) = crate::worldgen::capital::tile_edits().write() {
+                                ed.insert((a, b, i), ch);
+                            }
+                        }
                         continue;
-                    };
+                    }
+                    let (Ok(x), Ok(y)) = (xs.parse::<f32>(), ys.parse::<f32>()) else { continue };
                     if let Some(pi) = is.strip_prefix('+') {
                         if let Ok(pi) = pi.parse::<usize>() {
                             overrides.adds.entry((a, b)).or_default().push((pi, x, y));
@@ -2326,6 +2445,7 @@ impl Plugin for CapitalTownPlugin {
                 citizens_show.after(citizens_sim).after(capital_wake),
                 fountain_tick,
                 arrange_tick,
+                paint_tick,
             )
                 .before(super::play::EndTick)
                 .run_if(super::screen::playing),

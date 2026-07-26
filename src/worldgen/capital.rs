@@ -7,7 +7,8 @@
 //! Every tile authored + protected; dressing is authored props only.
 
 use super::generate::RoomMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::{OnceLock, RwLock};
 
 #[rustfmt::skip]
 static TEMPLATES: [[&str; 13]; 25] = [
@@ -391,9 +392,26 @@ static TEMPLATES: [[&str; 13]; 25] = [
 /// The authored room. The capital is ITS OWN biome: walls bake to CASTLE
 /// STONE ('K') no matter the surrounding biome, and every path/pad bakes to
 /// the capital's cobble ('q'); 'k' kerbs pass through.
+/// DEV TILE PAINTER overrides: (kx, ky, idx) -> final tile char (idx = r*19+c).
+static TILE_EDITS: OnceLock<RwLock<HashMap<(i32, i32, usize), char>>> = OnceLock::new();
+pub fn tile_edits() -> &'static RwLock<HashMap<(i32, i32, usize), char>> {
+    TILE_EDITS.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
 pub fn room_map(kx: i32, ky: i32, _wall: char) -> RoomMap {
     let t = &TEMPLATES[(ky * 5 + kx) as usize];
-    let map: Vec<String> = t.iter().map(|r| r.chars().map(|c| match c { 'W' => 'K', 'p' | '_' => 'q', other => other }).collect()).collect();
+    let mut map: Vec<String> = t.iter().map(|r| r.chars().map(|c| match c { 'W' => 'K', 'p' | '_' => 'q', other => other }).collect()).collect();
+    if let Ok(ed) = tile_edits().read() {
+        if !ed.is_empty() {
+            let mut rows: Vec<Vec<char>> = map.iter().map(|r| r.chars().collect()).collect();
+            for ((ekx, eky, idx), ch) in ed.iter() {
+                if *ekx == kx && *eky == ky && idx / 19 < 13 {
+                    rows[idx / 19][idx % 19] = *ch;
+                }
+            }
+            map = rows.into_iter().map(|r| r.into_iter().collect()).collect();
+        }
+    }
     let prot: HashSet<usize> = (0..13 * 19).collect();
     RoomMap { map, prot }
 }
