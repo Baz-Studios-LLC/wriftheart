@@ -1626,6 +1626,36 @@ const TILE_PALETTE: [(&str, char, u32); 7] = [
     ("WATER", '~', 0x2a6ad8),
 ];
 
+/// Latched key edges for the dev tools. `just_pressed` clears every RENDER
+/// frame, so FixedUpdate systems missed presses on frames without a tick (Baz:
+/// "I have to spam F10") — a PreUpdate collector latches them instead, and each
+/// use site takes the flag. Digits 8/9/0 alias F8/F9/F10 (mac fn friction).
+#[derive(Resource, Default)]
+pub struct ArrKeys {
+    pub f8: bool,
+    pub f9: bool,
+    pub f10: bool,
+    pub r: bool,
+    pub del: bool,
+    pub enter: bool,
+    pub esc: bool,
+    pub up: bool,
+    pub down: bool,
+}
+
+fn arr_keys_collect(keys: Res<ButtonInput<KeyCode>>, mut ak: ResMut<ArrKeys>) {
+    let jp = |k: KeyCode| keys.just_pressed(k);
+    ak.f8 |= jp(KeyCode::F8) || jp(KeyCode::Digit8);
+    ak.f9 |= jp(KeyCode::F9) || jp(KeyCode::Digit9);
+    ak.f10 |= jp(KeyCode::F10) || jp(KeyCode::Digit0);
+    ak.r |= jp(KeyCode::KeyR);
+    ak.del |= jp(KeyCode::Delete) || jp(KeyCode::Backspace);
+    ak.enter |= jp(KeyCode::Enter);
+    ak.esc |= jp(KeyCode::Escape);
+    ak.up |= jp(KeyCode::ArrowUp);
+    ak.down |= jp(KeyCode::ArrowDown);
+}
+
 #[derive(Resource, Default)]
 pub struct Arrange {
     pub on: bool,
@@ -1686,7 +1716,7 @@ fn arrange_tick(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut arr: ResMut<Arrange>,
-    keys: Res<ButtonInput<KeyCode>>,
+    mut ak: ResMut<ArrKeys>,
     mut pointer: ResMut<crate::input::Pointer>,
     cur: Res<CurRoom>,
     world: Res<super::play::GameWorld>,
@@ -1701,12 +1731,12 @@ fn arrange_tick(
         arr.carrying = None;
         arr.pal_open = false;
     }
-    if keys.just_pressed(KeyCode::F10) && cap.is_some() {
+    if std::mem::take(&mut ak.f10) && cap.is_some() {
         arr.on = !arr.on;
         arr.carrying = None;
         arr.pal_open = false;
     }
-    if keys.just_pressed(KeyCode::F9) && cap.is_some() {
+    if std::mem::take(&mut ak.f9) && cap.is_some() {
         arr.on = true;
         arr.pal_open = !arr.pal_open;
     }
@@ -1726,13 +1756,13 @@ fn arrange_tick(
     let Some((kx, ky)) = cap else { return };
     // The palette: pick with arrows, spawn-in-hand with Enter.
     if arr.pal_open {
-        if keys.just_pressed(KeyCode::ArrowUp) {
+        if std::mem::take(&mut ak.up) {
             arr.pal_sel = (arr.pal_sel + PALETTE.len() - 1) % PALETTE.len();
         }
-        if keys.just_pressed(KeyCode::ArrowDown) {
+        if std::mem::take(&mut ak.down) {
             arr.pal_sel = (arr.pal_sel + 1) % PALETTE.len();
         }
-        if keys.just_pressed(KeyCode::Escape) {
+        if std::mem::take(&mut ak.esc) {
             arr.pal_open = false;
         }
         if pointer.wheel_steps != 0 {
@@ -1747,7 +1777,7 @@ fn arrange_tick(
                 arr.pal_sel = i;
             }
         }
-        let mut spawn_now = keys.just_pressed(KeyCode::Enter);
+        let mut spawn_now = std::mem::take(&mut ak.enter);
         if pointer.click {
             pointer.click = false;
             if pointer.over(px0, 30.0, pw, PALETTE.len() as f32 * 12.0 + 10.0) {
@@ -1848,7 +1878,7 @@ fn arrange_tick(
             arr.carrying = None;
         }
         // R turns the carried prop a quarter clockwise (art truly rotates).
-        if keys.just_pressed(KeyCode::KeyR) {
+        if std::mem::take(&mut ak.r) {
             if let Ok((_, mut tag, mut sp, _)) = props.get_mut(ce) {
                 tag.rot = (tag.rot + 1) % 4;
                 let (tw, th) = (tag.w, tag.h);
@@ -1865,7 +1895,7 @@ fn arrange_tick(
         }
         // DELETE removes the carried prop: palette additions vanish, authored
         // pieces get a removal mark (skipped at wake, deleted at bake).
-        if keys.just_pressed(KeyCode::Delete) || keys.just_pressed(KeyCode::Backspace) {
+        if std::mem::take(&mut ak.del) {
             if let Ok((e, tag, ..)) = props.get(ce) {
                 if tag.add.is_none() {
                     overrides.removed.insert((kx, ky, tag.idx));
@@ -1989,7 +2019,7 @@ fn paint_tick(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut arr: ResMut<Arrange>,
-    keys: Res<ButtonInput<KeyCode>>,
+    mut ak: ResMut<ArrKeys>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut pointer: ResMut<crate::input::Pointer>,
     cur: Res<CurRoom>,
@@ -1999,7 +2029,7 @@ fn paint_tick(
     mut marks: Local<u32>,
 ) {
     let cap = world.0.capital_room(cur.rx, cur.ry);
-    if keys.just_pressed(KeyCode::F8) && cap.is_some() {
+    if std::mem::take(&mut ak.f8) && cap.is_some() {
         arr.tile_mode = !arr.tile_mode;
         arr.pal_open = false;
         *last = None;
@@ -2835,6 +2865,8 @@ impl Plugin for CapitalTownPlugin {
         app.init_resource::<ArrangeOverrides>();
         app.add_systems(Update, arrange_panel);
         app.add_systems(Startup, load_layout_startup);
+        app.init_resource::<ArrKeys>();
+        app.add_systems(PreUpdate, arr_keys_collect);
         app.add_systems(
             bevy::app::FixedUpdate,
             (
