@@ -1452,6 +1452,112 @@ pub struct CapitalInn {
     pub y: f32,
 }
 
+/// DEV ARRANGE MODE (Baz: "let me move the props and bake my layout"). F10
+/// toggles it inside the capital: dressed props tint green, LMB grabs the prop
+/// under the cursor, LMB again drops it. Every drop dumps THIS room's prop
+/// positions to arrange.txt beside the saves — hand the file back and the
+/// coordinates get baked in as the authored defaults. KBM only, dev tool.
+#[derive(Component)]
+pub struct ArrTag {
+    pub kx: i32,
+    pub ky: i32,
+    pub idx: usize,
+    pub w: f32,
+    pub h: f32,
+    pub canopy: bool,
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Resource, Default)]
+pub struct Arrange {
+    pub on: bool,
+    pub carrying: Option<Entity>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn arrange_tick(
+    mut arr: ResMut<Arrange>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut pointer: ResMut<crate::input::Pointer>,
+    cur: Res<CurRoom>,
+    world: Res<super::play::GameWorld>,
+    mut props: Query<(Entity, &mut ArrTag, &mut Sprite, &mut Transform)>,
+) {
+    let in_cap = world.0.capital_room(cur.rx, cur.ry).is_some();
+    if keys.just_pressed(KeyCode::F10) && in_cap {
+        arr.on = !arr.on;
+        arr.carrying = None;
+    }
+    if !in_cap {
+        arr.on = false;
+        arr.carrying = None;
+    }
+    let carrying = arr.carrying;
+    for (e, _, mut sp, _) in &mut props {
+        sp.color = if !arr.on {
+            Color::WHITE
+        } else if Some(e) == carrying {
+            Color::srgb(1.0, 1.0, 0.5)
+        } else {
+            Color::srgb(0.55, 1.0, 0.55)
+        };
+    }
+    if !arr.on {
+        return;
+    }
+    let Some(pos) = pointer.pos else { return };
+    let (mx, my) = (pos.x - PLAY_X, pos.y - PLAY_Y);
+    // The carried prop rides the cursor (cursor = prop centre).
+    if let Some(ce) = arr.carrying {
+        if let Ok((_, mut tag, _, mut tf)) = props.get_mut(ce) {
+            tag.x = (mx - tag.w / 2.0).round().clamp(-8.0, 304.0 - tag.w + 8.0);
+            tag.y = (my - tag.h / 2.0).round().clamp(-8.0, 208.0 - tag.h + 8.0);
+            let z = if tag.canopy { 8.5 } else { actor_z(tag.y + tag.h) };
+            *tf = at(PLAY_X + tag.x, PLAY_Y + tag.y, tag.w, tag.h, z);
+        } else {
+            arr.carrying = None;
+        }
+    }
+    if !pointer.click {
+        return;
+    }
+    pointer.click = false; // the arranger eats the click
+    if arr.carrying.take().is_some() {
+        // Dropped: dump every prop of THIS room (merge: other rooms' lines kept).
+        if let Some(path) = crate::persist::data_file("arrange.txt") {
+            let old = std::fs::read_to_string(&path).unwrap_or_default();
+            let here = format!("{},{}", cur.rx, cur.ry); // room key is capital-relative below
+            let _ = here;
+            let (kx, ky) = world.0.capital_room(cur.rx, cur.ry).unwrap_or((0, 0));
+            let keep: Vec<&str> = old
+                .lines()
+                .filter(|l| !l.starts_with(&format!("{kx},{ky} ")))
+                .collect();
+            let mut out: Vec<String> = keep.iter().map(|l| l.to_string()).collect();
+            let mut mine: Vec<(usize, f32, f32)> =
+                props.iter().filter(|(_, t, _, _)| t.kx == kx && t.ky == ky).map(|(_, t, _, _)| (t.idx, t.x, t.y)).collect();
+            mine.sort_by_key(|(i, _, _)| *i);
+            for (i, x, y) in mine {
+                out.push(format!("{kx},{ky} {i} {x} {y}"));
+            }
+            let _ = std::fs::write(&path, out.join("\n") + "\n");
+        }
+        return;
+    }
+    // Grab the prop under the cursor (smallest one wins on overlap).
+    let mut best: Option<(Entity, f32)> = None;
+    for (e, tag, _, _) in props.iter() {
+        if mx >= tag.x - 2.0 && mx <= tag.x + tag.w + 2.0 && my >= tag.y - 2.0 && my <= tag.y + tag.h + 2.0 {
+            let area = tag.w * tag.h;
+            if best.is_none() || area < best.unwrap().1 {
+                best = Some((e, area));
+            }
+        }
+    }
+    arr.carrying = best.map(|(e, _)| e);
+}
+
 #[derive(Component)]
 pub struct CapitalProp;
 
@@ -1583,34 +1689,34 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE POND PARKS (0,0)/(4,0): a stone-rimmed pond in the green —
         // topiaries at the corners, benches facing the water, urns on the axis.
         (0, 0) => &[
-            (&CP_TOPIARY, 44.0, 32.0, false, Some((46.0, 54.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 258.0, 32.0, false, Some((260.0, 54.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 44.0, 180.0, false, Some((46.0, 202.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 258.0, 180.0, false, Some((260.0, 202.0, 14.0, 6.0))),
-            (&CP_BENCH, 44.0, 102.0, false, Some((45.0, 106.0, 18.0, 4.0))),
-            (&CP_BENCH, 258.0, 132.0, false, Some((259.0, 136.0, 18.0, 4.0))),
-            (&CP_URN, 154.0, 32.0, false, Some((156.0, 40.0, 8.0, 5.0))),
+            (&CP_TOPIARY, 66.0, 34.0, false, Some((68.0, 56.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 222.0, 34.0, false, Some((224.0, 56.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 66.0, 164.0, false, Some((68.0, 186.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 222.0, 164.0, false, Some((224.0, 186.0, 14.0, 6.0))),
+            (&CP_BENCH, 258.0, 116.0, false, Some((259.0, 120.0, 18.0, 4.0))),
+            (&CP_BENCH, 258.0, 146.0, false, Some((259.0, 150.0, 18.0, 4.0))),
+            (&CP_URN, 146.0, 28.0, false, Some((148.0, 36.0, 8.0, 5.0))),
             (&CP_URN, 112.0, 190.0, false, Some((114.0, 198.0, 8.0, 5.0))),
-            (&CP_URN, 196.0, 190.0, false, Some((198.0, 198.0, 8.0, 5.0))),
-            (&CP_LAMP, 82.0, 50.0, false, Some((84.0, 68.0, 4.0, 4.0))),
-            (&CP_LAMP, 230.0, 50.0, false, Some((232.0, 68.0, 4.0, 4.0))),
-            (&CP_LAMP, 82.0, 166.0, false, Some((84.0, 184.0, 4.0, 4.0))),
-            (&CP_LAMP, 230.0, 166.0, false, Some((232.0, 184.0, 4.0, 4.0))),
+            (&CP_URN, 180.0, 190.0, false, Some((182.0, 198.0, 8.0, 5.0))),
+            (&CP_LAMP, 50.0, 28.0, false, Some((52.0, 46.0, 4.0, 4.0))),
+            (&CP_LAMP, 246.0, 28.0, false, Some((248.0, 46.0, 4.0, 4.0))),
+            (&CP_LAMP, 50.0, 172.0, false, Some((52.0, 190.0, 4.0, 4.0))),
+            (&CP_LAMP, 246.0, 172.0, false, Some((248.0, 190.0, 4.0, 4.0))),
         ],
         (4, 0) => &[
-            (&CP_TOPIARY, 28.0, 32.0, false, Some((30.0, 54.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 242.0, 32.0, false, Some((244.0, 54.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 28.0, 180.0, false, Some((30.0, 202.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 242.0, 180.0, false, Some((244.0, 202.0, 14.0, 6.0))),
-            (&CP_BENCH, 26.0, 132.0, false, Some((27.0, 136.0, 18.0, 4.0))),
-            (&CP_BENCH, 240.0, 102.0, false, Some((241.0, 106.0, 18.0, 4.0))),
-            (&CP_URN, 138.0, 32.0, false, Some((140.0, 40.0, 8.0, 5.0))),
-            (&CP_URN, 96.0, 190.0, false, Some((98.0, 198.0, 8.0, 5.0))),
+            (&CP_TOPIARY, 66.0, 34.0, false, Some((68.0, 56.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 222.0, 34.0, false, Some((224.0, 56.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 66.0, 164.0, false, Some((68.0, 186.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 222.0, 164.0, false, Some((224.0, 186.0, 14.0, 6.0))),
+            (&CP_BENCH, 26.0, 116.0, false, Some((27.0, 120.0, 18.0, 4.0))),
+            (&CP_BENCH, 26.0, 146.0, false, Some((27.0, 150.0, 18.0, 4.0))),
+            (&CP_URN, 146.0, 28.0, false, Some((148.0, 36.0, 8.0, 5.0))),
+            (&CP_URN, 112.0, 190.0, false, Some((114.0, 198.0, 8.0, 5.0))),
             (&CP_URN, 180.0, 190.0, false, Some((182.0, 198.0, 8.0, 5.0))),
-            (&CP_LAMP, 66.0, 50.0, false, Some((68.0, 68.0, 4.0, 4.0))),
-            (&CP_LAMP, 214.0, 50.0, false, Some((216.0, 68.0, 4.0, 4.0))),
-            (&CP_LAMP, 66.0, 166.0, false, Some((68.0, 184.0, 4.0, 4.0))),
-            (&CP_LAMP, 214.0, 166.0, false, Some((216.0, 184.0, 4.0, 4.0))),
+            (&CP_LAMP, 50.0, 28.0, false, Some((52.0, 46.0, 4.0, 4.0))),
+            (&CP_LAMP, 246.0, 28.0, false, Some((248.0, 46.0, 4.0, 4.0))),
+            (&CP_LAMP, 50.0, 172.0, false, Some((52.0, 190.0, 4.0, 4.0))),
+            (&CP_LAMP, 246.0, 172.0, false, Some((248.0, 190.0, 4.0, 4.0))),
         ],
         // THE CATHEDRAL QUARTER (3,4): the nave face — rose window over the
         // pointed doors, lancets, the gold cross on the roofline — a lamplit
@@ -1852,7 +1958,7 @@ pub fn capital_wake(
             ));
         }
     }
-    for (grid, x, y, canopy, blk) in dressing(kx, ky) {
+    for (didx, (grid, x, y, canopy, blk)) in dressing(kx, ky).iter().enumerate() {
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
         let (w, h) = (grid[0].len() as f32, grid.len() as f32);
         if let Some(b) = blk {
@@ -1871,6 +1977,16 @@ pub fn capital_wake(
                 CapitalProp,
             ))
             .id();
+        commands.entity(e).insert(ArrTag {
+            kx,
+            ky,
+            idx: didx,
+            w,
+            h,
+            canopy: *canopy,
+            x: *x,
+            y: *y,
+        });
         // Freestanding pieces opt into the shader shadow system (the same
         // silhouette-sampled, sun-sheared shadows the trees wear).
         let feet: Option<u32> = [
@@ -1950,6 +2066,7 @@ pub struct CapitalTownPlugin;
 impl Plugin for CapitalTownPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Citizens>();
+        app.init_resource::<Arrange>();
         app.add_systems(
             bevy::app::FixedUpdate,
             (
@@ -1958,6 +2075,7 @@ impl Plugin for CapitalTownPlugin {
                 citizens_sim,
                 citizens_show.after(citizens_sim).after(capital_wake),
                 fountain_tick,
+                arrange_tick,
             )
                 .before(super::play::EndTick)
                 .run_if(super::screen::playing),
