@@ -1469,6 +1469,11 @@ pub struct ArrTag {
     pub y: f32,
 }
 
+/// Live overrides from arrange.txt: (kx,ky,idx) -> (x,y). Loaded once, updated
+/// by every arranger drop — an arranged room SURVIVES leaving and reloading.
+#[derive(Resource, Default)]
+pub struct ArrangeOverrides(pub std::collections::HashMap<(i32, i32, usize), (f32, f32)>, pub bool);
+
 #[derive(Resource, Default)]
 pub struct Arrange {
     pub on: bool,
@@ -1483,6 +1488,7 @@ fn arrange_tick(
     cur: Res<CurRoom>,
     world: Res<super::play::GameWorld>,
     mut props: Query<(Entity, &mut ArrTag, &mut Sprite, &mut Transform)>,
+    mut overrides: ResMut<ArrangeOverrides>,
 ) {
     let in_cap = world.0.capital_room(cur.rx, cur.ry).is_some();
     if keys.just_pressed(KeyCode::F10) && in_cap {
@@ -1539,6 +1545,7 @@ fn arrange_tick(
                 props.iter().filter(|(_, t, _, _)| t.kx == kx && t.ky == ky).map(|(_, t, _, _)| (t.idx, t.x, t.y)).collect();
             mine.sort_by_key(|(i, _, _)| *i);
             for (i, x, y) in mine {
+                overrides.0.insert((kx, ky, i), (x, y));
                 out.push(format!("{kx},{ky} {i} {x} {y}"));
             }
             let _ = std::fs::write(&path, out.join("\n") + "\n");
@@ -1848,9 +1855,29 @@ pub fn capital_wake(
     inside: Res<super::interior::Inside>,
     mut blockers: ResMut<super::room_props::RoomBlockers>,
     mut woke: Local<Option<(i32, i32)>>,
+    mut overrides: ResMut<ArrangeOverrides>,
     props: Query<Entity, With<CapitalProp>>,
     parents: Query<&ChildOf>,
 ) {
+    if !overrides.1 {
+        overrides.1 = true;
+        if let Some(path) = crate::persist::data_file("arrange.txt") {
+            if let Ok(txt) = std::fs::read_to_string(path) {
+                for l in txt.lines() {
+                    let mut it = l.split_whitespace();
+                    if let (Some(rc), Some(i), Some(xs), Some(ys)) = (it.next(), it.next(), it.next(), it.next()) {
+                        if let Some((kxs, kys)) = rc.split_once(',') {
+                            if let (Ok(a), Ok(b), Ok(i), Ok(x), Ok(y)) =
+                                (kxs.parse(), kys.parse(), i.parse(), xs.parse(), ys.parse())
+                            {
+                                overrides.0.insert((a, b, i), (x, y));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     if in_dungeon.0.is_some() || inside.0.is_some() {
         *woke = None;
         return;
@@ -1961,17 +1988,21 @@ pub fn capital_wake(
     for (didx, (grid, x, y, canopy, blk)) in dressing(kx, ky).iter().enumerate() {
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
         let (w, h) = (grid[0].len() as f32, grid.len() as f32);
+        // The arranger's saved layout wins over the authored spot.
+        let (px, py) = overrides.0.get(&(kx, ky, didx)).copied().unwrap_or((*x, *y));
+        let (odx, ody) = (px - *x, py - *y);
         if let Some(b) = blk {
-            if !blockers.0.contains(b) {
-                blockers.0.push(*b);
+            let sb = (b.0 + odx, b.1 + ody, b.2, b.3);
+            if !blockers.0.contains(&sb) {
+                blockers.0.push(sb);
             }
         }
         // Canopy pieces (the arch) draw ABOVE the hero — you walk under them.
-        let z = if *canopy { 8.5 } else { actor_z(y + h) };
+        let z = if *canopy { 8.5 } else { actor_z(py + h) };
         let e = commands
             .spawn((
                 Sprite::from_image(img.clone()),
-                at(PLAY_X + *x, PLAY_Y + *y, w, h, z),
+                at(PLAY_X + px, PLAY_Y + py, w, h, z),
                 PIXEL_LAYER,
                 RoomActor,
                 CapitalProp,
@@ -1984,8 +2015,8 @@ pub fn capital_wake(
             w,
             h,
             canopy: *canopy,
-            x: *x,
-            y: *y,
+            x: px,
+            y: py,
         });
         // Freestanding pieces opt into the shader shadow system (the same
         // silhouette-sampled, sun-sheared shadows the trees wear).
@@ -2004,8 +2035,8 @@ pub fn capital_wake(
         .map(|(_, fw)| *fw);
         if let Some(fw) = feet {
             commands.entity(e).insert(super::shadows::CastsShadow {
-                left: *x + (w - fw as f32) / 2.0,
-                top: *y + h - 4.0,
+                left: px + (w - fw as f32) / 2.0,
+                top: py + h - 4.0,
                 w: fw,
                 a: 0.85,
             });
@@ -2067,6 +2098,7 @@ impl Plugin for CapitalTownPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Citizens>();
         app.init_resource::<Arrange>();
+        app.init_resource::<ArrangeOverrides>();
         app.add_systems(
             bevy::app::FixedUpdate,
             (
