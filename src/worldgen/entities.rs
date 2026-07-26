@@ -90,7 +90,7 @@ impl World {
             // THE ORCHARDS (0,4)/(4,4): the game's own oaks, hung with apples,
             // in working rows either side of the lanes.
             if ky == 4 && (kx == 0 || kx == 4) {
-                for &r in &[3, 7, 10] {
+                for &r in &[2, 6, 9] {
                     for &c in &[3, 6, 12, 15] {
                         out.push(ent("appletree", c, r));
                     }
