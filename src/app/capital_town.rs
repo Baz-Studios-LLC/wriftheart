@@ -1399,6 +1399,17 @@ fn load_layout(overrides: &mut ArrangeOverrides) {
                     };
                     let Some((kxs, kys)) = rc.split_once(',') else { continue };
                     let (Ok(a), Ok(b)) = (kxs.parse::<i32>(), kys.parse::<i32>()) else { continue };
+                    if is == "E" {
+                        // planted tree: "kx,ky E kind c r"
+                        if let (Ok(k2), Ok(c2), Some(Ok(r2))) =
+                            (xs.parse::<u8>(), ys.parse::<i32>(), it.next().map(|t| t.parse::<i32>()))
+                        {
+                            if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
+                                m.entry((a, b)).or_default().push((k2, c2, r2));
+                            }
+                        }
+                        continue;
+                    }
                     if is == "T" {
                         // tile paint: "kx,ky T idx ch"
                         if let (Ok(i), Some(ch)) = (xs.parse::<usize>(), ys.chars().next()) {
@@ -1587,7 +1598,7 @@ const CP_TREE: [&str; 46] = [
 
 /// The F9 palette: anything Baz can sprinkle around a room by hand.
 /// (name, art, shadow feet width — 0 = flat, no shadow.)
-const PALETTE: [(&str, &[&str], u32); 13] = [
+const PALETTE: [(&str, &[&str], u32); 14] = [
     ("LAMP", &CP_LAMP, 6),
     ("BENCH", &CP_BENCH, 18),
     ("URN", &CP_URN, 10),
@@ -1600,7 +1611,8 @@ const PALETTE: [(&str, &[&str], u32); 13] = [
     ("CROSS", &CP_MKCROSS, 24),
     ("HEADSTONE", &CP_HEADSTONE, 8),
     ("BUSH", &CP_BUSH, 14),
-    ("TREE", &CP_TREE, 12),
+    ("OAK", &CP_TREE, 0),
+    ("APPLETREE", &CP_TREE, 0),
 ];
 
 /// The F8 tile painter's brushes: (name, final map char, wet-paint colour).
@@ -1727,7 +1739,54 @@ fn arrange_tick(
             }
         }
         if spawn_now {
-            let (_, grid, feet) = PALETTE[arr.pal_sel];
+            let (pname, grid, feet) = PALETTE[arr.pal_sel];
+            // OAK/APPLETREE plant REAL tree entities at the cursor's tile
+            // (click a planted one again to unplant); the room's next build
+            // spawns the true seeded tree — a ghost stands in until then.
+            if pname == "OAK" || pname == "APPLETREE" {
+                let kind: u8 = if pname == "APPLETREE" { 1 } else { 0 };
+                let (tc, tr) = pointer
+                    .pos
+                    .map(|p2| ((((p2.x - PLAY_X) / 16.0).floor() as i32).clamp(1, 17), (((p2.y - PLAY_Y) / 16.0).floor() as i32).clamp(1, 11)))
+                    .unwrap_or((9, 6));
+                let mut planted = true;
+                if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
+                    let v = m.entry((kx, ky)).or_default();
+                    if let Some(i2) = v.iter().position(|(k2, c2, r2)| *k2 == kind && *c2 == tc && *r2 == tr) {
+                        v.remove(i2);
+                        planted = false;
+                    } else {
+                        v.push((kind, tc, tr));
+                    }
+                }
+                if let Some(path) = crate::persist::data_file("arrange.txt") {
+                    let old = std::fs::read_to_string(&path).unwrap_or_default();
+                    let pre = format!("{kx},{ky} E ");
+                    let mut out: Vec<String> = old.lines().filter(|l| !l.starts_with(&pre)).map(|l| l.to_string()).collect();
+                    if let Ok(m) = crate::worldgen::capital::tree_adds().read() {
+                        if let Some(v) = m.get(&(kx, ky)) {
+                            for (k2, c2, r2) in v {
+                                out.push(format!("{kx},{ky} E {k2} {c2} {r2}"));
+                            }
+                        }
+                    }
+                    let _ = std::fs::write(&path, out.join("\n") + "\n");
+                }
+                if planted {
+                    let img = images.add(crate::gfx::bake(&CP_TREE, CAPITAL_PAL));
+                    let (gx2, gy2) = ((tc * 16 - 9) as f32, (tr * 16 - 30) as f32);
+                    commands.spawn((
+                        Sprite::from_image(img),
+                        at(PLAY_X + gx2, PLAY_Y + gy2, 34.0, 46.0, actor_z(gy2 + 46.0)),
+                        PIXEL_LAYER,
+                        RoomActor,
+                        CapitalProp,
+                    ));
+                }
+                arr.pal_open = false;
+                return;
+            }
+            let _ = pname;
             let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
             let (w, h) = (grid[0].len() as f32, grid.len() as f32);
             let (sx, sy) = pointer

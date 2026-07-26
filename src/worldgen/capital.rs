@@ -398,6 +398,13 @@ pub fn tile_edits() -> &'static RwLock<HashMap<(i32, i32, usize), char>> {
     TILE_EDITS.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
+/// DEV TREE PLANTER: real tree entities Baz planted — (kx, ky) -> [(kind, c, r)],
+/// kind 0 = oak, 1 = appletree. Read by room_entities' capital branch.
+static TREE_ADDS: OnceLock<RwLock<HashMap<(i32, i32), Vec<(u8, i32, i32)>>>> = OnceLock::new();
+pub fn tree_adds() -> &'static RwLock<HashMap<(i32, i32), Vec<(u8, i32, i32)>>> {
+    TREE_ADDS.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
 pub fn room_map(kx: i32, ky: i32, _wall: char) -> RoomMap {
     let t = &TEMPLATES[(ky * 5 + kx) as usize];
     let mut map: Vec<String> = t.iter().map(|r| r.chars().map(|c| match c { 'W' => 'K', 'p' | '_' => 'q', other => other }).collect()).collect();
