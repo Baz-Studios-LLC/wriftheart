@@ -1703,6 +1703,9 @@ fn arrange_tick(
                     a: 0.85,
                 });
             }
+            if std::ptr::eq(grid.as_ptr(), CP_LAMP.as_ptr()) {
+                commands.entity(e).insert(LampGlow { x: (sx + 4.0) as i32, y: (sy + 5.0) as i32 });
+            }
             arr.carrying = Some(e);
             arr.pal_open = false;
         }
@@ -2004,6 +2007,13 @@ const CP_CATHEDRAL: [&str; 80] = [
     "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
     "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
 ];
+
+/// A street lamp's warm pool for the lighting pass (room pixel coords).
+#[derive(Component)]
+pub struct LampGlow {
+    pub x: i32,
+    pub y: i32,
+}
 
 #[derive(Component)]
 pub struct CapitalProp;
@@ -2450,6 +2460,9 @@ pub fn capital_wake(
                 ArrTag { kx, ky, idx: 100_000 + n, w, h, canopy: false, x: ax, y: ay, add: Some(pi), rot, grid },
             ))
             .id();
+        if std::ptr::eq(grid.as_ptr(), CP_LAMP.as_ptr()) {
+            commands.entity(e).insert(LampGlow { x: (ax + 4.0) as i32, y: (ay + 5.0) as i32 });
+        }
         if feet > 0 {
             commands.entity(e).insert(super::shadows::CastsShadow {
                 left: ax + (w - feet as f32) / 2.0,
@@ -2535,6 +2548,9 @@ pub fn capital_wake(
         .iter()
         .find(|(p, _)| *p == grid.as_ptr())
         .map(|(_, fw)| *fw);
+        if std::ptr::eq(grid.as_ptr(), CP_LAMP.as_ptr()) {
+            commands.entity(e).insert(LampGlow { x: (px + 4.0) as i32, y: (py + 5.0) as i32 });
+        }
         if let Some(fw) = feet {
             commands.entity(e).insert(super::shadows::CastsShadow {
                 left: px + (w - fw as f32) / 2.0,
