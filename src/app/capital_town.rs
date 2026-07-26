@@ -1675,6 +1675,7 @@ fn arrange_tick(
     cur: Res<CurRoom>,
     world: Res<super::play::GameWorld>,
     mut props: Query<(Entity, &mut ArrTag, &mut Sprite, &mut Transform)>,
+    ghosts: Query<(Entity, &GhostTree)>,
     mut overrides: ResMut<ArrangeOverrides>,
 ) {
     let cap = world.0.capital_room(cur.rx, cur.ry);
@@ -1781,7 +1782,15 @@ fn arrange_tick(
                         PIXEL_LAYER,
                         RoomActor,
                         CapitalProp,
+                        GhostTree { c: tc, r: tr },
                     ));
+                } else {
+                    // Unplanted: the ghost at this tile leaves with it.
+                    for (ge, g) in &ghosts {
+                        if g.c == tc && g.r == tr {
+                            commands.entity(ge).despawn();
+                        }
+                    }
                 }
                 arr.pal_open = false;
                 return;
@@ -2126,6 +2135,14 @@ static LAMP_SPOTS: std::sync::OnceLock<std::sync::RwLock<std::collections::HashM
     std::sync::OnceLock::new();
 pub fn lamp_spots() -> &'static std::sync::RwLock<std::collections::HashMap<(i32, i32), Vec<(i32, i32)>>> {
     LAMP_SPOTS.get_or_init(Default::default)
+}
+
+/// A planted-tree GHOST: stands at the tile until the room rebuilds with the
+/// real entity tree. Unplanting the tile despawns it immediately.
+#[derive(Component)]
+pub struct GhostTree {
+    pub c: i32,
+    pub r: i32,
 }
 
 #[derive(Component)]
