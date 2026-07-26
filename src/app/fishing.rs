@@ -495,7 +495,13 @@ fn fish_tick(
             }
             if f.t >= f.bite_at {
                 // A fish bites! Rarer fish = a tighter reaction window.
-                let biome = ctx.world.0.biome_key_at(ctx.cur.rx, ctx.cur.ry);
+                // The capital is its own biome for the rod too — park water,
+                // park fish (the koi swims nowhere else).
+                let biome = if ctx.world.0.capital_room(ctx.cur.rx, ctx.cur.ry).is_some() {
+                    "capital"
+                } else {
+                    ctx.world.0.biome_key_at(ctx.cur.rx, ctx.cur.ry)
+                };
                 let mut catch = crate::items::roll_fish(biome, season_name(ctx.clock.0), ctx.weather.cur, f.water, || rng.0.next_f64());
                 if f.pool {
                     // The pool rolls TWICE and keeps the better catch (junk always loses).

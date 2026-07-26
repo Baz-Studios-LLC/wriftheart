@@ -29,6 +29,7 @@ pub enum CritterKind {
     Deer,
     Bird,
     Butterfly,
+    Duck,
 }
 
 struct KindDef {
@@ -44,6 +45,7 @@ const fn def(kind: CritterKind) -> KindDef {
         CritterKind::Deer => KindDef { fly: false, spd: 0.5, flee: 2.4, r: 60.0 },
         CritterKind::Bird => KindDef { fly: true, spd: 0.5, flee: 3.0, r: 46.0 },
         CritterKind::Butterfly => KindDef { fly: true, spd: 0.35, flee: 1.7, r: 26.0 },
+        CritterKind::Duck => KindDef { fly: false, spd: 0.4, flee: 1.6, r: 30.0 },
     }
 }
 
@@ -91,6 +93,7 @@ pub(crate) fn sprite_size(kind: CritterKind) -> (f32, f32) {
         CritterKind::Deer => (12.0, 13.0),
         CritterKind::Bird => (8.0, 6.0),
         CritterKind::Butterfly => (7.0, 6.0),
+        CritterKind::Duck => (12.0, 10.0),
     }
 }
 
@@ -104,6 +107,7 @@ impl Critter {
             CritterKind::Deer => (10, 1.0),
             CritterKind::Bird => (6, 0.55),
             CritterKind::Butterfly => (5, 0.55),
+            CritterKind::Duck => (9, 1.0),
         };
         let left = self.x.round() + ((iw as u32 - w) / 2) as f32;
         let top = self.y.round() + ih - 2.0;
@@ -130,6 +134,7 @@ const BANK_RABBIT: usize = 0;
 const BANK_DEER: usize = 1;
 const BANK_BUTTERFLY: usize = 2;
 const BANK_BIRD0: usize = 3;
+const BANK_DUCK: usize = BANK_BIRD0 + BIRD_COLORS.len();
 
 pub struct CritterPlugin;
 
@@ -225,6 +230,23 @@ impl CritterArt {
             let down: Vec<_> = base.iter().copied().chain([(bc, 0, 4, 3, 1), (bc, 5, 4, 3, 1)]).collect();
             banks.push([rects_image(8, 6, &up, images), rects_image(8, 6, &down, images)]);
         }
+        // The park duck: a mallard for the capital's pond greens (bob like the rabbit).
+        let duck = rects_image(
+            12,
+            10,
+            &[
+                (0x9a7048, 2, 4, 7, 4),
+                (0xc9baa4, 3, 6, 4, 2),
+                (0x6a4a30, 1, 3, 2, 2),
+                (0x6a4a30, 4, 5, 4, 2),
+                (0x2f7a38, 8, 1, 3, 3),
+                (0xf4efe6, 8, 4, 3, 1),
+                (0xf0a030, 11, 2, 1, 1),
+                (0x000000, 9, 2, 1, 1),
+            ],
+            images,
+        );
+        banks.push([duck.clone(), duck]);
         Self(banks)
     }
 }
@@ -253,7 +275,9 @@ fn spawn_on_room_change(
         return; // no meadows indoors
     }
     let biome = world.0.biome_key_at(cur.rx, cur.ry);
-    if !CRITTER_BIOMES.contains(&biome) {
+    // The capital's pond parks keep their own gentle wildlife (Baz: a duck!).
+    let pond_park = matches!(world.0.capital_room(cur.rx, cur.ry), Some((0, 0)) | Some((4, 0)));
+    if !pond_park && !CRITTER_BIOMES.contains(&biome) {
         return;
     }
     let night = crate::app::lighting::day_darkness(clock.0) > 0.5;
@@ -307,7 +331,9 @@ fn spawn_on_room_change(
         let Some((c, r)) = clear_spot(&mut rnd, &grid.0, 12) else { continue };
         let roll = rnd();
         // Guarantee one bird when a town's in range, so the compass is always readable.
-        let kind = if i == 0 && town_dir.is_some() {
+        let kind = if pond_park {
+            if roll < 0.7 { CritterKind::Duck } else { CritterKind::Butterfly }
+        } else if i == 0 && town_dir.is_some() {
             CritterKind::Bird
         } else if flowery && roll < 0.4 {
             CritterKind::Butterfly
@@ -323,6 +349,7 @@ fn spawn_on_room_change(
             CritterKind::Rabbit => BANK_RABBIT,
             CritterKind::Deer => BANK_DEER,
             CritterKind::Butterfly => BANK_BUTTERFLY,
+            CritterKind::Duck => BANK_DUCK,
             CritterKind::Bird => BANK_BIRD0 + (rnd() * BIRD_COLORS.len() as f32) as usize % BIRD_COLORS.len(),
         };
         spawn_critter(&mut commands, kind, x, y, frame_bank, town_dir);

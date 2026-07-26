@@ -488,6 +488,7 @@ pub static DEFS: &[ItemDef] = &[
     fish("eel", "Eel", Rarity::Rare, 64, &[('C', 0x4a5a4a)]),
     fish("sunfish", "Sunfish", Rarity::Uncommon, 40, &[('C', 0xe0b040)]),
     fish("icefish", "Icefish", Rarity::Rare, 70, &[('C', 0xbfe6f5)]),
+    fish("koi", "Koi", Rarity::Epic, 140, &[('C', 0xe88030)]),
     fish("rainfish", "Rainfish", Rarity::Rare, 80, &[('C', 0x7090d8)]),
     fish("voidfin", "Voidfin", Rarity::Epic, 160, &[('C', 0x9a6ad0)]),
     ItemDef {
@@ -1254,6 +1255,8 @@ pub static FISH_TABLE: &[FishRow] = &[
         ..frow("sunfish", "Sunfish", Rarity::Uncommon, "blue", (0.5, 2.5))
     },
     FishRow { seasons: &["WINTER"], biomes: &["arctic", "mountains", "saltwastes"], ..frow("icefish", "Icefish", Rarity::Rare, "blue", (0.4, 2.0)) },
+    // WRIFTHOLD's park ponds keep an ornamental treasure (Baz: a park catch).
+    FishRow { biomes: &["capital"], ..frow("koi", "Koi", Rarity::Epic, "blue", (1.0, 8.0)) },
     FishRow { weather: &["rain", "thunderstorm"], ..frow("rainfish", "Rainfish", Rarity::Rare, "any", (1.0, 4.0)) },
     FishRow { weather: &["thunderstorm"], ..frow("voidfin", "Voidfin", Rarity::Epic, "any", (3.0, 15.0)) },
 ];
