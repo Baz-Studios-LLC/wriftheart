@@ -1478,6 +1478,8 @@ pub struct ArrTag {
 pub struct ArrangeOverrides {
     pub moved: std::collections::HashMap<(i32, i32, usize), (f32, f32)>,
     pub adds: std::collections::HashMap<(i32, i32), Vec<(usize, f32, f32)>>,
+    /// Authored dressing props Baz deleted: (kx, ky, dressing idx) — skipped at wake.
+    pub removed: std::collections::HashSet<(i32, i32, usize)>,
     pub loaded: bool,
 }
 
@@ -1523,6 +1525,9 @@ fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32)
                 out.push(format!("{kx},{ky} {i} {x} {y}"));
             }
         }
+    }
+    for r in ov.removed.iter().filter(|r| r.0 == kx && r.1 == ky) {
+        out.push(format!("{},{} -{}", r.0, r.1, r.2));
     }
     let _ = std::fs::write(&path, out.join("\n") + "\n");
 }
@@ -1622,20 +1627,22 @@ fn arrange_tick(
         } else {
             arr.carrying = None;
         }
-        // DELETE removes a carried palette addition entirely.
+        // DELETE removes the carried prop: palette additions vanish, authored
+        // pieces get a removal mark (skipped at wake, deleted at bake).
         if keys.just_pressed(KeyCode::Delete) || keys.just_pressed(KeyCode::Backspace) {
             if let Ok((e, tag, ..)) = props.get(ce) {
-                if tag.add.is_some() {
-                    commands.entity(e).despawn();
-                    arr.carrying = None;
-                    let entries: Vec<_> = props
-                        .iter()
-                        .filter(|(pe, t, ..)| *pe != e && t.kx == kx && t.ky == ky)
-                        .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y))
-                        .collect();
-                    dump_room(kx, ky, entries, &mut overrides);
-                    return;
+                if tag.add.is_none() {
+                    overrides.removed.insert((kx, ky, tag.idx));
                 }
+                commands.entity(e).despawn();
+                arr.carrying = None;
+                let entries: Vec<_> = props
+                    .iter()
+                    .filter(|(pe, t, ..)| *pe != e && t.kx == kx && t.ky == ky)
+                    .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y))
+                    .collect();
+                dump_room(kx, ky, entries, &mut overrides);
+                return;
             }
         }
     }
@@ -2035,6 +2042,10 @@ pub fn capital_wake(
                         if let Ok(pi) = pi.parse::<usize>() {
                             overrides.adds.entry((a, b)).or_default().push((pi, x, y));
                         }
+                    } else if let Some(ri) = is.strip_prefix('-') {
+                        if let Ok(ri) = ri.parse::<usize>() {
+                            overrides.removed.insert((a, b, ri));
+                        }
                     } else if let Ok(i) = is.parse::<usize>() {
                         overrides.moved.insert((a, b, i), (x, y));
                     }
@@ -2179,6 +2190,9 @@ pub fn capital_wake(
         }
     }
     for (didx, (grid, x, y, canopy, blk)) in dressing(kx, ky).iter().enumerate() {
+        if overrides.removed.contains(&(kx, ky, didx)) {
+            continue; // Baz deleted this one in arrange mode
+        }
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
         let (w, h) = (grid[0].len() as f32, grid.len() as f32);
         // The arranger's saved layout wins over the authored spot.
