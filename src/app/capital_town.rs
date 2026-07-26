@@ -1467,21 +1467,70 @@ pub struct ArrTag {
     pub canopy: bool,
     pub x: f32,
     pub y: f32,
+    /// Some(palette idx) when this prop was ADDED via the F9 palette.
+    pub add: Option<usize>,
 }
 
-/// Live overrides from arrange.txt: (kx,ky,idx) -> (x,y). Loaded once, updated
-/// by every arranger drop — an arranged room SURVIVES leaving and reloading.
+/// Live overrides from arrange.txt: moved props (dressing idx -> x,y) and ADDED
+/// props ("+palette_idx x y"). Loaded once, updated by every arranger drop — an
+/// arranged room survives leaving and reloading; baking makes it source.
 #[derive(Resource, Default)]
-pub struct ArrangeOverrides(pub std::collections::HashMap<(i32, i32, usize), (f32, f32)>, pub bool);
+pub struct ArrangeOverrides {
+    pub moved: std::collections::HashMap<(i32, i32, usize), (f32, f32)>,
+    pub adds: std::collections::HashMap<(i32, i32), Vec<(usize, f32, f32)>>,
+    pub loaded: bool,
+}
+
+/// The F9 palette: anything Baz can sprinkle around a room by hand.
+/// (name, art, shadow feet width — 0 = flat, no shadow.)
+const PALETTE: [(&str, &[&str], u32); 11] = [
+    ("LAMP", &CP_LAMP, 6),
+    ("BENCH", &CP_BENCH, 18),
+    ("URN", &CP_URN, 10),
+    ("TOPIARY", &CP_TOPIARY, 14),
+    ("BANNER", &CP_BANNERPOLE, 6),
+    ("STATUE", &CP_STATUE, 20),
+    ("BED WIDE", &CP_BED_H, 0),
+    ("BED TALL", &CP_BED_V, 0),
+    ("BASKET", &CP_BASKET, 10),
+    ("CROSS", &CP_MKCROSS, 24),
+    ("HEADSTONE", &CP_HEADSTONE, 8),
+];
 
 #[derive(Resource, Default)]
 pub struct Arrange {
     pub on: bool,
     pub carrying: Option<Entity>,
+    pub pal_open: bool,
+    pub pal_sel: usize,
+}
+
+fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32)>, ov: &mut ArrangeOverrides) {
+    entries.sort_by_key(|(i, ..)| *i);
+    let Some(path) = crate::persist::data_file("arrange.txt") else { return };
+    let old = std::fs::read_to_string(&path).unwrap_or_default();
+    let pre = format!("{kx},{ky} ");
+    let mut out: Vec<String> = old.lines().filter(|l| !l.starts_with(&pre)).map(|l| l.to_string()).collect();
+    ov.adds.insert((kx, ky), vec![]);
+    for (i, add, x, y) in entries {
+        match add {
+            Some(pi) => {
+                ov.adds.get_mut(&(kx, ky)).unwrap().push((pi, x, y));
+                out.push(format!("{kx},{ky} +{pi} {x} {y}"));
+            }
+            None => {
+                ov.moved.insert((kx, ky, i), (x, y));
+                out.push(format!("{kx},{ky} {i} {x} {y}"));
+            }
+        }
+    }
+    let _ = std::fs::write(&path, out.join("\n") + "\n");
 }
 
 #[allow(clippy::too_many_arguments)]
 fn arrange_tick(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
     mut arr: ResMut<Arrange>,
     keys: Res<ButtonInput<KeyCode>>,
     mut pointer: ResMut<crate::input::Pointer>,
@@ -1490,14 +1539,20 @@ fn arrange_tick(
     mut props: Query<(Entity, &mut ArrTag, &mut Sprite, &mut Transform)>,
     mut overrides: ResMut<ArrangeOverrides>,
 ) {
-    let in_cap = world.0.capital_room(cur.rx, cur.ry).is_some();
-    if keys.just_pressed(KeyCode::F10) && in_cap {
-        arr.on = !arr.on;
-        arr.carrying = None;
-    }
-    if !in_cap {
+    let cap = world.0.capital_room(cur.rx, cur.ry);
+    if cap.is_none() {
         arr.on = false;
         arr.carrying = None;
+        arr.pal_open = false;
+    }
+    if keys.just_pressed(KeyCode::F10) && cap.is_some() {
+        arr.on = !arr.on;
+        arr.carrying = None;
+        arr.pal_open = false;
+    }
+    if keys.just_pressed(KeyCode::F9) && cap.is_some() {
+        arr.on = true;
+        arr.pal_open = !arr.pal_open;
     }
     let carrying = arr.carrying;
     for (e, _, mut sp, _) in &mut props {
@@ -1512,9 +1567,52 @@ fn arrange_tick(
     if !arr.on {
         return;
     }
+    let Some((kx, ky)) = cap else { return };
+    // The palette: pick with arrows, spawn-in-hand with Enter.
+    if arr.pal_open {
+        if keys.just_pressed(KeyCode::ArrowUp) {
+            arr.pal_sel = (arr.pal_sel + PALETTE.len() - 1) % PALETTE.len();
+        }
+        if keys.just_pressed(KeyCode::ArrowDown) {
+            arr.pal_sel = (arr.pal_sel + 1) % PALETTE.len();
+        }
+        if keys.just_pressed(KeyCode::Escape) {
+            arr.pal_open = false;
+        }
+        if keys.just_pressed(KeyCode::Enter) {
+            let (_, grid, feet) = PALETTE[arr.pal_sel];
+            let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
+            let (w, h) = (grid[0].len() as f32, grid.len() as f32);
+            let (sx, sy) = pointer
+                .pos
+                .map(|p| ((p.x - PLAY_X - w / 2.0).round(), (p.y - PLAY_Y - h / 2.0).round()))
+                .unwrap_or((144.0, 96.0));
+            let n = props.iter().filter(|(_, t, ..)| t.kx == kx && t.ky == ky && t.add.is_some()).count();
+            let e = commands
+                .spawn((
+                    Sprite::from_image(img),
+                    at(PLAY_X + sx, PLAY_Y + sy, w, h, actor_z(sy + h)),
+                    PIXEL_LAYER,
+                    RoomActor,
+                    CapitalProp,
+                    ArrTag { kx, ky, idx: 100_000 + n, w, h, canopy: false, x: sx, y: sy, add: Some(arr.pal_sel) },
+                ))
+                .id();
+            if feet > 0 {
+                commands.entity(e).insert(super::shadows::CastsShadow {
+                    left: sx + (w - feet as f32) / 2.0,
+                    top: sy + h - 4.0,
+                    w: feet,
+                    a: 0.85,
+                });
+            }
+            arr.carrying = Some(e);
+            arr.pal_open = false;
+        }
+        return; // the panel eats the tick
+    }
     let Some(pos) = pointer.pos else { return };
     let (mx, my) = (pos.x - PLAY_X, pos.y - PLAY_Y);
-    // The carried prop rides the cursor (cursor = prop centre).
     if let Some(ce) = arr.carrying {
         if let Ok((_, mut tag, _, mut tf)) = props.get_mut(ce) {
             tag.x = (mx - tag.w / 2.0).round().clamp(-8.0, 304.0 - tag.w + 8.0);
@@ -1524,37 +1622,38 @@ fn arrange_tick(
         } else {
             arr.carrying = None;
         }
+        // DELETE removes a carried palette addition entirely.
+        if keys.just_pressed(KeyCode::Delete) || keys.just_pressed(KeyCode::Backspace) {
+            if let Ok((e, tag, ..)) = props.get(ce) {
+                if tag.add.is_some() {
+                    commands.entity(e).despawn();
+                    arr.carrying = None;
+                    let entries: Vec<_> = props
+                        .iter()
+                        .filter(|(pe, t, ..)| *pe != e && t.kx == kx && t.ky == ky)
+                        .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y))
+                        .collect();
+                    dump_room(kx, ky, entries, &mut overrides);
+                    return;
+                }
+            }
+        }
     }
     if !pointer.click {
         return;
     }
-    pointer.click = false; // the arranger eats the click
+    pointer.click = false;
     if arr.carrying.take().is_some() {
-        // Dropped: dump every prop of THIS room (merge: other rooms' lines kept).
-        if let Some(path) = crate::persist::data_file("arrange.txt") {
-            let old = std::fs::read_to_string(&path).unwrap_or_default();
-            let here = format!("{},{}", cur.rx, cur.ry); // room key is capital-relative below
-            let _ = here;
-            let (kx, ky) = world.0.capital_room(cur.rx, cur.ry).unwrap_or((0, 0));
-            let keep: Vec<&str> = old
-                .lines()
-                .filter(|l| !l.starts_with(&format!("{kx},{ky} ")))
-                .collect();
-            let mut out: Vec<String> = keep.iter().map(|l| l.to_string()).collect();
-            let mut mine: Vec<(usize, f32, f32)> =
-                props.iter().filter(|(_, t, _, _)| t.kx == kx && t.ky == ky).map(|(_, t, _, _)| (t.idx, t.x, t.y)).collect();
-            mine.sort_by_key(|(i, _, _)| *i);
-            for (i, x, y) in mine {
-                overrides.0.insert((kx, ky, i), (x, y));
-                out.push(format!("{kx},{ky} {i} {x} {y}"));
-            }
-            let _ = std::fs::write(&path, out.join("\n") + "\n");
-        }
+        let entries: Vec<_> = props
+            .iter()
+            .filter(|(_, t, ..)| t.kx == kx && t.ky == ky)
+            .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y))
+            .collect();
+        dump_room(kx, ky, entries, &mut overrides);
         return;
     }
-    // Grab the prop under the cursor (smallest one wins on overlap).
     let mut best: Option<(Entity, f32)> = None;
-    for (e, tag, _, _) in props.iter() {
+    for (e, tag, ..) in props.iter() {
         if mx >= tag.x - 2.0 && mx <= tag.x + tag.w + 2.0 && my >= tag.y - 2.0 && my <= tag.y + tag.h + 2.0 {
             let area = tag.w * tag.h;
             if best.is_none() || area < best.unwrap().1 {
@@ -1563,6 +1662,63 @@ fn arrange_tick(
         }
     }
     arr.carrying = best.map(|(e, _)| e);
+}
+
+/// The palette's little list panel (top-left, gold = selected).
+#[derive(Component)]
+struct PalUi;
+
+fn arrange_panel(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    arr: Res<Arrange>,
+    ui: Query<Entity, With<PalUi>>,
+    mut last: Local<Option<(bool, usize)>>,
+) {
+    let now = (arr.pal_open, arr.pal_sel);
+    if *last == Some(now) {
+        return;
+    }
+    *last = Some(now);
+    for e in &ui {
+        commands.entity(e).despawn();
+    }
+    if !arr.pal_open {
+        return;
+    }
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    let (w, h) = (100u32, PALETTE.len() as u32 * 12 + 10);
+    let mut data = vec![0u8; (w * h * 4) as usize];
+    for px in data.chunks_mut(4) {
+        px[0] = 10;
+        px[1] = 10;
+        px[2] = 16;
+        px[3] = 215;
+    }
+    let img = Image::new(
+        Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+    commands.spawn((
+        Sprite::from_image(images.add(img)),
+        at(8.0, 30.0, w as f32, h as f32, 60.0),
+        PIXEL_LAYER,
+        PalUi,
+    ));
+    for (i, (name, ..)) in PALETTE.iter().enumerate() {
+        let col = if i == arr.pal_sel { 0xe8c050 } else { 0x9aa0a8 };
+        let (th, tw) = crate::gfx::font::bake_text(name, col, &mut images);
+        commands.spawn((
+            Sprite::from_image(th),
+            at(14.0, 36.0 + i as f32 * 12.0, tw as f32, 8.0, 61.0),
+            PIXEL_LAYER,
+            PalUi,
+        ));
+    }
 }
 
 #[derive(Component)]
@@ -1859,20 +2015,28 @@ pub fn capital_wake(
     props: Query<Entity, With<CapitalProp>>,
     parents: Query<&ChildOf>,
 ) {
-    if !overrides.1 {
-        overrides.1 = true;
+    if !overrides.loaded {
+        overrides.loaded = true;
         if let Some(path) = crate::persist::data_file("arrange.txt") {
             if let Ok(txt) = std::fs::read_to_string(path) {
                 for l in txt.lines() {
                     let mut it = l.split_whitespace();
-                    if let (Some(rc), Some(i), Some(xs), Some(ys)) = (it.next(), it.next(), it.next(), it.next()) {
-                        if let Some((kxs, kys)) = rc.split_once(',') {
-                            if let (Ok(a), Ok(b), Ok(i), Ok(x), Ok(y)) =
-                                (kxs.parse(), kys.parse(), i.parse(), xs.parse(), ys.parse())
-                            {
-                                overrides.0.insert((a, b, i), (x, y));
-                            }
+                    let (Some(rc), Some(is), Some(xs), Some(ys)) = (it.next(), it.next(), it.next(), it.next())
+                    else {
+                        continue;
+                    };
+                    let Some((kxs, kys)) = rc.split_once(',') else { continue };
+                    let (Ok(a), Ok(b), Ok(x), Ok(y)) =
+                        (kxs.parse::<i32>(), kys.parse::<i32>(), xs.parse::<f32>(), ys.parse::<f32>())
+                    else {
+                        continue;
+                    };
+                    if let Some(pi) = is.strip_prefix('+') {
+                        if let Ok(pi) = pi.parse::<usize>() {
+                            overrides.adds.entry((a, b)).or_default().push((pi, x, y));
                         }
+                    } else if let Ok(i) = is.parse::<usize>() {
+                        overrides.moved.insert((a, b, i), (x, y));
                     }
                 }
             }
@@ -1985,11 +2149,40 @@ pub fn capital_wake(
             ));
         }
     }
+    // ARRANGER ADDITIONS (F9 palette): props Baz placed by hand.
+    let extra: Vec<(usize, f32, f32)> = overrides.adds.get(&(kx, ky)).cloned().unwrap_or_default();
+    for (n, (pi, ax, ay)) in extra.into_iter().enumerate() {
+        let (_, grid, feet) = PALETTE[pi.min(PALETTE.len() - 1)];
+        let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
+        let (w, h) = (grid[0].len() as f32, grid.len() as f32);
+        let blk = (ax + 2.0, ay + h - 6.0, w - 4.0, 5.0);
+        if !blockers.0.contains(&blk) {
+            blockers.0.push(blk);
+        }
+        let e = commands
+            .spawn((
+                Sprite::from_image(img),
+                at(PLAY_X + ax, PLAY_Y + ay, w, h, actor_z(ay + h)),
+                PIXEL_LAYER,
+                RoomActor,
+                CapitalProp,
+                ArrTag { kx, ky, idx: 100_000 + n, w, h, canopy: false, x: ax, y: ay, add: Some(pi) },
+            ))
+            .id();
+        if feet > 0 {
+            commands.entity(e).insert(super::shadows::CastsShadow {
+                left: ax + (w - feet as f32) / 2.0,
+                top: ay + h - 4.0,
+                w: feet,
+                a: 0.85,
+            });
+        }
+    }
     for (didx, (grid, x, y, canopy, blk)) in dressing(kx, ky).iter().enumerate() {
         let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
         let (w, h) = (grid[0].len() as f32, grid.len() as f32);
         // The arranger's saved layout wins over the authored spot.
-        let (px, py) = overrides.0.get(&(kx, ky, didx)).copied().unwrap_or((*x, *y));
+        let (px, py) = overrides.moved.get(&(kx, ky, didx)).copied().unwrap_or((*x, *y));
         let (odx, ody) = (px - *x, py - *y);
         if let Some(b) = blk {
             let sb = (b.0 + odx, b.1 + ody, b.2, b.3);
@@ -2017,6 +2210,7 @@ pub fn capital_wake(
             canopy: *canopy,
             x: px,
             y: py,
+            add: None,
         });
         // Freestanding pieces opt into the shader shadow system (the same
         // silhouette-sampled, sun-sheared shadows the trees wear).
@@ -2099,6 +2293,7 @@ impl Plugin for CapitalTownPlugin {
         app.init_resource::<Citizens>();
         app.init_resource::<Arrange>();
         app.init_resource::<ArrangeOverrides>();
+        app.add_systems(Update, arrange_panel);
         app.add_systems(
             bevy::app::FixedUpdate,
             (
