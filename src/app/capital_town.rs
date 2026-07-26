@@ -1452,6 +1452,22 @@ pub struct CapitalInn {
     pub y: f32,
 }
 
+/// Rotate a prop grid clockwise by quarter-turns (R in arrange mode).
+fn rot_grid(grid: &[&str], turns: u8) -> Vec<String> {
+    let mut rows: Vec<Vec<char>> = grid.iter().map(|r| r.chars().collect()).collect();
+    for _ in 0..(turns % 4) {
+        let (h, w) = (rows.len(), rows[0].len());
+        let mut n = vec![vec!['.'; h]; w];
+        for (r, row) in rows.iter().enumerate() {
+            for (c, ch) in row.iter().enumerate() {
+                n[c][h - 1 - r] = *ch;
+            }
+        }
+        rows = n;
+    }
+    rows.into_iter().map(|r| r.into_iter().collect()).collect()
+}
+
 /// DEV ARRANGE MODE (Baz: "let me move the props and bake my layout"). F10
 /// toggles it inside the capital: dressed props tint green, LMB grabs the prop
 /// under the cursor, LMB again drops it. Every drop dumps THIS room's prop
@@ -1469,6 +1485,10 @@ pub struct ArrTag {
     pub y: f32,
     /// Some(palette idx) when this prop was ADDED via the F9 palette.
     pub add: Option<usize>,
+    /// Quarter-turns clockwise (R while carrying).
+    pub rot: u8,
+    /// The art, kept so a rotation can rebake it.
+    pub grid: &'static [&'static str],
 }
 
 /// Live overrides from arrange.txt: moved props (dressing idx -> x,y) and ADDED
@@ -1476,8 +1496,8 @@ pub struct ArrTag {
 /// arranged room survives leaving and reloading; baking makes it source.
 #[derive(Resource, Default)]
 pub struct ArrangeOverrides {
-    pub moved: std::collections::HashMap<(i32, i32, usize), (f32, f32)>,
-    pub adds: std::collections::HashMap<(i32, i32), Vec<(usize, f32, f32)>>,
+    pub moved: std::collections::HashMap<(i32, i32, usize), (f32, f32, u8)>,
+    pub adds: std::collections::HashMap<(i32, i32), Vec<(usize, f32, f32, u8)>>,
     /// Authored dressing props Baz deleted: (kx, ky, dressing idx) — skipped at wake.
     pub removed: std::collections::HashSet<(i32, i32, usize)>,
     pub loaded: bool,
@@ -1520,7 +1540,7 @@ pub struct Arrange {
     pub tile_sel: usize,
 }
 
-fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32)>, ov: &mut ArrangeOverrides) {
+fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32, u8)>, ov: &mut ArrangeOverrides) {
     entries.sort_by_key(|(i, ..)| *i);
     let Some(path) = crate::persist::data_file("arrange.txt") else { return };
     let old = std::fs::read_to_string(&path).unwrap_or_default();
@@ -1529,15 +1549,15 @@ fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32)
     let mut out: Vec<String> =
         old.lines().filter(|l| !l.starts_with(&pre) || l.starts_with(&pret)).map(|l| l.to_string()).collect();
     ov.adds.insert((kx, ky), vec![]);
-    for (i, add, x, y) in entries {
+    for (i, add, x, y, rot) in entries {
         match add {
             Some(pi) => {
-                ov.adds.get_mut(&(kx, ky)).unwrap().push((pi, x, y));
-                out.push(format!("{kx},{ky} +{pi} {x} {y}"));
+                ov.adds.get_mut(&(kx, ky)).unwrap().push((pi, x, y, rot));
+                out.push(format!("{kx},{ky} +{pi} {x} {y} {rot}"));
             }
             None => {
-                ov.moved.insert((kx, ky, i), (x, y));
-                out.push(format!("{kx},{ky} {i} {x} {y}"));
+                ov.moved.insert((kx, ky, i), (x, y, rot));
+                out.push(format!("{kx},{ky} {i} {x} {y} {rot}"));
             }
         }
     }
@@ -1636,7 +1656,7 @@ fn arrange_tick(
                     PIXEL_LAYER,
                     RoomActor,
                     CapitalProp,
-                    ArrTag { kx, ky, idx: 100_000 + n, w, h, canopy: false, x: sx, y: sy, add: Some(arr.pal_sel) },
+                    ArrTag { kx, ky, idx: 100_000 + n, w, h, canopy: false, x: sx, y: sy, add: Some(arr.pal_sel), rot: 0, grid },
                 ))
                 .id();
             if feet > 0 {
@@ -1663,6 +1683,22 @@ fn arrange_tick(
         } else {
             arr.carrying = None;
         }
+        // R turns the carried prop a quarter clockwise (art truly rotates).
+        if keys.just_pressed(KeyCode::KeyR) {
+            if let Ok((_, mut tag, mut sp, _)) = props.get_mut(ce) {
+                tag.rot = (tag.rot + 1) % 4;
+                let (tw, th) = (tag.w, tag.h);
+                tag.w = th;
+                tag.h = tw;
+                sp.image = if tag.rot % 4 == 0 {
+                    images.add(crate::gfx::bake(tag.grid, CAPITAL_PAL))
+                } else {
+                    let rg = rot_grid(tag.grid, tag.rot);
+                    let refs: Vec<&str> = rg.iter().map(|r| r.as_str()).collect();
+                    images.add(crate::gfx::bake(&refs, CAPITAL_PAL))
+                };
+            }
+        }
         // DELETE removes the carried prop: palette additions vanish, authored
         // pieces get a removal mark (skipped at wake, deleted at bake).
         if keys.just_pressed(KeyCode::Delete) || keys.just_pressed(KeyCode::Backspace) {
@@ -1675,7 +1711,7 @@ fn arrange_tick(
                 let entries: Vec<_> = props
                     .iter()
                     .filter(|(pe, t, ..)| *pe != e && t.kx == kx && t.ky == ky)
-                    .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y))
+                    .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y, t.rot))
                     .collect();
                 dump_room(kx, ky, entries, &mut overrides);
                 return;
@@ -1690,7 +1726,7 @@ fn arrange_tick(
         let entries: Vec<_> = props
             .iter()
             .filter(|(_, t, ..)| t.kx == kx && t.ky == ky)
-            .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y))
+            .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y, t.rot))
             .collect();
         dump_room(kx, ky, entries, &mut overrides);
         return;
@@ -1721,6 +1757,7 @@ fn paint_tick(
     mut pointer: ResMut<crate::input::Pointer>,
     cur: Res<CurRoom>,
     world: Res<super::play::GameWorld>,
+    tex: Res<crate::gfx::tile_textures::TileTextures>,
     mut last: Local<Option<(i32, i32)>>,
     mut marks: Local<u32>,
 ) {
@@ -1761,18 +1798,21 @@ fn paint_tick(
         let (c, r) = (((pos.x - PLAY_X) / 16.0).floor() as i32, ((pos.y - PLAY_Y) / 16.0).floor() as i32);
         if (0..19).contains(&c) && (0..13).contains(&r) && (*last != Some((c, r)) || mouse.just_pressed(MouseButton::Left)) {
             *last = Some((c, r));
-            let (_, ch, col) = TILE_PALETTE[arr.tile_sel];
+            let (_, ch, _) = TILE_PALETTE[arr.tile_sel];
             let idx = (r * 19 + c) as usize;
             if let Ok(mut ed) = crate::worldgen::capital::tile_edits().write() {
                 ed.insert((kx, ky, idx), ch);
             }
-            // Wet paint: a flat colour swatch until the room rebakes.
-            let row = "#".repeat(16);
-            let rows: Vec<&str> = (0..16).map(|_| row.as_str()).collect();
-            let img = crate::gfx::bake(&rows, &[('#', col)]);
+            // Wet paint IS the real tile art (Baz: not colour swatches).
+            let img = match ch {
+                '.' => tex.ground("meadow", cur.rx * 19 + c, cur.ry * 13 + r),
+                '~' => tex.water(0, "blue"),
+                _ => tex.code(ch),
+            };
+            let _ = &mut images;
             *marks += 1;
             commands.spawn((
-                Sprite::from_image(images.add(img)),
+                Sprite::from_image(img),
                 at(PLAY_X + (c * 16) as f32, PLAY_Y + (r * 16) as f32, 16.0, 16.0, 3.42 + *marks as f32 * 0.0001),
                 PIXEL_LAYER,
                 RoomActor,
@@ -2166,16 +2206,17 @@ pub fn capital_wake(
                         continue;
                     }
                     let (Ok(x), Ok(y)) = (xs.parse::<f32>(), ys.parse::<f32>()) else { continue };
+                    let rot = it.next().and_then(|t| t.parse::<u8>().ok()).unwrap_or(0);
                     if let Some(pi) = is.strip_prefix('+') {
                         if let Ok(pi) = pi.parse::<usize>() {
-                            overrides.adds.entry((a, b)).or_default().push((pi, x, y));
+                            overrides.adds.entry((a, b)).or_default().push((pi, x, y, rot));
                         }
                     } else if let Some(ri) = is.strip_prefix('-') {
                         if let Ok(ri) = ri.parse::<usize>() {
                             overrides.removed.insert((a, b, ri));
                         }
                     } else if let Ok(i) = is.parse::<usize>() {
-                        overrides.moved.insert((a, b, i), (x, y));
+                        overrides.moved.insert((a, b, i), (x, y, rot));
                     }
                 }
             }
@@ -2289,11 +2330,21 @@ pub fn capital_wake(
         }
     }
     // ARRANGER ADDITIONS (F9 palette): props Baz placed by hand.
-    let extra: Vec<(usize, f32, f32)> = overrides.adds.get(&(kx, ky)).cloned().unwrap_or_default();
-    for (n, (pi, ax, ay)) in extra.into_iter().enumerate() {
+    let extra: Vec<(usize, f32, f32, u8)> = overrides.adds.get(&(kx, ky)).cloned().unwrap_or_default();
+    for (n, (pi, ax, ay, rot)) in extra.into_iter().enumerate() {
         let (_, grid, feet) = PALETTE[pi.min(PALETTE.len() - 1)];
-        let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
-        let (w, h) = (grid[0].len() as f32, grid.len() as f32);
+        let img = if rot % 4 == 0 {
+            images.add(crate::gfx::bake(grid, CAPITAL_PAL))
+        } else {
+            let rg = rot_grid(grid, rot);
+            let refs: Vec<&str> = rg.iter().map(|r| r.as_str()).collect();
+            images.add(crate::gfx::bake(&refs, CAPITAL_PAL))
+        };
+        let (w, h) = if rot % 2 == 0 {
+            (grid[0].len() as f32, grid.len() as f32)
+        } else {
+            (grid.len() as f32, grid[0].len() as f32)
+        };
         let blk = (ax + 2.0, ay + h - 6.0, w - 4.0, 5.0);
         if !blockers.0.contains(&blk) {
             blockers.0.push(blk);
@@ -2305,7 +2356,7 @@ pub fn capital_wake(
                 PIXEL_LAYER,
                 RoomActor,
                 CapitalProp,
-                ArrTag { kx, ky, idx: 100_000 + n, w, h, canopy: false, x: ax, y: ay, add: Some(pi) },
+                ArrTag { kx, ky, idx: 100_000 + n, w, h, canopy: false, x: ax, y: ay, add: Some(pi), rot, grid },
             ))
             .id();
         if feet > 0 {
@@ -2321,13 +2372,31 @@ pub fn capital_wake(
         if overrides.removed.contains(&(kx, ky, didx)) {
             continue; // Baz deleted this one in arrange mode
         }
-        let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
-        let (w, h) = (grid[0].len() as f32, grid.len() as f32);
-        // The arranger's saved layout wins over the authored spot.
-        let (px, py) = overrides.moved.get(&(kx, ky, didx)).copied().unwrap_or((*x, *y));
+        // The arranger's saved layout (and rotation) wins over the authored spot.
+        let (px, py, rot) = overrides.moved.get(&(kx, ky, didx)).copied().unwrap_or((*x, *y, 0));
+        let img = if rot % 4 == 0 {
+            images.add(crate::gfx::bake(grid, CAPITAL_PAL))
+        } else {
+            let rg = rot_grid(grid, rot);
+            let refs: Vec<&str> = rg.iter().map(|r| r.as_str()).collect();
+            images.add(crate::gfx::bake(&refs, CAPITAL_PAL))
+        };
+        let (w, h) = if rot % 2 == 0 {
+            (grid[0].len() as f32, grid.len() as f32)
+        } else {
+            (grid.len() as f32, grid[0].len() as f32)
+        };
         let (odx, ody) = (px - *x, py - *y);
-        if let Some(b) = blk {
-            let sb = (b.0 + odx, b.1 + ody, b.2, b.3);
+        if rot % 4 == 0 {
+            if let Some(b) = blk {
+                let sb = (b.0 + odx, b.1 + ody, b.2, b.3);
+                if !blockers.0.contains(&sb) {
+                    blockers.0.push(sb);
+                }
+            }
+        } else if blk.is_some() {
+            // A turned prop gets a generic footing (authored boxes don't rotate).
+            let sb = (px + 2.0, py + h - 6.0, w - 4.0, 5.0);
             if !blockers.0.contains(&sb) {
                 blockers.0.push(sb);
             }
@@ -2353,6 +2422,8 @@ pub fn capital_wake(
             x: px,
             y: py,
             add: None,
+            rot,
+            grid,
         });
         // Freestanding pieces opt into the shader shadow system (the same
         // silhouette-sampled, sun-sheared shadows the trees wear).
