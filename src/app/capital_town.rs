@@ -1536,9 +1536,58 @@ const CP_BUSH: [&str; 14] = [
     "....................",
 ];
 
+const CP_TREE: [&str; 46] = [
+    "...........LLLLLLLLLLLL...........",
+    "...........LLLLLLLLLLLL...........",
+    "......ggLLLLLLLLLLLLLLLLLLgg......",
+    "......ggLLLLLLLLLLLLLLLLLLgg......",
+    "......gggLgggggggggggggggggg......",
+    "......gggggggggggggggggggggg......",
+    "...gggggggggggllggggggggggggggg...",
+    "...gggggggggggggggggggggggLgggg...",
+    "...gggllggggggggggggggggggggggg...",
+    "...gggggggggggggggggggggllggggg...",
+    ".gggggggggggggggggggggggggggggggg.",
+    ".ggllgggggggggggggggggggggggggggg.",
+    ".gLggggggggllgggggggggggggggggLgg.",
+    ".gggggggggggggggggggggggggggllggg.",
+    ".gggllggggggggggggggllggggggggggg.",
+    ".gggggggggggggggggggggggggggggggg.",
+    ".gggggLggggggggggggggggLggggggggg.",
+    ".ggggggggggggggggggggggggggggllgg.",
+    ".gggggggggggggggllggggggggggggggg.",
+    ".gggggggllggggggggggggggggggggggg.",
+    ".ggggggggggggggggggggggggllgggggg.",
+    "..gggggggggggggggggggggggggggggg..",
+    "..gggggggggggggggggggggggggggggg..",
+    "..gggggggggggllggggggggggggggggg..",
+    "..gggggggggggggggggggllggggggggg..",
+    "..ggllllllllllllllllllllllllllgg..",
+    "....llllllllllllllllllllllllll....",
+    "....llllllllllllllllllllllllll....",
+    "....llllllllllllllllllllllllll....",
+    "........llllllKDDDDKllllll........",
+    "..............KDDDDK..............",
+    "..............KDDDDK..............",
+    "..............KsDDDK..............",
+    "..............KsDDDK..............",
+    "..............KsDDDK..............",
+    "..............KsDDDK..............",
+    "..............KsDDDK..............",
+    "..............KsDDDK..............",
+    "..............KsDDDK..............",
+    "..............KDDDDK..............",
+    "............DDKDDDDKDD............",
+    "............DDKDDDDKDD............",
+    "............DD......DD............",
+    "............KKKKKKKKKK............",
+    "..................................",
+    "..................................",
+];
+
 /// The F9 palette: anything Baz can sprinkle around a room by hand.
 /// (name, art, shadow feet width — 0 = flat, no shadow.)
-const PALETTE: [(&str, &[&str], u32); 12] = [
+const PALETTE: [(&str, &[&str], u32); 13] = [
     ("LAMP", &CP_LAMP, 6),
     ("BENCH", &CP_BENCH, 18),
     ("URN", &CP_URN, 10),
@@ -1551,6 +1600,7 @@ const PALETTE: [(&str, &[&str], u32); 12] = [
     ("CROSS", &CP_MKCROSS, 24),
     ("HEADSTONE", &CP_HEADSTONE, 8),
     ("BUSH", &CP_BUSH, 14),
+    ("TREE", &CP_TREE, 12),
 ];
 
 /// The F8 tile painter's brushes: (name, final map char, wet-paint colour).
@@ -2451,7 +2501,11 @@ pub fn capital_wake(
         } else {
             (grid.len() as f32, grid[0].len() as f32)
         };
-        let blk = (ax + 2.0, ay + h - 6.0, w - 4.0, 5.0);
+        let blk = if PALETTE[pi.min(PALETTE.len() - 1)].0 == "TREE" {
+            (ax + w / 2.0 - 5.0, ay + h - 6.0, 10.0, 5.0)
+        } else {
+            (ax + 2.0, ay + h - 6.0, w - 4.0, 5.0)
+        };
         if !blockers.0.contains(&blk) {
             blockers.0.push(blk);
         }
