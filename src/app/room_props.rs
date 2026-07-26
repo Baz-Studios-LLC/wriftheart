@@ -13,7 +13,7 @@ use super::room_render::{actor_z, child, PLAY_X, PLAY_Y};
 use crate::actors::props::{pick_variant, prop_anchor, PropArt};
 use crate::combat::{Blood, Combatant, GatherTool, Health, Hitbox, HurtProfile, Team, Tool};
 use crate::gfx::at;
-use crate::room::{RoomGrid, TILE};
+use crate::room::{RoomGrid, PX_H, TILE};
 use crate::worldgen::{RoomEntity, World};
 use bevy::prelude::*;
 
@@ -74,6 +74,60 @@ pub(crate) fn node_bundle(
 }
 
 /// Spawn a room's props as children of `root`; returns the solid hitboxes for
+/// Ghost canopies from the SOUTH neighbour's top-edge trees: in world space their sprite
+/// tops cross the shared seam into this room, so this room draws the overhanging part
+/// (display only — no blocker, no gather node). Without this the room-at-a-time renderer
+/// pops the canopy out of existence the moment a slide lands (Baz).
+#[allow(clippy::too_many_arguments)] // mirrors the spawn gates, so it needs their context
+pub fn spawn_canopy_overhangs(
+    commands: &mut Commands,
+    images: &mut Assets<Image>,
+    art: &mut PropArt,
+    world: &World,
+    root: Entity,
+    gather: &GatherState,
+    growth: &TreeGrowth,
+    farm: &FarmTiles,
+    clock: i64,
+    room: (i32, i32),
+) {
+    let south = (room.0, room.1 + 1);
+    if south == HOME_VILLAGE {
+        return; // the burnt village spawns a bespoke ruin, not its natural trees
+    }
+    let today = farm_day(clock);
+    for e in world.room_entities(south.0, south.1) {
+        if !is_big_prop(e.kind) {
+            continue;
+        }
+        let (ox, oy, ..) = prop_anchor(e.kind);
+        let (x, y) = (e.x, e.y);
+        if y + oy >= 0 {
+            continue; // sprite top stays inside the south room — nothing crosses the seam
+        }
+        let (c, r) = (x.div_euclid(TILE), y.div_euclid(TILE));
+        // Same existence gates as the real spawn: gathered today, hoed under, or felled
+        // (a stump/sapling has no canopy) means no overhang either.
+        if gather.taken(south, c, r, today) || farm.tile(south, c, r).is_some() {
+            continue;
+        }
+        if growth.0.get(&south).and_then(|m| m.get(&(c, r))).is_some_and(|cut| today - cut < TREE_GROW_DAYS) {
+            continue;
+        }
+        let img = art.tree(e.kind, x, y, images);
+        let size = images.get(&img).map(|i| i.size().as_vec2()).unwrap_or(Vec2::new(48.0, 72.0));
+        let fy = (PX_H + y) as f32; // the tree's foot row, in THIS room's local px
+        let tf = at(
+            PLAY_X + (x + ox) as f32,
+            PLAY_Y + fy + oy as f32,
+            size.x,
+            size.y,
+            actor_z(fy + TILE as f32), // feet below the seam: draws over anyone at the edge
+        );
+        child(commands, root, Sprite::from_image(img), tf);
+    }
+}
+
 /// [`RoomBlockers`]. Gathered nodes stay gone for the day; felled trees come back at their
 /// growth stage. Mobs in the list are the battle module's business, not ours.
 #[allow(clippy::too_many_arguments)] // room composition needs the room's whole context

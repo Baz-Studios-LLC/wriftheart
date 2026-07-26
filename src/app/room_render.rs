@@ -113,6 +113,10 @@ pub fn spawn_room_root(
     let blockers = spawn_room_props(
         commands, images, prop_art, world, grid, ents, root, gather, growth, farm, cleared, caves, songs_opened, clock, (rx, ry),
     );
+    // The south neighbour's top-edge canopies overhang this room's bottom rows.
+    super::room_props::spawn_canopy_overhangs(
+        commands, images, prop_art, world, root, gather, growth, farm, clock, (rx, ry),
+    );
     (root, blockers)
 }
 
