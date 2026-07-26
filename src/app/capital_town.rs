@@ -1584,7 +1584,28 @@ fn arrange_tick(
         if keys.just_pressed(KeyCode::Escape) {
             arr.pal_open = false;
         }
-        if keys.just_pressed(KeyCode::Enter) {
+        if pointer.wheel_steps != 0 {
+            let n = PALETTE.len() as i32;
+            arr.pal_sel = (arr.pal_sel as i32 - pointer.wheel_steps).rem_euclid(n) as usize;
+            pointer.wheel_steps = 0;
+        }
+        let pw = 100.0;
+        let px0 = crate::CANVAS_W as f32 - pw - 8.0;
+        for i in 0..PALETTE.len() {
+            if pointer.hovering(px0, 34.0 + i as f32 * 12.0, pw, 12.0) {
+                arr.pal_sel = i;
+            }
+        }
+        let mut spawn_now = keys.just_pressed(KeyCode::Enter);
+        if pointer.click {
+            pointer.click = false;
+            if pointer.over(px0, 30.0, pw, PALETTE.len() as f32 * 12.0 + 10.0) {
+                spawn_now = true; // clicking a row spawns it in hand
+            } else {
+                arr.pal_open = false; // clicking away closes the panel
+            }
+        }
+        if spawn_now {
             let (_, grid, feet) = PALETTE[arr.pal_sel];
             let img = images.add(crate::gfx::bake(grid, CAPITAL_PAL));
             let (w, h) = (grid[0].len() as f32, grid.len() as f32);
@@ -1693,24 +1714,11 @@ fn arrange_panel(
     if !arr.pal_open {
         return;
     }
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
     let (w, h) = (100u32, PALETTE.len() as u32 * 12 + 10);
-    let mut data = vec![0u8; (w * h * 4) as usize];
-    for px in data.chunks_mut(4) {
-        px[0] = 10;
-        px[1] = 10;
-        px[2] = 16;
-        px[3] = 215;
-    }
-    let img = Image::new(
-        Extent3d { width: w, height: h, depth_or_array_layers: 1 },
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-    );
-    // Right edge, above everything — the left sidebar is HUD territory.
+    // Bake the backing through the art pipeline (hand-built Images don't render).
+    let row = "#".repeat(w as usize);
+    let rows: Vec<&str> = (0..h).map(|_| row.as_str()).collect();
+    let img = crate::gfx::bake(&rows, &[('#', 0x0a0a10)]);
     let px = crate::CANVAS_W as f32 - w as f32 - 8.0;
     commands.spawn((
         Sprite::from_image(images.add(img)),
@@ -1721,12 +1729,11 @@ fn arrange_panel(
     for (i, (name, ..)) in PALETTE.iter().enumerate() {
         let col = if i == arr.pal_sel { 0xe8c050 } else { 0x9aa0a8 };
         let (th, tw) = crate::gfx::font::bake_text(name, col, &mut images);
-        commands.spawn((
-            Sprite::from_image(th),
-            at(px + 6.0, 36.0 + i as f32 * 12.0, tw as f32, 8.0, 201.0),
-            PIXEL_LAYER,
-            PalUi,
-        ));
+        // Floor the final translation: odd text widths centre on .5 and shear glyphs.
+        let mut tf = at(px + 6.0, 36.0 + i as f32 * 12.0, tw as f32, 8.0, 201.0);
+        tf.translation.x = tf.translation.x.floor();
+        tf.translation.y = tf.translation.y.floor();
+        commands.spawn((Sprite::from_image(th), tf, PIXEL_LAYER, PalUi));
     }
 }
 
