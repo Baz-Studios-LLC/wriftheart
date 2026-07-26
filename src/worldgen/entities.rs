@@ -125,7 +125,7 @@ impl World {
             // STREET TREES (Baz: placed nicely along the roads, never scattered):
             // oak allees flank the grand ways, mirrored on each room's axes.
             let oaks: &[(i32, i32)] = match (kx, ky) {
-                (2, 1) => &[(2, 2), (16, 2), (2, 6), (16, 6), (2, 10), (16, 10)],
+                (2, 1) => &[(2, 2), (16, 2), (2, 10), (16, 10)],
                 (2, 2) => &[(2, 1), (16, 1), (2, 11), (16, 11)],
                 (0, 2) | (4, 2) => &[(6, 3), (10, 3), (14, 3), (6, 9), (10, 9), (14, 9)],
                 (0, 1) | (4, 1) => &[(3, 11), (15, 11)],

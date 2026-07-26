@@ -1396,10 +1396,10 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE STATUE GARDEN (0,3): a sentinel ringed by topiary on the west square.
         (0, 3) => &[
             (&CP_STATUE, 149.0, 66.0, false, Some((150.0, 98.0, 20.0, 8.0))),
-            (&CP_TOPIARY, 100.0, 40.0, false, Some((102.0, 62.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 202.0, 40.0, false, Some((204.0, 62.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 100.0, 132.0, false, Some((102.0, 154.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 202.0, 132.0, false, Some((204.0, 154.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 100.0, 24.0, false, Some((102.0, 46.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 202.0, 24.0, false, Some((204.0, 46.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 100.0, 116.0, false, Some((102.0, 138.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 202.0, 116.0, false, Some((204.0, 138.0, 14.0, 6.0))),
             (&CP_BENCH, 106.0, 92.0, false, Some((107.0, 96.0, 18.0, 4.0))),
             (&CP_BENCH, 194.0, 92.0, false, Some((195.0, 96.0, 18.0, 4.0))),
             (&CP_URN, 154.0, 44.0, false, Some((156.0, 52.0, 8.0, 5.0))),
