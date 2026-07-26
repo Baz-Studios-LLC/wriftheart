@@ -1710,9 +1710,11 @@ fn arrange_panel(
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
     );
+    // Right edge, above everything — the left sidebar is HUD territory.
+    let px = crate::CANVAS_W as f32 - w as f32 - 8.0;
     commands.spawn((
         Sprite::from_image(images.add(img)),
-        at(8.0, 30.0, w as f32, h as f32, 60.0),
+        at(px, 30.0, w as f32, h as f32, 200.0),
         PIXEL_LAYER,
         PalUi,
     ));
@@ -1721,7 +1723,7 @@ fn arrange_panel(
         let (th, tw) = crate::gfx::font::bake_text(name, col, &mut images);
         commands.spawn((
             Sprite::from_image(th),
-            at(14.0, 36.0 + i as f32 * 12.0, tw as f32, 8.0, 61.0),
+            at(px + 6.0, 36.0 + i as f32 * 12.0, tw as f32, 8.0, 201.0),
             PIXEL_LAYER,
             PalUi,
         ));
