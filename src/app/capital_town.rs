@@ -1384,6 +1384,54 @@ pub struct CapitalInn {
     pub y: f32,
 }
 
+/// Load arrange.txt once — at STARTUP, before the first room generates (a
+/// lazy load in wake ran AFTER the spawn room's tiles baked — Baz saw reverts).
+fn load_layout(overrides: &mut ArrangeOverrides) {
+    if !overrides.loaded {
+        overrides.loaded = true;
+        if let Some(path) = crate::persist::data_file("arrange.txt") {
+            if let Ok(txt) = std::fs::read_to_string(path) {
+                for l in txt.lines() {
+                    let mut it = l.split_whitespace();
+                    let (Some(rc), Some(is), Some(xs), Some(ys)) = (it.next(), it.next(), it.next(), it.next())
+                    else {
+                        continue;
+                    };
+                    let Some((kxs, kys)) = rc.split_once(',') else { continue };
+                    let (Ok(a), Ok(b)) = (kxs.parse::<i32>(), kys.parse::<i32>()) else { continue };
+                    if is == "T" {
+                        // tile paint: "kx,ky T idx ch"
+                        if let (Ok(i), Some(ch)) = (xs.parse::<usize>(), ys.chars().next()) {
+                            if let Ok(mut ed) = crate::worldgen::capital::tile_edits().write() {
+                                ed.insert((a, b, i), ch);
+                            }
+                        }
+                        continue;
+                    }
+                    let (Ok(x), Ok(y)) = (xs.parse::<f32>(), ys.parse::<f32>()) else { continue };
+                    let rot = it.next().and_then(|t| t.parse::<u8>().ok()).unwrap_or(0);
+                    let pname = it.next().unwrap_or("").to_string();
+                    if let Some(pi) = is.strip_prefix('+') {
+                        if let Ok(pi) = pi.parse::<usize>() {
+                            overrides.adds.entry((a, b)).or_default().push((pi, x, y, rot));
+                        }
+                    } else if let Some(ri) = is.strip_prefix('-') {
+                        if let Ok(ri) = ri.parse::<usize>() {
+                            overrides.removed.insert((a, b, ri));
+                        }
+                    } else if let Ok(i) = is.parse::<usize>() {
+                        overrides.moved.insert((a, b, i), (x, y, rot, pname));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn load_layout_startup(mut overrides: ResMut<ArrangeOverrides>) {
+    load_layout(&mut overrides);
+}
+
 /// A prop's stable identity for the layout file — saved lines only apply when
 /// the arm slot still holds the same art (source edits shift indices otherwise).
 fn prop_name(grid: &[&str]) -> &'static str {
@@ -2246,45 +2294,7 @@ pub fn capital_wake(
     props: Query<Entity, With<CapitalProp>>,
     parents: Query<&ChildOf>,
 ) {
-    if !overrides.loaded {
-        overrides.loaded = true;
-        if let Some(path) = crate::persist::data_file("arrange.txt") {
-            if let Ok(txt) = std::fs::read_to_string(path) {
-                for l in txt.lines() {
-                    let mut it = l.split_whitespace();
-                    let (Some(rc), Some(is), Some(xs), Some(ys)) = (it.next(), it.next(), it.next(), it.next())
-                    else {
-                        continue;
-                    };
-                    let Some((kxs, kys)) = rc.split_once(',') else { continue };
-                    let (Ok(a), Ok(b)) = (kxs.parse::<i32>(), kys.parse::<i32>()) else { continue };
-                    if is == "T" {
-                        // tile paint: "kx,ky T idx ch"
-                        if let (Ok(i), Some(ch)) = (xs.parse::<usize>(), ys.chars().next()) {
-                            if let Ok(mut ed) = crate::worldgen::capital::tile_edits().write() {
-                                ed.insert((a, b, i), ch);
-                            }
-                        }
-                        continue;
-                    }
-                    let (Ok(x), Ok(y)) = (xs.parse::<f32>(), ys.parse::<f32>()) else { continue };
-                    let rot = it.next().and_then(|t| t.parse::<u8>().ok()).unwrap_or(0);
-                    let pname = it.next().unwrap_or("").to_string();
-                    if let Some(pi) = is.strip_prefix('+') {
-                        if let Ok(pi) = pi.parse::<usize>() {
-                            overrides.adds.entry((a, b)).or_default().push((pi, x, y, rot));
-                        }
-                    } else if let Some(ri) = is.strip_prefix('-') {
-                        if let Ok(ri) = ri.parse::<usize>() {
-                            overrides.removed.insert((a, b, ri));
-                        }
-                    } else if let Ok(i) = is.parse::<usize>() {
-                        overrides.moved.insert((a, b, i), (x, y, rot, pname));
-                    }
-                }
-            }
-        }
-    }
+    load_layout(&mut overrides);
     if in_dungeon.0.is_some() || inside.0.is_some() {
         *woke = None;
         return;
@@ -2592,6 +2602,7 @@ impl Plugin for CapitalTownPlugin {
         app.init_resource::<Arrange>();
         app.init_resource::<ArrangeOverrides>();
         app.add_systems(Update, arrange_panel);
+        app.add_systems(Startup, load_layout_startup);
         app.add_systems(
             bevy::app::FixedUpdate,
             (
