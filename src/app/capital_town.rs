@@ -1384,6 +1384,42 @@ pub struct CapitalInn {
     pub y: f32,
 }
 
+/// A prop's stable identity for the layout file — saved lines only apply when
+/// the arm slot still holds the same art (source edits shift indices otherwise).
+fn prop_name(grid: &[&str]) -> &'static str {
+    let p = grid.as_ptr();
+    for (n, g) in [
+        ("LAMP", CP_LAMP.as_slice()),
+        ("BENCH", CP_BENCH.as_slice()),
+        ("URN", CP_URN.as_slice()),
+        ("TOPIARY", CP_TOPIARY.as_slice()),
+        ("BANNER", CP_BANNERPOLE.as_slice()),
+        ("STATUE", CP_STATUE.as_slice()),
+        ("BEDH", CP_BED_H.as_slice()),
+        ("BEDV", CP_BED_V.as_slice()),
+        ("BASKET", CP_BASKET.as_slice()),
+        ("CROSS", CP_MKCROSS.as_slice()),
+        ("HEADSTONE", CP_HEADSTONE.as_slice()),
+        ("BUSH", CP_BUSH.as_slice()),
+        ("FOUNTAIN", CP_FOUNTAIN.as_slice()),
+        ("TOWER", CP_TOWER.as_slice()),
+        ("ARCH", CP_ARCH.as_slice()),
+        ("WINDOW", CP_WINDOW.as_slice()),
+        ("TURRET", CP_TURRET.as_slice()),
+        ("SLIT", CP_SLIT.as_slice()),
+        ("PARAPET", CP_PARAPET.as_slice()),
+        ("STANDARD", CP_STANDARD.as_slice()),
+        ("KEEPDOOR", CP_KEEPDOOR.as_slice()),
+        ("CATHEDRAL", CP_CATHEDRAL.as_slice()),
+        ("INN", CP_INN.as_slice()),
+    ] {
+        if std::ptr::eq(p, g.as_ptr()) {
+            return n;
+        }
+    }
+    "PROP"
+}
+
 /// Rotate a prop grid clockwise by quarter-turns (R in arrange mode).
 fn rot_grid(grid: &[&str], turns: u8) -> Vec<String> {
     let mut rows: Vec<Vec<char>> = grid.iter().map(|r| r.chars().collect()).collect();
@@ -1428,7 +1464,7 @@ pub struct ArrTag {
 /// arranged room survives leaving and reloading; baking makes it source.
 #[derive(Resource, Default)]
 pub struct ArrangeOverrides {
-    pub moved: std::collections::HashMap<(i32, i32, usize), (f32, f32, u8)>,
+    pub moved: std::collections::HashMap<(i32, i32, usize), (f32, f32, u8, String)>,
     pub adds: std::collections::HashMap<(i32, i32), Vec<(usize, f32, f32, u8)>>,
     /// Authored dressing props Baz deleted: (kx, ky, dressing idx) — skipped at wake.
     pub removed: std::collections::HashSet<(i32, i32, usize)>,
@@ -1492,7 +1528,7 @@ pub struct Arrange {
     pub panel_left: bool,
 }
 
-fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32, u8)>, ov: &mut ArrangeOverrides) {
+fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32, u8, &'static str)>, ov: &mut ArrangeOverrides) {
     entries.sort_by_key(|(i, ..)| *i);
     let Some(path) = crate::persist::data_file("arrange.txt") else { return };
     let old = std::fs::read_to_string(&path).unwrap_or_default();
@@ -1501,15 +1537,15 @@ fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32,
     let mut out: Vec<String> =
         old.lines().filter(|l| !l.starts_with(&pre) || l.starts_with(&pret)).map(|l| l.to_string()).collect();
     ov.adds.insert((kx, ky), vec![]);
-    for (i, add, x, y, rot) in entries {
+    for (i, add, x, y, rot, nm) in entries {
         match add {
             Some(pi) => {
                 ov.adds.get_mut(&(kx, ky)).unwrap().push((pi, x, y, rot));
                 out.push(format!("{kx},{ky} +{pi} {x} {y} {rot}"));
             }
             None => {
-                ov.moved.insert((kx, ky, i), (x, y, rot));
-                out.push(format!("{kx},{ky} {i} {x} {y} {rot}"));
+                ov.moved.insert((kx, ky, i), (x, y, rot, nm.to_string()));
+                out.push(format!("{kx},{ky} {i} {x} {y} {rot} {nm}"));
             }
         }
     }
@@ -1663,7 +1699,7 @@ fn arrange_tick(
                 let entries: Vec<_> = props
                     .iter()
                     .filter(|(pe, t, ..)| *pe != e && t.kx == kx && t.ky == ky)
-                    .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y, t.rot))
+                    .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y, t.rot, prop_name(t.grid)))
                     .collect();
                 dump_room(kx, ky, entries, &mut overrides);
                 return;
@@ -1678,7 +1714,7 @@ fn arrange_tick(
         let entries: Vec<_> = props
             .iter()
             .filter(|(_, t, ..)| t.kx == kx && t.ky == ky)
-            .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y, t.rot))
+            .map(|(_, t, ..)| (t.idx, t.add, t.x, t.y, t.rot, prop_name(t.grid)))
             .collect();
         dump_room(kx, ky, entries, &mut overrides);
         return;
@@ -2233,6 +2269,7 @@ pub fn capital_wake(
                     }
                     let (Ok(x), Ok(y)) = (xs.parse::<f32>(), ys.parse::<f32>()) else { continue };
                     let rot = it.next().and_then(|t| t.parse::<u8>().ok()).unwrap_or(0);
+                    let pname = it.next().unwrap_or("").to_string();
                     if let Some(pi) = is.strip_prefix('+') {
                         if let Ok(pi) = pi.parse::<usize>() {
                             overrides.adds.entry((a, b)).or_default().push((pi, x, y, rot));
@@ -2242,7 +2279,7 @@ pub fn capital_wake(
                             overrides.removed.insert((a, b, ri));
                         }
                     } else if let Ok(i) = is.parse::<usize>() {
-                        overrides.moved.insert((a, b, i), (x, y, rot));
+                        overrides.moved.insert((a, b, i), (x, y, rot, pname));
                     }
                 }
             }
@@ -2417,7 +2454,11 @@ pub fn capital_wake(
             continue; // Baz deleted this one in arrange mode
         }
         // The arranger's saved layout (and rotation) wins over the authored spot.
-        let (px, py, rot) = overrides.moved.get(&(kx, ky, didx)).copied().unwrap_or((*x, *y, 0));
+        let (px, py, rot) = match overrides.moved.get(&(kx, ky, didx)) {
+            // A saved line only applies if this slot still holds the same prop.
+            Some((ox, oy, orot, nm)) if nm.is_empty() || nm == prop_name(grid) => (*ox, *oy, *orot),
+            _ => (*x, *y, 0),
+        };
         let img = if rot % 4 == 0 {
             images.add(crate::gfx::bake(grid, CAPITAL_PAL))
         } else {
