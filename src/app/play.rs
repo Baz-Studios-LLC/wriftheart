@@ -329,6 +329,8 @@ pub struct ModeCtx<'w> {
     pub fluting: Res<'w, super::flute::Fluting>,
     /// Read-only: the ghost-placement mode roots the hero (placing.rs owns the inputs).
     pub placing: Res<'w, super::placing::Placing>,
+    /// Read-only: the F9 prop palette roots the hero while it's open.
+    pub arrange: Res<'w, super::capital_town::Arrange>,
     /// Read-only for the slide-in room build (farm.rs owns the mutations).
     pub farm: Res<'w, super::farm::FarmTiles>,
     pub cleared: Res<'w, super::encounters::ClearedEncounters>,
@@ -717,6 +719,7 @@ pub fn tick(
         || modes.placing.0.is_some()
         || modes.pit.0.is_some()
         || modes.donate.0.is_some()
+        || modes.arrange.pal_open
         || modes.side.0.is_some()
         || modes.cutscene.0.is_some()
         || descending.0.is_some()
