@@ -398,8 +398,8 @@ pub fn tile_edits() -> &'static RwLock<HashMap<(i32, i32, usize), char>> {
     TILE_EDITS.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
-/// DEV TREE PLANTER: real tree entities Baz planted — (kx, ky) -> [(kind, c, r)],
-/// kind 0 = oak, 1 = appletree. Read by room_entities' capital branch.
+/// DEV PLANTER: real entities Baz planted — (kx, ky) -> [(kind, c, r)], kind
+/// 0 = oak, 1 = appletree, 2 = bush. Read by room_entities' capital branch.
 static TREE_ADDS: OnceLock<RwLock<HashMap<(i32, i32), Vec<(u8, i32, i32)>>>> = OnceLock::new();
 pub fn tree_adds() -> &'static RwLock<HashMap<(i32, i32), Vec<(u8, i32, i32)>>> {
     TREE_ADDS.get_or_init(|| RwLock::new(HashMap::new()))

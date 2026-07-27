@@ -135,11 +135,19 @@ impl World {
             for &(c, r) in oaks {
                 out.push(ent("oak", c, r));
             }
-            // Trees Baz planted with the F9 palette (real entities, choppable).
+            // Trees + bushes Baz planted with the F9 palette (real entities).
             if let Ok(tr) = super::capital::tree_adds().read() {
                 if let Some(v) = tr.get(&(kx, ky)) {
                     for (kind, c, r) in v {
-                        out.push(ent(if *kind == 1 { "appletree" } else { "oak" }, *c, *r));
+                        out.push(ent(
+                            match kind {
+                                1 => "appletree",
+                                2 => "bush",
+                                _ => "oak",
+                            },
+                            *c,
+                            *r,
+                        ));
                     }
                 }
             }

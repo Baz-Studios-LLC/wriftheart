@@ -1624,6 +1624,30 @@ const PALETTE: [(&str, &[&str], u32); 14] = [
     ("APPLETREE", &CP_TREE, 0),
 ];
 
+/// Palette entries that plant REAL worldgen entities (gatherable, choppable,
+/// solid) instead of decorative props. The kind is `tree_adds`' u8 — 0 oak,
+/// 1 appletree, 2 bush (Baz: "can those be real bushes?").
+fn plant_kind(pname: &str) -> Option<u8> {
+    match pname {
+        "OAK" => Some(0),
+        "APPLETREE" => Some(1),
+        "BUSH" => Some(2),
+        _ => None,
+    }
+}
+
+/// A planting's carried-ghost geometry: (art, w, h, tag offset from the tile's
+/// origin, handle offset from the tag's origin). The handle is the point that
+/// decides which tile a drop lands on — a tree's trunk foot, a bush's middle —
+/// so `tile + off + handle` always falls inside the tile it plants into.
+fn plant_art(kind: u8) -> (&'static [&'static str], f32, f32, f32, f32, f32, f32) {
+    if kind == 2 {
+        (CP_BUSH.as_slice(), 20.0, 14.0, -2.0, 2.0, 10.0, 10.0)
+    } else {
+        (CP_TREE.as_slice(), 34.0, 46.0, -9.0, -30.0, 17.0, 40.0)
+    }
+}
+
 /// The F8 tile painter's brushes: (name, final map char, wet-paint colour).
 const TILE_PALETTE: [(&str, char, u32); 7] = [
     ("LAWN", '.', 0x4a9a30),
@@ -1819,20 +1843,20 @@ fn arrange_tick(
         }
         if spawn_now {
             let (pname, grid, feet) = PALETTE[arr.pal_sel];
-            // OAK/APPLETREE spawn IN-HAND like every other prop; dropping
-            // plants at the drop tile. (The old plant-at-cursor toggle could
-            // silently unplant a tree when two placements shared a tile.)
-            if pname == "OAK" || pname == "APPLETREE" {
-                let kind: u8 = if pname == "APPLETREE" { 1 } else { 0 };
-                let img = images.add(crate::gfx::bake(&CP_TREE, CAPITAL_PAL));
+            // OAK/APPLETREE/BUSH spawn IN-HAND like every other prop; dropping
+            // plants a REAL entity at the drop tile. (The old plant-at-cursor
+            // toggle could silently unplant when two placements shared a tile.)
+            if let Some(kind) = plant_kind(pname) {
+                let (art, w, h, _, _, hx, hy) = plant_art(kind);
+                let img = images.add(crate::gfx::bake(art, CAPITAL_PAL));
                 let (sx, sy) = pointer
                     .pos
-                    .map(|p2| ((p2.x - PLAY_X - 17.0).round(), (p2.y - PLAY_Y - 40.0).round()))
-                    .unwrap_or((144.0, 66.0));
+                    .map(|p2| ((p2.x - PLAY_X - hx).round(), (p2.y - PLAY_Y - hy).round()))
+                    .unwrap_or((144.0, 96.0));
                 let e = commands
                     .spawn((
                         Sprite::from_image(img),
-                        at(PLAY_X + sx, PLAY_Y + sy, 34.0, 46.0, actor_z(sy + 46.0)),
+                        at(PLAY_X + sx, PLAY_Y + sy, w, h, actor_z(sy + h)),
                         PIXEL_LAYER,
                         RoomActor,
                         CapitalProp,
@@ -1840,14 +1864,14 @@ fn arrange_tick(
                             kx,
                             ky,
                             idx: 900_000,
-                            w: 34.0,
-                            h: 46.0,
+                            w,
+                            h,
                             canopy: false,
                             x: sx,
                             y: sy,
                             add: Some(1000 + kind as usize),
                             rot: 0,
-                            grid: &CP_TREE,
+                            grid: art,
                         },
                     ))
                     .id();
@@ -1947,8 +1971,9 @@ fn arrange_tick(
             if let Some(a2) = tag.add {
                 if a2 >= 1000 {
                     let kind = (a2 - 1000) as u8;
-                    let tc = (((tag.x + 17.0) / 16.0).floor() as i32).clamp(1, 17);
-                    let tr2 = (((tag.y + 40.0) / 16.0).floor() as i32).clamp(1, 11);
+                    let (_, w, h, ox, oy, hx, hy) = plant_art(kind);
+                    let tc = (((tag.x + hx) / 16.0).floor() as i32).clamp(1, 17);
+                    let tr2 = (((tag.y + hy) / 16.0).floor() as i32).clamp(1, 11);
                     // Dropping an AUTHORED tree back on its own tile just lifts
                     // the suppression — adding a planting too would stand two
                     // trees on one tile.
@@ -1972,9 +1997,9 @@ fn arrange_tick(
                         write_tree_lines(kx, ky);
                     }
                     if let Ok((_, mut tag2, _, mut tf)) = props.get_mut(ce2) {
-                        tag2.x = (tc * 16 - 9) as f32;
-                        tag2.y = (tr2 * 16 - 30) as f32;
-                        *tf = at(PLAY_X + tag2.x, PLAY_Y + tag2.y, 34.0, 46.0, actor_z(tag2.y + 46.0));
+                        tag2.x = tc as f32 * 16.0 + ox;
+                        tag2.y = tr2 as f32 * 16.0 + oy;
+                        *tf = at(PLAY_X + tag2.x, PLAY_Y + tag2.y, w, h, actor_z(tag2.y + h));
                     }
                     commands.entity(ce2).remove::<ArrTag>();
                     commands.entity(ce2).insert(GhostTree { c: tc, r: tr2 });
@@ -2011,54 +2036,55 @@ fn arrange_tick(
             }
         }
         // No planting here — an AUTHORED bush/tree (the worldgen tables) is
-        // fair game too, suppressed via "X" lines. Trees hop in-hand exactly
-        // like plantings (dropping replants them as one); bushes remove
-        // outright (Baz: "there are bushes I cant remove with F10").
-        let mut bush_gone = false;
+        // fair game too, suppressed via "X" lines, then carried like any
+        // planting (Baz: "there are bushes I cant remove with F10").
         if picked.is_none() {
-            for (ne, node) in &nodes {
-                if node.c != tc || node.r != tr2 || !matches!(node.kind, "bush" | "oak" | "appletree") {
+            for (_, node) in &nodes {
+                let Some(kind) = (match node.kind {
+                    "oak" => Some(0u8),
+                    "appletree" => Some(1),
+                    "bush" => Some(2),
+                    _ => None,
+                }) else {
+                    continue;
+                };
+                if node.c != tc || node.r != tr2 {
                     continue;
                 }
                 if let Ok(mut m) = crate::worldgen::capital::ent_removes().write() {
                     m.insert((kx, ky, tc, tr2));
                 }
                 write_x_lines(kx, ky);
-                if node.kind == "bush" {
-                    commands.entity(ne).despawn();
-                    bush_gone = true;
-                } else {
-                    picked = Some(u8::from(node.kind == "appletree"));
-                }
+                picked = Some(kind);
                 break;
             }
         }
-        if picked.is_some() || bush_gone {
-            // Its blocker leaves with it (no invisible wall until re-entry).
+        if let Some(kind) = picked {
+            write_tree_lines(kx, ky);
+            // The real entity and its blocker leave with it (no invisible wall
+            // standing where the bush was until the room next rebuilds).
+            for (ne, node) in &nodes {
+                if node.c == tc && node.r == tr2 {
+                    commands.entity(ne).despawn();
+                }
+            }
             let (tx, ty) = ((tc * 16) as f32, (tr2 * 16) as f32);
             blockers.0.retain(|b| {
                 let (cx, cy) = (b.0 + b.2 / 2.0, b.1 + b.3 / 2.0);
                 !(cx >= tx && cx < tx + 16.0 && cy >= ty && cy < ty + 16.0)
             });
-        }
-        if let Some(kind) = picked {
-            write_tree_lines(kx, ky);
-            for (ne, node) in &nodes {
-                if node.tree && node.c == tc && node.r == tr2 {
-                    commands.entity(ne).despawn();
-                }
-            }
             for (ge, g) in &ghosts {
                 if g.c == tc && g.r == tr2 {
                     commands.entity(ge).despawn();
                 }
             }
-            let img = images.add(crate::gfx::bake(&CP_TREE, CAPITAL_PAL));
-            let (gx2, gy2) = ((tc * 16 - 9) as f32, (tr2 * 16 - 30) as f32);
+            let (art, w, h, ox, oy, ..) = plant_art(kind);
+            let img = images.add(crate::gfx::bake(art, CAPITAL_PAL));
+            let (gx2, gy2) = (tc as f32 * 16.0 + ox, tr2 as f32 * 16.0 + oy);
             let e = commands
                 .spawn((
                     Sprite::from_image(img),
-                    at(PLAY_X + gx2, PLAY_Y + gy2, 34.0, 46.0, actor_z(gy2 + 46.0)),
+                    at(PLAY_X + gx2, PLAY_Y + gy2, w, h, actor_z(gy2 + h)),
                     PIXEL_LAYER,
                     RoomActor,
                     CapitalProp,
@@ -2066,14 +2092,14 @@ fn arrange_tick(
                         kx,
                         ky,
                         idx: 900_000,
-                        w: 34.0,
-                        h: 46.0,
+                        w,
+                        h,
                         canopy: false,
                         x: gx2,
                         y: gy2,
                         add: Some(1000 + kind as usize),
                         rot: 0,
-                        grid: &CP_TREE,
+                        grid: art,
                     },
                 ))
                 .id();
