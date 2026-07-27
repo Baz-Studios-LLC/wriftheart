@@ -1389,6 +1389,11 @@ pub struct CapitalInn {
 fn load_layout(overrides: &mut ArrangeOverrides) {
     if !overrides.loaded {
         overrides.loaded = true;
+        // `write_tree_lines`/`write_x_lines` dump a room's WHOLE live list, so a
+        // room's first such line REPLACES what the bake seeded — appending would
+        // stand a second tree on every baked one the next time Baz drags a prop.
+        let mut fresh_e: std::collections::HashSet<(i32, i32)> = std::collections::HashSet::new();
+        let mut fresh_x: std::collections::HashSet<(i32, i32)> = std::collections::HashSet::new();
         if let Some(path) = crate::persist::data_file("arrange.txt") {
             if let Ok(txt) = std::fs::read_to_string(path) {
                 for l in txt.lines() {
@@ -1405,7 +1410,11 @@ fn load_layout(overrides: &mut ArrangeOverrides) {
                             (xs.parse::<u8>(), ys.parse::<i32>(), it.next().map(|t| t.parse::<i32>()))
                         {
                             if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
-                                m.entry((a, b)).or_default().push((k2, c2, r2));
+                                let v = m.entry((a, b)).or_default();
+                                if fresh_e.insert((a, b)) {
+                                    v.clear(); // this room's saved list supersedes the bake
+                                }
+                                v.push((k2, c2, r2));
                             }
                         }
                         continue;
@@ -1423,6 +1432,9 @@ fn load_layout(overrides: &mut ArrangeOverrides) {
                         // removed authored bush/tree: "kx,ky X c r"
                         if let (Ok(c2), Ok(r2)) = (xs.parse::<i32>(), ys.parse::<i32>()) {
                             if let Ok(mut m) = crate::worldgen::capital::ent_removes().write() {
+                                if fresh_x.insert((a, b)) {
+                                    m.retain(|(mx, my, ..)| (*mx, *my) != (a, b));
+                                }
                                 m.insert((a, b, c2, r2));
                             }
                         }
@@ -2359,6 +2371,29 @@ pub struct CapitalProp;
 /// (art, x, y, canopy, blocker) per room — indexed by the room's (kx, ky).
 type Dress = (&'static [&'static str], f32, f32, bool, Option<(f32, f32, f32, f32)>);
 
+/// CP_BENCH turned a quarter clockwise (baked from Baz's arrangement).
+const CP_BENCH_R1: [&str; 20] = [
+    "iiiiiii...",
+    "iiKiiiiDe.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "..KDDe.De.",
+    "iiKiiiiDe.",
+    "iiiiiii...",
+];
 fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
     match (kx, ky) {
         // THE SOUTH GATE (2,4), CENTRED on the mouth (x 128-192, axis 160): the
@@ -2368,10 +2403,13 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_TOWER, 92.0, 160.0, false, None), // stand ON the rampart (already solid)
             (&CP_TOWER, 192.0, 160.0, false, None),
             (&CP_ARCH, 110.0, 156.0, true, None),
-            (&CP_BED_V, 100.0, 88.0, false, Some((100.0, 89.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 88.0, false, Some((194.0, 89.0, 10.0, 22.0))),
-            (&CP_LAMP, 100.0, 100.0, false, Some((102.0, 118.0, 4.0, 4.0))),
-            (&CP_LAMP, 196.0, 100.0, false, Some((198.0, 118.0, 4.0, 4.0))),
+            (&CP_BED_V, 99.0, 85.0, false, Some((99.0, 86.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 85.0, false, Some((194.0, 86.0, 10.0, 22.0))),
+            (&CP_LAMP, 115.0, 100.0, false, Some((117.0, 118.0, 4.0, 4.0))),
+            (&CP_LAMP, 180.0, 100.0, false, Some((182.0, 118.0, 4.0, 4.0))),
+            (&CP_LAMP, 115.0, 20.0, false, Some((117.0, 36.0, 4.0, 5.0))),
+            (&CP_LAMP, 180.0, 20.0, false, Some((182.0, 36.0, 4.0, 5.0))),
+            (&CP_STATUE, 238.0, 24.0, false, Some((240.0, 58.0, 18.0, 5.0))),
         ],
         // THE GRAND PLAZA (2,2): the fountain roundabout at the crossing of the
         // ways — traffic flows around it — benches and blossom urns at the
@@ -2404,6 +2442,8 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_WINDOW, 78.0, 34.0, false, None),
             (&CP_WINDOW, 214.0, 34.0, false, None),
             (&CP_WINDOW, 246.0, 34.0, false, None),
+            (&CP_STATUE, 90.0, 98.0, false, Some((92.0, 132.0, 18.0, 5.0))),
+            (&CP_STATUE, 192.0, 98.0, false, Some((194.0, 132.0, 18.0, 5.0))),
         ],
         // THE CURTAIN WINGS (1,0)/(3,0): engaged turrets at the keep junctions,
         // slits along the walk.
@@ -2420,50 +2460,62 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE APPROACH (2,3): the tree-lined avenue from the S gate — clipped
         // topiary ranks with lamplight between, mirrored on the Way.
         (2, 3) => &[
-            (&CP_TOPIARY, 82.0, 12.0, false, Some((84.0, 34.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 204.0, 12.0, false, Some((206.0, 34.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 82.0, 48.0, false, Some((84.0, 70.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 204.0, 48.0, false, Some((206.0, 70.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 82.0, 7.0, false, Some((84.0, 29.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 7.0, false, Some((206.0, 29.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 82.0, 42.0, false, Some((84.0, 64.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 45.0, false, Some((206.0, 67.0, 14.0, 6.0))),
             (&CP_TOPIARY, 82.0, 132.0, false, Some((84.0, 154.0, 14.0, 6.0))),
             (&CP_TOPIARY, 204.0, 132.0, false, Some((206.0, 154.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 82.0, 168.0, false, Some((84.0, 190.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 82.0, 169.0, false, Some((84.0, 191.0, 14.0, 6.0))),
             (&CP_TOPIARY, 204.0, 168.0, false, Some((206.0, 190.0, 14.0, 6.0))),
             (&CP_BED_V, 100.0, 16.0, false, Some((100.0, 17.0, 10.0, 22.0))),
             (&CP_BED_V, 194.0, 16.0, false, Some((194.0, 17.0, 10.0, 22.0))),
             (&CP_BED_V, 100.0, 52.0, false, Some((100.0, 53.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 52.0, false, Some((194.0, 53.0, 10.0, 22.0))),
-            (&CP_BED_V, 100.0, 136.0, false, Some((100.0, 137.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 136.0, false, Some((194.0, 137.0, 10.0, 22.0))),
-            (&CP_BED_V, 100.0, 172.0, false, Some((100.0, 173.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 172.0, false, Some((194.0, 173.0, 10.0, 22.0))),
-            (&CP_LAMP, 64.0, 56.0, false, Some((66.0, 74.0, 4.0, 4.0))),
-            (&CP_LAMP, 232.0, 56.0, false, Some((234.0, 74.0, 4.0, 4.0))),
-            (&CP_LAMP, 64.0, 130.0, false, Some((66.0, 148.0, 4.0, 4.0))),
-            (&CP_LAMP, 232.0, 130.0, false, Some((234.0, 148.0, 4.0, 4.0))),
+            (&CP_BED_V, 194.0, 54.0, false, Some((194.0, 55.0, 10.0, 22.0))),
+            (&CP_BED_V, 100.0, 146.0, false, Some((100.0, 147.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 146.0, false, Some((194.0, 147.0, 10.0, 22.0))),
+            (&CP_BED_V, 100.0, 180.0, false, Some((100.0, 181.0, 10.0, 22.0))),
+            (&CP_BED_V, 194.0, 179.0, false, Some((194.0, 180.0, 10.0, 22.0))),
+            (&CP_LAMP, 64.0, 68.0, false, Some((66.0, 86.0, 4.0, 4.0))),
+            (&CP_LAMP, 232.0, 69.0, false, Some((234.0, 87.0, 4.0, 4.0))),
+            (&CP_LAMP, 63.0, 116.0, false, Some((65.0, 134.0, 4.0, 4.0))),
+            (&CP_LAMP, 232.0, 117.0, false, Some((234.0, 135.0, 4.0, 4.0))),
+            (&CP_URN, 110.0, 123.0, false, Some((112.0, 133.0, 8.0, 5.0))),
+            (&CP_URN, 179.0, 123.0, false, Some((181.0, 133.0, 8.0, 5.0))),
+            (&CP_URN, 179.0, 75.0, false, Some((181.0, 85.0, 8.0, 5.0))),
+            (&CP_URN, 110.0, 75.0, false, Some((112.0, 85.0, 8.0, 5.0))),
         ],
         // THE PROCESSION (2,1): the last stretch before the keep — sentinel
         // statues and the kingdom's banners, mirrored on the Way.
         (2, 1) => &[
-            (&CP_STATUE, 76.0, 24.0, false, Some((77.0, 56.0, 20.0, 8.0))),
-            (&CP_STATUE, 206.0, 24.0, false, Some((207.0, 56.0, 20.0, 8.0))),
-            (&CP_STATUE, 76.0, 120.0, false, Some((77.0, 152.0, 20.0, 8.0))),
-            (&CP_STATUE, 206.0, 120.0, false, Some((207.0, 152.0, 20.0, 8.0))),
-            (&CP_BANNERPOLE, 98.0, 8.0, false, Some((101.0, 44.0, 6.0, 4.0))),
-            (&CP_BANNERPOLE, 194.0, 8.0, false, Some((197.0, 44.0, 6.0, 4.0))),
-            (&CP_BANNERPOLE, 98.0, 144.0, false, Some((101.0, 180.0, 6.0, 4.0))),
-            (&CP_BANNERPOLE, 194.0, 144.0, false, Some((197.0, 180.0, 6.0, 4.0))),
-            (&CP_BED_V, 100.0, 40.0, false, Some((100.0, 41.0, 10.0, 22.0))),
-            (&CP_BED_V, 194.0, 40.0, false, Some((194.0, 41.0, 10.0, 22.0))),
+            (&CP_STATUE, 89.0, 23.0, false, Some((90.0, 55.0, 20.0, 8.0))),
+            (&CP_STATUE, 193.0, 23.0, false, Some((194.0, 55.0, 20.0, 8.0))),
+            (&CP_STATUE, 89.0, 99.0, false, Some((90.0, 131.0, 20.0, 8.0))),
+            (&CP_STATUE, 193.0, 99.0, false, Some((194.0, 131.0, 20.0, 8.0))),
+            (&CP_BANNERPOLE, 77.0, 20.0, false, Some((80.0, 56.0, 6.0, 4.0))),
+            (&CP_BANNERPOLE, 215.0, 21.0, false, Some((218.0, 57.0, 6.0, 4.0))),
+            (&CP_BANNERPOLE, 77.0, 96.0, false, Some((80.0, 132.0, 6.0, 4.0))),
+            (&CP_BANNERPOLE, 215.0, 97.0, false, Some((218.0, 133.0, 6.0, 4.0))),
+            (&CP_BED_V, 101.0, 155.0, false, Some((101.0, 156.0, 10.0, 22.0))),
+            (&CP_BED_V, 193.0, 155.0, false, Some((193.0, 156.0, 10.0, 22.0))),
+            (&CP_LAMP, 116.0, 146.0, false, Some((118.0, 162.0, 4.0, 5.0))),
+            (&CP_LAMP, 180.0, 146.0, false, Some((182.0, 162.0, 4.0, 5.0))),
+            (&CP_LAMP, 239.0, 50.0, false, Some((241.0, 66.0, 4.0, 5.0))),
+            (&CP_LAMP, 116.0, 18.0, false, Some((118.0, 34.0, 4.0, 5.0))),
+            (&CP_LAMP, 56.0, 49.0, false, Some((58.0, 65.0, 4.0, 5.0))),
+            (&CP_LAMP, 239.0, 98.0, false, Some((241.0, 114.0, 4.0, 5.0))),
+            (&CP_LAMP, 180.0, 18.0, false, Some((182.0, 34.0, 4.0, 5.0))),
+            (&CP_LAMP, 56.0, 93.0, false, Some((58.0, 109.0, 4.0, 5.0))),
         ],
         // THE W GATE (0,2): twin towers on the rampart above and below the
         // mouth, lamplight and blossoms inside — mirrored on the Cross Way.
         (0, 2) => &[
             (&CP_TOWER, 8.0, 32.0, false, None),
             (&CP_TOWER, 8.0, 128.0, false, None),
-            (&CP_LAMP, 36.0, 76.0, false, Some((38.0, 94.0, 4.0, 4.0))),
-            (&CP_LAMP, 36.0, 110.0, false, Some((38.0, 128.0, 4.0, 4.0))),
-            (&CP_BED_V, 40.0, 40.0, false, Some((40.0, 41.0, 10.0, 22.0))),
-            (&CP_BED_V, 40.0, 144.0, false, Some((40.0, 145.0, 10.0, 22.0))),
+            (&CP_LAMP, 34.0, 69.0, false, Some((36.0, 87.0, 4.0, 4.0))),
+            (&CP_LAMP, 33.0, 115.0, false, Some((35.0, 133.0, 4.0, 4.0))),
+            (&CP_BED_V, 32.0, 56.0, false, Some((32.0, 57.0, 10.0, 22.0))),
+            (&CP_BED_V, 32.0, 144.0, false, Some((32.0, 145.0, 10.0, 22.0))),
         ],
         // THE E GATE (4,2): the same face, mirrored.
         (4, 2) => &[
@@ -2476,8 +2528,11 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         ],
         // THE PARTERRE GARDENS (0,1)/(4,1): benches on the walk's axis, urns
         // between the hedge quads.
-        (0, 1) | (4, 1) => &[
-            (&CP_BENCH, 142.0, 180.0, false, Some((143.0, 184.0, 18.0, 4.0))),
+        (0, 1) => &[
+            (&CP_URN, 36.0, 76.0, false, Some((38.0, 84.0, 8.0, 5.0))),
+            (&CP_URN, 256.0, 76.0, false, Some((258.0, 84.0, 8.0, 5.0))),
+        ],
+        (4, 1) => &[
             (&CP_URN, 36.0, 76.0, false, Some((38.0, 84.0, 8.0, 5.0))),
             (&CP_URN, 256.0, 76.0, false, Some((258.0, 84.0, 8.0, 5.0))),
         ],
@@ -2488,7 +2543,7 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_TOPIARY, 222.0, 34.0, false, Some((224.0, 56.0, 14.0, 6.0))),
             (&CP_TOPIARY, 66.0, 164.0, false, Some((68.0, 186.0, 14.0, 6.0))),
             (&CP_TOPIARY, 222.0, 164.0, false, Some((224.0, 186.0, 14.0, 6.0))),
-            (&CP_BENCH, 258.0, 116.0, false, Some((259.0, 120.0, 18.0, 4.0))),
+            (&CP_BENCH, 256.0, 114.0, false, Some((257.0, 118.0, 18.0, 4.0))),
             (&CP_BENCH, 258.0, 146.0, false, Some((259.0, 150.0, 18.0, 4.0))),
             (&CP_URN, 146.0, 28.0, false, Some((148.0, 36.0, 8.0, 5.0))),
             (&CP_URN, 112.0, 190.0, false, Some((114.0, 198.0, 8.0, 5.0))),
@@ -2503,8 +2558,6 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_TOPIARY, 222.0, 34.0, false, Some((224.0, 56.0, 14.0, 6.0))),
             (&CP_TOPIARY, 66.0, 164.0, false, Some((68.0, 186.0, 14.0, 6.0))),
             (&CP_TOPIARY, 222.0, 164.0, false, Some((224.0, 186.0, 14.0, 6.0))),
-            (&CP_BENCH, 26.0, 116.0, false, Some((27.0, 120.0, 18.0, 4.0))),
-            (&CP_BENCH, 26.0, 146.0, false, Some((27.0, 150.0, 18.0, 4.0))),
             (&CP_URN, 146.0, 28.0, false, Some((148.0, 36.0, 8.0, 5.0))),
             (&CP_URN, 112.0, 190.0, false, Some((114.0, 198.0, 8.0, 5.0))),
             (&CP_URN, 180.0, 190.0, false, Some((182.0, 198.0, 8.0, 5.0))),
@@ -2512,29 +2565,48 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
             (&CP_LAMP, 246.0, 28.0, false, Some((248.0, 46.0, 4.0, 4.0))),
             (&CP_LAMP, 50.0, 172.0, false, Some((52.0, 190.0, 4.0, 4.0))),
             (&CP_LAMP, 246.0, 172.0, false, Some((248.0, 190.0, 4.0, 4.0))),
+            (&CP_BENCH, 111.0, 50.0, false, Some((113.0, 54.0, 16.0, 5.0))),
+            (&CP_BENCH, 181.0, 50.0, false, Some((183.0, 54.0, 16.0, 5.0))),
+            (&CP_BENCH_R1, 229.0, 80.0, false, Some((231.0, 94.0, 6.0, 5.0))),
+            (&CP_BENCH_R1, 228.0, 133.0, false, Some((230.0, 147.0, 6.0, 5.0))),
         ],
         // THE CATHEDRAL QUARTER (3,4): the nave face — rose window over the
         // pointed doors, lancets, the gold cross on the roofline — a lamplit
         // courtyard, and the hedge-walled graveyard in ordered ranks.
         (3, 4) => &[
-            (&CP_LAMP, 148.0, 82.0, false, Some((150.0, 100.0, 4.0, 4.0))),
-            (&CP_LAMP, 212.0, 82.0, false, Some((214.0, 100.0, 4.0, 4.0))),
-            (&CP_URN, 108.0, 84.0, false, Some((110.0, 92.0, 8.0, 5.0))),
-            (&CP_URN, 248.0, 84.0, false, Some((250.0, 92.0, 8.0, 5.0))),
-            (&CP_URN, 108.0, 124.0, false, Some((110.0, 132.0, 8.0, 5.0))),
-            (&CP_URN, 248.0, 124.0, false, Some((250.0, 132.0, 8.0, 5.0))),
-            (&CP_BENCH, 128.0, 162.0, false, Some((129.0, 166.0, 18.0, 4.0))),
-            (&CP_BENCH, 220.0, 162.0, false, Some((221.0, 166.0, 18.0, 4.0))),
-            (&CP_HEADSTONE, 40.0, 36.0, false, Some((41.0, 44.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 60.0, 36.0, false, Some((61.0, 44.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 40.0, 68.0, false, Some((41.0, 76.0, 8.0, 4.0))),
-            (&CP_HEADSTONE, 60.0, 68.0, false, Some((61.0, 76.0, 8.0, 4.0))),
+            (&CP_LAMP, 166.0, 24.0, false, Some((168.0, 42.0, 4.0, 4.0))),
+            (&CP_LAMP, 164.0, 52.0, false, Some((166.0, 70.0, 4.0, 4.0))),
+            (&CP_URN, 172.0, 2.0, false, Some((174.0, 10.0, 8.0, 5.0))),
+            (&CP_URN, 120.0, 28.0, false, Some((122.0, 36.0, 8.0, 5.0))),
+            (&CP_URN, 220.0, 28.0, false, Some((222.0, 36.0, 8.0, 5.0))),
+            (&CP_URN, 82.0, 101.0, false, Some((84.0, 109.0, 8.0, 5.0))),
+            (&CP_BENCH, 204.0, 72.0, false, Some((205.0, 76.0, 18.0, 4.0))),
+            (&CP_BENCH, 144.0, 73.0, false, Some((145.0, 77.0, 18.0, 4.0))),
+            (&CP_HEADSTONE, 23.0, 19.0, false, Some((24.0, 27.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 23.0, 52.0, false, Some((24.0, 60.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 63.0, 19.0, false, Some((64.0, 27.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 43.0, 19.0, false, Some((44.0, 27.0, 8.0, 4.0))),
+            (&CP_HEADSTONE, 43.0, 52.0, false, Some((45.0, 58.0, 6.0, 5.0))),
+            (&CP_HEADSTONE, 63.0, 52.0, false, Some((65.0, 58.0, 6.0, 5.0))),
+            (&CP_HEADSTONE, 23.0, 84.0, false, Some((25.0, 90.0, 6.0, 5.0))),
+            (&CP_HEADSTONE, 43.0, 84.0, false, Some((45.0, 90.0, 6.0, 5.0))),
+            (&CP_HEADSTONE, 63.0, 84.0, false, Some((65.0, 90.0, 6.0, 5.0))),
+            (&CP_URN, 1.0, 101.0, false, Some((3.0, 111.0, 8.0, 5.0))),
+            (&CP_LAMP, 275.0, 131.0, false, Some((277.0, 147.0, 4.0, 5.0))),
+            (&CP_LAMP, 84.0, 131.0, false, Some((86.0, 147.0, 4.0, 5.0))),
+            (&CP_LAMP, 182.0, 131.0, false, Some((184.0, 147.0, 4.0, 5.0))),
         ],
         // THE SHOP DISTRICT (1,3)/(3,3): shopfronts on a cobbled high street,
         // awnings out, lamps at the ends. Doors open the trades' shelves.
-        (1, 3) | (3, 3) => &[
-            (&CP_LAMP, 20.0, 100.0, false, Some((22.0, 118.0, 4.0, 4.0))),
-            (&CP_LAMP, 276.0, 100.0, false, Some((278.0, 118.0, 4.0, 4.0))),
+        (1, 3) => &[
+            (&CP_LAMP, 8.0, 69.0, false, Some((10.0, 87.0, 4.0, 4.0))),
+            (&CP_LAMP, 289.0, 68.0, false, Some((291.0, 86.0, 4.0, 4.0))),
+        ],
+        (3, 3) => &[
+            (&CP_LAMP, 172.0, 63.0, false, Some((174.0, 81.0, 4.0, 4.0))),
+            (&CP_LAMP, 124.0, 63.0, false, Some((126.0, 81.0, 4.0, 4.0))),
+            (&CP_LAMP, 220.0, 63.0, false, Some((222.0, 79.0, 4.0, 5.0))),
+            (&CP_LAMP, 76.0, 63.0, false, Some((78.0, 79.0, 4.0, 5.0))),
         ],
         // THE RESIDENTIAL DISTRICT (1,4): row houses on cobbled lanes.
         (1, 4) => &[
@@ -2551,51 +2623,62 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE STATUE GARDEN (0,3): a sentinel ringed by topiary on the west square.
         (0, 3) => &[
             (&CP_STATUE, 149.0, 66.0, false, Some((150.0, 98.0, 20.0, 8.0))),
-            (&CP_TOPIARY, 100.0, 24.0, false, Some((102.0, 46.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 202.0, 24.0, false, Some((204.0, 46.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 100.0, 116.0, false, Some((102.0, 138.0, 14.0, 6.0))),
-            (&CP_TOPIARY, 202.0, 116.0, false, Some((204.0, 138.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 96.0, 27.0, false, Some((98.0, 49.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 28.0, false, Some((206.0, 50.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 97.0, 114.0, false, Some((99.0, 136.0, 14.0, 6.0))),
+            (&CP_TOPIARY, 204.0, 113.0, false, Some((206.0, 135.0, 14.0, 6.0))),
             (&CP_BENCH, 106.0, 92.0, false, Some((107.0, 96.0, 18.0, 4.0))),
             (&CP_BENCH, 194.0, 92.0, false, Some((195.0, 96.0, 18.0, 4.0))),
-            (&CP_URN, 154.0, 44.0, false, Some((156.0, 52.0, 8.0, 5.0))),
-            (&CP_URN, 154.0, 148.0, false, Some((156.0, 156.0, 8.0, 5.0))),
+            (&CP_URN, 152.0, 29.0, false, Some((154.0, 37.0, 8.0, 5.0))),
         ],
         // THE COMMONS GREEN (4,3): a second fountain square east, benches all round.
         (4, 3) => &[
-            (&CP_FOUNTAIN, 122.0, 76.0, false, Some((126.0, 94.0, 36.0, 16.0))),
-            (&CP_BENCH, 134.0, 40.0, false, Some((135.0, 44.0, 18.0, 4.0))),
-            (&CP_BENCH, 134.0, 150.0, false, Some((135.0, 154.0, 18.0, 4.0))),
-            (&CP_BENCH, 84.0, 88.0, false, Some((85.0, 92.0, 18.0, 4.0))),
-            (&CP_BENCH, 184.0, 88.0, false, Some((185.0, 92.0, 18.0, 4.0))),
-            (&CP_URN, 84.0, 44.0, false, Some((86.0, 52.0, 8.0, 5.0))),
-            (&CP_URN, 192.0, 44.0, false, Some((194.0, 52.0, 8.0, 5.0))),
-            (&CP_URN, 84.0, 144.0, false, Some((86.0, 152.0, 8.0, 5.0))),
-            (&CP_URN, 192.0, 144.0, false, Some((194.0, 152.0, 8.0, 5.0))),
+            (&CP_FOUNTAIN, 121.0, 89.0, false, Some((125.0, 107.0, 36.0, 16.0))),
+            (&CP_BENCH, 134.0, 48.0, false, Some((135.0, 52.0, 18.0, 4.0))),
+            (&CP_BENCH_R1, 197.0, 99.0, false, Some((199.0, 113.0, 6.0, 5.0))), // turned 90 deg
+            (&CP_URN, 66.0, 29.0, false, Some((68.0, 37.0, 8.0, 5.0))),
+            (&CP_URN, 209.0, 29.0, false, Some((211.0, 37.0, 8.0, 5.0))),
+            (&CP_URN, 65.0, 170.0, false, Some((67.0, 178.0, 8.0, 5.0))),
+            (&CP_URN, 209.0, 170.0, false, Some((211.0, 178.0, 8.0, 5.0))),
             (&CP_LAMP, 48.0, 60.0, false, Some((50.0, 78.0, 4.0, 4.0))),
-            (&CP_LAMP, 232.0, 60.0, false, Some((234.0, 78.0, 4.0, 4.0))),
-            (&CP_LAMP, 48.0, 124.0, false, Some((50.0, 142.0, 4.0, 4.0))),
-            (&CP_LAMP, 232.0, 124.0, false, Some((234.0, 142.0, 4.0, 4.0))),
+            (&CP_LAMP, 212.0, 48.0, false, Some((214.0, 66.0, 4.0, 4.0))),
+            (&CP_LAMP, 68.0, 48.0, false, Some((70.0, 66.0, 4.0, 4.0))),
+            (&CP_LAMP, 212.0, 141.0, false, Some((214.0, 159.0, 4.0, 4.0))),
+            (&CP_LAMP, 68.0, 141.0, false, Some((70.0, 157.0, 4.0, 5.0))),
         ],
         // THE GUILDHALL FORECOURT (1,1): sentinels and benches on the hall's
         // green, lamplight at the pad corners.
         (1, 1) => &[
-            (&CP_STATUE, 50.0, 96.0, false, Some((51.0, 128.0, 20.0, 8.0))),
-            (&CP_STATUE, 232.0, 96.0, false, Some((233.0, 128.0, 20.0, 8.0))),
-            (&CP_URN, 122.0, 68.0, false, Some((124.0, 76.0, 8.0, 5.0))),
-            (&CP_URN, 170.0, 68.0, false, Some((172.0, 76.0, 8.0, 5.0))),
-            (&CP_BED_H, 100.0, 132.0, false, Some((101.0, 133.0, 30.0, 8.0))),
-            (&CP_BED_H, 172.0, 132.0, false, Some((173.0, 133.0, 30.0, 8.0))),
-            (&CP_BENCH, 106.0, 162.0, false, Some((107.0, 166.0, 18.0, 4.0))),
-            (&CP_BENCH, 178.0, 162.0, false, Some((179.0, 166.0, 18.0, 4.0))),
+            (&CP_STATUE, 98.0, 30.0, false, Some((99.0, 62.0, 20.0, 8.0))),
+            (&CP_STATUE, 183.0, 30.0, false, Some((184.0, 62.0, 20.0, 8.0))),
+            (&CP_URN, 120.0, 55.0, false, Some((122.0, 63.0, 8.0, 5.0))),
+            (&CP_URN, 172.0, 55.0, false, Some((174.0, 63.0, 8.0, 5.0))),
+            (&CP_BED_H, 96.0, 147.0, false, Some((97.0, 148.0, 30.0, 8.0))),
+            (&CP_BED_H, 176.0, 146.0, false, Some((177.0, 147.0, 30.0, 8.0))),
+            (&CP_BENCH, 107.0, 132.0, false, Some((108.0, 136.0, 18.0, 4.0))),
+            (&CP_BENCH, 176.0, 132.0, false, Some((177.0, 136.0, 18.0, 4.0))),
             (&CP_LAMP, 84.0, 32.0, false, Some((86.0, 50.0, 4.0, 4.0))),
             (&CP_LAMP, 212.0, 32.0, false, Some((214.0, 50.0, 4.0, 4.0))),
-            (&CP_LAMP, 84.0, 112.0, false, Some((86.0, 130.0, 4.0, 4.0))),
-            (&CP_LAMP, 212.0, 112.0, false, Some((214.0, 130.0, 4.0, 4.0))),
+            (&CP_LAMP, 132.0, 132.0, false, Some((134.0, 150.0, 4.0, 4.0))),
+            (&CP_LAMP, 164.0, 132.0, false, Some((166.0, 150.0, 4.0, 4.0))),
         ],
         // THE MARKET SQUARES (1,2)/(3,2): lamplit corners, benches on the south
         // rail, baskets and blossom strips between the stalls (self-symmetric
         // about x152, so one arm serves both mirrored rooms).
-        (1, 2) | (3, 2) => &[
+        (1, 2) => &[
+            (&CP_MKCROSS, 138.0, 66.0, false, Some((142.0, 94.0, 20.0, 8.0))),
+            (&CP_BED_H, 76.0, 3.0, false, Some((77.0, 4.0, 30.0, 8.0))),
+            (&CP_BED_H, 191.0, 2.0, false, Some((192.0, 3.0, 30.0, 8.0))),
+            (&CP_BASKET, 104.0, 44.0, false, Some((105.0, 48.0, 10.0, 5.0))),
+            (&CP_BASKET, 190.0, 44.0, false, Some((191.0, 48.0, 10.0, 5.0))),
+            (&CP_BASKET, 104.0, 144.0, false, Some((105.0, 148.0, 10.0, 5.0))),
+            (&CP_BASKET, 190.0, 144.0, false, Some((191.0, 148.0, 10.0, 5.0))),
+            (&CP_LAMP, 52.0, 24.0, false, Some((54.0, 42.0, 4.0, 4.0))),
+            (&CP_LAMP, 244.0, 24.0, false, Some((246.0, 42.0, 4.0, 4.0))),
+            (&CP_LAMP, 52.0, 160.0, false, Some((54.0, 178.0, 4.0, 4.0))),
+            (&CP_LAMP, 244.0, 160.0, false, Some((246.0, 178.0, 4.0, 4.0))),
+        ],
+        (3, 2) => &[
             (&CP_MKCROSS, 138.0, 62.0, false, Some((142.0, 90.0, 20.0, 8.0))),
             (&CP_BED_H, 88.0, 16.0, false, Some((89.0, 17.0, 30.0, 8.0))),
             (&CP_BED_H, 184.0, 16.0, false, Some((185.0, 17.0, 30.0, 8.0))),
@@ -2611,16 +2694,16 @@ fn dressing(kx: i32, ky: i32) -> &'static [Dress] {
         // THE INN COURT (3,1): lamplight at the door, ale benches on the pad,
         // urns at the flanks, blossoms and baskets by the lane.
         (3, 1) => &[
-            (&CP_LAMP, 124.0, 92.0, false, Some((126.0, 110.0, 4.0, 4.0))),
-            (&CP_LAMP, 172.0, 92.0, false, Some((174.0, 110.0, 4.0, 4.0))),
-            (&CP_BENCH, 100.0, 120.0, false, Some((101.0, 124.0, 18.0, 4.0))),
-            (&CP_BENCH, 184.0, 120.0, false, Some((185.0, 124.0, 18.0, 4.0))),
+            (&CP_LAMP, 124.0, 75.0, false, Some((126.0, 93.0, 4.0, 4.0))),
+            (&CP_LAMP, 170.0, 76.0, false, Some((172.0, 94.0, 4.0, 4.0))),
+            (&CP_BENCH, 91.0, 131.0, false, Some((92.0, 135.0, 18.0, 4.0))),
+            (&CP_BENCH, 190.0, 131.0, false, Some((191.0, 135.0, 18.0, 4.0))),
             (&CP_URN, 68.0, 36.0, false, Some((70.0, 44.0, 8.0, 5.0))),
             (&CP_URN, 224.0, 36.0, false, Some((226.0, 44.0, 8.0, 5.0))),
-            (&CP_BED_H, 86.0, 140.0, false, Some((87.0, 141.0, 30.0, 8.0))),
-            (&CP_BED_H, 186.0, 140.0, false, Some((187.0, 141.0, 30.0, 8.0))),
-            (&CP_BASKET, 114.0, 160.0, false, Some((115.0, 164.0, 10.0, 5.0))),
-            (&CP_BASKET, 178.0, 160.0, false, Some((179.0, 164.0, 10.0, 5.0))),
+            (&CP_BED_H, 94.0, 147.0, false, Some((95.0, 148.0, 30.0, 8.0))),
+            (&CP_BED_H, 177.0, 145.0, false, Some((178.0, 146.0, 30.0, 8.0))),
+            (&CP_BASKET, 114.0, 164.0, false, Some((115.0, 168.0, 10.0, 5.0))),
+            (&CP_BASKET, 177.0, 164.0, false, Some((178.0, 168.0, 10.0, 5.0))),
         ],
         _ => &[],
     }
