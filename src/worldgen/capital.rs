@@ -405,6 +405,14 @@ pub fn tree_adds() -> &'static RwLock<HashMap<(i32, i32), Vec<(u8, i32, i32)>>> 
     TREE_ADDS.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
+/// DEV ARRANGE: authored bushes/trees Baz removed with F10 - (kx, ky, c, r).
+/// Baked removals seed the set; arrange.txt "X" lines add the live ones.
+static BAKED_REMOVES: &[(i32, i32, i32, i32)] = &[];
+static ENT_REMOVES: OnceLock<RwLock<HashSet<(i32, i32, i32, i32)>>> = OnceLock::new();
+pub fn ent_removes() -> &'static RwLock<HashSet<(i32, i32, i32, i32)>> {
+    ENT_REMOVES.get_or_init(|| RwLock::new(BAKED_REMOVES.iter().copied().collect()))
+}
+
 pub fn room_map(kx: i32, ky: i32, _wall: char) -> RoomMap {
     let t = &TEMPLATES[(ky * 5 + kx) as usize];
     let mut map: Vec<String> = t.iter().map(|r| r.chars().map(|c| match c { 'W' => 'K', 'p' | '_' => 'q', other => other }).collect()).collect();

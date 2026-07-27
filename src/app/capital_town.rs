@@ -1419,6 +1419,15 @@ fn load_layout(overrides: &mut ArrangeOverrides) {
                         }
                         continue;
                     }
+                    if is == "X" {
+                        // removed authored bush/tree: "kx,ky X c r"
+                        if let (Ok(c2), Ok(r2)) = (xs.parse::<i32>(), ys.parse::<i32>()) {
+                            if let Ok(mut m) = crate::worldgen::capital::ent_removes().write() {
+                                m.insert((a, b, c2, r2));
+                            }
+                        }
+                        continue;
+                    }
                     let (Ok(x), Ok(y)) = (xs.parse::<f32>(), ys.parse::<f32>()) else { continue };
                     let rot = it.next().and_then(|t| t.parse::<u8>().ok()).unwrap_or(0);
                     let pname = it.next().unwrap_or("").to_string();
@@ -1684,14 +1693,35 @@ fn write_tree_lines(kx: i32, ky: i32) {
     let _ = std::fs::write(&path, out.join("\n") + "\n");
 }
 
+/// Rewrite one room's removed-authored-entity lines from the live static.
+fn write_x_lines(kx: i32, ky: i32) {
+    let Some(path) = crate::persist::data_file("arrange.txt") else { return };
+    let old = std::fs::read_to_string(&path).unwrap_or_default();
+    let pre = format!("{kx},{ky} X ");
+    let mut out: Vec<String> = old.lines().filter(|l| !l.starts_with(&pre)).map(|l| l.to_string()).collect();
+    if let Ok(m) = crate::worldgen::capital::ent_removes().read() {
+        for (a, b, c2, r2) in m.iter() {
+            if *a == kx && *b == ky {
+                out.push(format!("{kx},{ky} X {c2} {r2}"));
+            }
+        }
+    }
+    let _ = std::fs::write(&path, out.join("\n") + "\n");
+}
+
 fn dump_room(kx: i32, ky: i32, mut entries: Vec<(usize, Option<usize>, f32, f32, u8, &'static str)>, ov: &mut ArrangeOverrides) {
     entries.sort_by_key(|(i, ..)| *i);
     let Some(path) = crate::persist::data_file("arrange.txt") else { return };
     let old = std::fs::read_to_string(&path).unwrap_or_default();
     let pre = format!("{kx},{ky} ");
-    let pret = format!("{kx},{ky} T ");
-    let mut out: Vec<String> =
-        old.lines().filter(|l| !l.starts_with(&pre) || l.starts_with(&pret)).map(|l| l.to_string()).collect();
+    // This dump owns only the room's move/add/removal lines — its tile paints
+    // (T), planted trees (E), and authored removals (X) must survive it. (E
+    // lines used to be wiped here: moving any prop erased the room's trees.)
+    let mut out: Vec<String> = old
+        .lines()
+        .filter(|l| !l.starts_with(&pre) || matches!(l.split_whitespace().nth(1), Some("T") | Some("E") | Some("X")))
+        .map(|l| l.to_string())
+        .collect();
     ov.adds.insert((kx, ky), vec![]);
     for (i, add, x, y, rot, nm) in entries {
         match add {
@@ -1723,6 +1753,7 @@ fn arrange_tick(
     mut props: Query<(Entity, &mut ArrTag, &mut Sprite, &mut Transform)>,
     ghosts: Query<(Entity, &GhostTree)>,
     nodes: Query<(Entity, &super::gather::GatherNode)>,
+    mut blockers: ResMut<super::room_props::RoomBlockers>,
     mut overrides: ResMut<ArrangeOverrides>,
 ) {
     let cap = world.0.capital_room(cur.rx, cur.ry);
@@ -1918,15 +1949,28 @@ fn arrange_tick(
                     let kind = (a2 - 1000) as u8;
                     let tc = (((tag.x + 17.0) / 16.0).floor() as i32).clamp(1, 17);
                     let tr2 = (((tag.y + 40.0) / 16.0).floor() as i32).clamp(1, 11);
-                    if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
-                        let v = m.entry((kx, ky)).or_default();
-                        if v.iter().any(|(_, c2, r2)| *c2 == tc && *r2 == tr2) {
-                            arr.carrying = Some(ce2); // tile taken: stays in hand
-                            return;
+                    // Dropping an AUTHORED tree back on its own tile just lifts
+                    // the suppression — adding a planting too would stand two
+                    // trees on one tile.
+                    let restored = crate::worldgen::capital::ent_removes()
+                        .write()
+                        .map(|mut m| m.remove(&(kx, ky, tc, tr2)))
+                        .unwrap_or(false);
+                    if restored {
+                        write_x_lines(kx, ky);
+                    } else {
+                        if let Ok(mut m) = crate::worldgen::capital::tree_adds().write() {
+                            let v = m.entry((kx, ky)).or_default();
+                            // Taken = a planting OR any live bush/tree node there.
+                            let node_here = nodes.iter().any(|(_, n)| n.c == tc && n.r == tr2);
+                            if node_here || v.iter().any(|(_, c2, r2)| *c2 == tc && *r2 == tr2) {
+                                arr.carrying = Some(ce2); // tile taken: stays in hand
+                                return;
+                            }
+                            v.push((kind, tc, tr2));
                         }
-                        v.push((kind, tc, tr2));
+                        write_tree_lines(kx, ky);
                     }
-                    write_tree_lines(kx, ky);
                     if let Ok((_, mut tag2, _, mut tf)) = props.get_mut(ce2) {
                         tag2.x = (tc * 16 - 9) as f32;
                         tag2.y = (tr2 * 16 - 30) as f32;
@@ -1965,6 +2009,37 @@ fn arrange_tick(
                     picked = Some(v.remove(i2).0);
                 }
             }
+        }
+        // No planting here — an AUTHORED bush/tree (the worldgen tables) is
+        // fair game too, suppressed via "X" lines. Trees hop in-hand exactly
+        // like plantings (dropping replants them as one); bushes remove
+        // outright (Baz: "there are bushes I cant remove with F10").
+        let mut bush_gone = false;
+        if picked.is_none() {
+            for (ne, node) in &nodes {
+                if node.c != tc || node.r != tr2 || !matches!(node.kind, "bush" | "oak" | "appletree") {
+                    continue;
+                }
+                if let Ok(mut m) = crate::worldgen::capital::ent_removes().write() {
+                    m.insert((kx, ky, tc, tr2));
+                }
+                write_x_lines(kx, ky);
+                if node.kind == "bush" {
+                    commands.entity(ne).despawn();
+                    bush_gone = true;
+                } else {
+                    picked = Some(u8::from(node.kind == "appletree"));
+                }
+                break;
+            }
+        }
+        if picked.is_some() || bush_gone {
+            // Its blocker leaves with it (no invisible wall until re-entry).
+            let (tx, ty) = ((tc * 16) as f32, (tr2 * 16) as f32);
+            blockers.0.retain(|b| {
+                let (cx, cy) = (b.0 + b.2 / 2.0, b.1 + b.3 / 2.0);
+                !(cx >= tx && cx < tx + 16.0 && cy >= ty && cy < ty + 16.0)
+            });
         }
         if let Some(kind) = picked {
             write_tree_lines(kx, ky);

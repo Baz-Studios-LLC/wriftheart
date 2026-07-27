@@ -164,6 +164,12 @@ impl World {
             for &(c, r) in bushes {
                 out.push(ent("bush", c, r));
             }
+            // DEV ARRANGE: authored bushes/trees Baz deleted with F10 ("X" lines).
+            if let Ok(rm) = super::capital::ent_removes().read() {
+                if !rm.is_empty() {
+                    out.retain(|e| !rm.contains(&(kx, ky, e.x / TILE, e.y / TILE)));
+                }
+            }
             let taken: Vec<(i32, i32)> = out.iter().map(|e| (e.x / TILE, e.y / TILE)).collect();
             for r in 1..ROWS - 1 {
                 for c in 1..COLS - 1 {
